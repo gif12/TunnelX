@@ -21,7 +21,7 @@ dotnet publish AppTunnel\AppTunnel.csproj -c Release -r win-x64 --self-contained
 Rename the final executable with the app version:
 
 ```powershell
-TunnelX-v1.2.21-standalone-compressed.exe
+TunnelX-v1.2.22-standalone-compressed.exe
 ```
 
 ## 32-bit Windows
