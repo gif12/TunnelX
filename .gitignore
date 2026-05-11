@@ -29,6 +29,8 @@ create-ico.ps1
 
 # Personal notes and exported documents
 *.docx
+docs/PRIVACY_REVIEW.md
+docs/PUBLISHING_CHECKLIST.md
 
 # Logs and temporary files
 *.log

@@ -2,7 +2,7 @@
 
 TunnelX is a free and open-source Windows split-tunneling client built by **MaxFan**. It routes selected apps, selected destinations, or the whole system through supported tunnel cores while keeping local and excluded destinations on the normal network path.
 
-> Status: pre-release. Review `docs/PUBLISHING_CHECKLIST.md` before publishing a public repository or release artifact.
+> Status: pre-release. Review the release notes in `docs/BUILD.md` before publishing a public artifact.
 
 ## Features
 
@@ -15,7 +15,7 @@ TunnelX is a free and open-source Windows split-tunneling client built by **MaxF
 
 ## Download
 
-Public downloads should be attached to GitHub Releases after the checklist is complete:
+Public downloads should be attached to GitHub Releases after release validation is complete:
 
 [GitHub project](https://github.com/MaxiFan/TunnelX)
 

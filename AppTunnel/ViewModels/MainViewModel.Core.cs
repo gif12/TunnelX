@@ -64,6 +64,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         ClearConfigCommand = new RelayCommand(_ => SelectedV2RayConfig = "", _ => !IsConnected && CurrentTunnelType == TunnelType.V2Ray);
         OpenGitHubCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.GitHubUrl));
         OpenDonateCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.PayPalDonateUrl));
+        CopyDonationInfoCommand = new RelayCommand(_ => CopyDonationInfoToClipboard());
 
         _trafficRouter.TrafficUpdated += OnTrafficUpdated;
 
@@ -247,7 +248,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string AppCreatorText => AppInfo.CreatorText;
     public string AppGitHubUrl => AppInfo.GitHubUrl;
     public string AppLicenseText => AppInfo.LicenseName;
-    public string DonatePayPalText => $"PayPal: {AppInfo.PayPalEmail}";
+    public string DonatePayPalText => $"پی‌پل: {AppInfo.PayPalEmail}";
     public string CryptoDonationText => AppInfo.CryptoDonationText;
 
     public string ConnectButtonText => _connectionState switch
@@ -617,6 +618,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     public ICommand ClearConfigCommand { get; }
     public ICommand OpenGitHubCommand { get; }
     public ICommand OpenDonateCommand { get; }
+    public ICommand CopyDonationInfoCommand { get; }
 
     #endregion
 
@@ -635,6 +637,24 @@ public partial class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             Logger.Warning($"[UI] Open link failed: {url} — {ex.Message}");
+        }
+    }
+
+    private void CopyDonationInfoToClipboard()
+    {
+        try
+        {
+            var text =
+                $"{AppInfo.AppName} - حمایت از پروژه\n" +
+                $"PayPal: {AppInfo.PayPalEmail}\n" +
+                $"PayPal link: {AppInfo.PayPalDonateUrl}\n\n" +
+                AppInfo.CryptoDonationText;
+            System.Windows.Clipboard.SetText(text);
+            Logger.Info("[UI] Donation info copied to clipboard");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[UI] Copy donation info failed: {ex.Message}");
         }
     }
 

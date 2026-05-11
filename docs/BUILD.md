@@ -30,7 +30,7 @@ TunnelX-v1.2.21-standalone-compressed.exe
 
 ## Before Publishing
 
-- Run the leak test plan in `docs/PUBLISHING_CHECKLIST.md`.
+- Run leak, DNS, full-route, split-route, app toggle, and reconnect tests before attaching a public artifact.
 - Confirm third-party license notices are current.
 - Confirm the app version in `AppTunnel/AppTunnel.csproj`.
 - Attach release artifacts only to GitHub Releases; do not commit generated `publish/` or `Releases/` output.

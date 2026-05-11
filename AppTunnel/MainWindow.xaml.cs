@@ -377,7 +377,8 @@ public partial class MainWindow : Window
     {
         var helpWindow = new AppTunnel.Views.HelpWindow
         {
-            Owner = this
+            Owner = this,
+            DataContext = _viewModel
         };
         helpWindow.ShowDialog();
     }

@@ -61,7 +61,7 @@
                                    Foreground="{StaticResource AccentBrush}"
                                    FlowDirection="LeftToRight"
                                    TextWrapping="Wrap"/>
-                        <TextBlock Text="{Binding AppLicenseText, StringFormat=License: {0}}"
+                        <TextBlock Text="{Binding AppLicenseText, StringFormat=لایسنس: {0}}"
                                    FontSize="10"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FlowDirection="LeftToRight"
@@ -81,17 +81,23 @@
                     </StackPanel>
 
                     <StackPanel Grid.Column="2"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
+                                Orientation="Vertical"
+                                VerticalAlignment="Center"
+                                MinWidth="150">
                         <Button Style="{StaticResource SecondaryButton}"
-                                Content="GitHub"
+                                Content="باز کردن گیت‌هاب"
                                 Command="{Binding OpenGitHubCommand}"
-                                Padding="14,8"
-                                Margin="0,0,8,0"/>
+                                Padding="14,8"/>
                         <Button Style="{StaticResource PrimaryButton}"
-                                Content="Donate"
+                                Content="حمایت با پی‌پل"
                                 Command="{Binding OpenDonateCommand}"
-                                Padding="16,8"/>
+                                Padding="16,8"
+                                Margin="0,8,0,0"/>
+                        <Button Style="{StaticResource SecondaryButton}"
+                                Content="کپی اطلاعات حمایت"
+                                Command="{Binding CopyDonationInfoCommand}"
+                                Padding="14,8"
+                                Margin="0,8,0,0"/>
                     </StackPanel>
                 </Grid>
             </Border>
