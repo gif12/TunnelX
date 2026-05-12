@@ -21,6 +21,16 @@
 - تغییر مسیر <span dir="ltr">DNS</span>، مسدودسازی <span dir="ltr">IPv6</span>، محافظ نشت، عیب‌یابی <span dir="ltr">route</span> و تاریخچه مصرف تونل
 - رابط کاربری فارسی‌محور برای ویندوز
 
+## تصاویر برنامه
+
+| داشبورد اتصال | تنظیم پروفایل و سرور |
+| --- | --- |
+| <img src="docs/ScreenShots/Screenshot%202026-05-12%20115349.png" alt="داشبورد اتصال TunnelX"> | <img src="docs/ScreenShots/Screenshot%202026-05-12%20115544.png" alt="تنظیم پروفایل و سرور TunnelX"> |
+
+| انتخاب برنامه‌ها برای تونل | تنظیمات تونل |
+| --- | --- |
+| <img src="docs/ScreenShots/Screenshot%202026-05-12%20115646.png" alt="انتخاب برنامه‌ها برای تونل در TunnelX"> | <img src="docs/ScreenShots/Screenshot%202026-05-12%20115718.png" alt="تنظیمات تونل در TunnelX"> |
+
 ## دانلود
 
 فایل‌های آماده اجرا از بخش <span dir="ltr">Releases</span> پروژه منتشر می‌شوند:

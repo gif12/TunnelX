@@ -15,6 +15,16 @@ TunnelX is a free and open-source Windows split-tunneling client built by **MaxF
 - DNS redirect, IPv6 blocking, leak guard, route diagnostics, and traffic history
 - Persian-first Windows desktop UI
 
+## Screenshots
+
+| Connection dashboard | Profile and server setup |
+| --- | --- |
+| ![TunnelX connection dashboard](docs/ScreenShots/Screenshot%202026-05-12%20115349.png) | ![TunnelX profile and server setup](docs/ScreenShots/Screenshot%202026-05-12%20115544.png) |
+
+| App split tunneling | Tunnel settings |
+| --- | --- |
+| ![TunnelX app split tunneling](docs/ScreenShots/Screenshot%202026-05-12%20115646.png) | ![TunnelX tunnel settings](docs/ScreenShots/Screenshot%202026-05-12%20115718.png) |
+
 ## Download
 
 Public downloads should be attached to GitHub Releases after release validation is complete:
