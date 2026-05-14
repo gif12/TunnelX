@@ -113,6 +113,7 @@ public partial class MainViewModel
             VpnIp = _vpnService.Status.VpnLocalIp;
             VpnAdapterName = ResolveInterfaceName(_vpnService.Status.VpnInterfaceIndex);
             _connectionStartTime = DateTime.Now;
+            LastActiveProfileId = _selectedProfile?.Id;
             RaiseHealthStatusChanged();
 
             // Start traffic routing for enabled apps

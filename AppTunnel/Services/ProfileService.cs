@@ -27,6 +27,7 @@ public class ProfileService
     private static readonly string ExcludesFile = Path.Combine(ProfileDir, "excludes.json");
     private static readonly string IncludesFile = Path.Combine(ProfileDir, "includes.json");
     private static readonly string TunnelAppsFile = Path.Combine(ProfileDir, "tunnelapps.json");
+    private static readonly string AppSettingsFile = Path.Combine(ProfileDir, "appsettings.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -49,6 +50,45 @@ public class ProfileService
             try { File.Copy(legacyPath, newPath); }
             catch { /* ignore — old data inaccessible */ }
         }
+    }
+
+    /// <summary>
+    /// Load global application settings from disk.
+    /// </summary>
+    public AppSettings LoadAppSettings()
+    {
+        if (!File.Exists(AppSettingsFile))
+            return new AppSettings();
+
+        try
+        {
+            var json = File.ReadAllText(AppSettingsFile, Encoding.UTF8);
+            return JsonSerializer.Deserialize<AppSettings>(json, JsonOptions) ?? new AppSettings();
+        }
+        catch
+        {
+            return new AppSettings();
+        }
+    }
+
+    /// <summary>
+    /// Save global application settings to disk.
+    /// </summary>
+    public void SaveAppSettings(AppSettings settings)
+    {
+        Directory.CreateDirectory(ProfileDir);
+        var json = JsonSerializer.Serialize(settings, JsonOptions);
+        File.WriteAllText(AppSettingsFile, json, Encoding.UTF8);
+    }
+
+    /// <summary>
+    /// Global application settings (startup + auto-connect preferences).
+    /// </summary>
+    public class AppSettings
+    {
+        public bool StartWithWindows { get; set; } = false;
+        public bool AutoConnectOnStartup { get; set; } = false;
+        public string? LastActiveProfileId { get; set; } = null;
     }
 
     /// <summary>

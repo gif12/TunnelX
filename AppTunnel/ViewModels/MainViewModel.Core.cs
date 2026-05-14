@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Input;
+using Microsoft.Win32;
 using Application = System.Windows.Application;
 using System.Windows.Threading;
 using AppTunnel.Models;
@@ -23,6 +24,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     private readonly DispatcherTimer _saveDebounceTimer;
     private CancellationTokenSource? _connectionCts;
     private DateTime _connectionStartTime;
+    private ProfileService.AppSettings _appSettings = new();
 
     public MainViewModel()
     {
@@ -90,7 +92,24 @@ public partial class MainViewModel : INotifyPropertyChanged
         LoadExcludes();
         LoadIncludes();
         LoadHistory();
+        LoadAppSettings();
         _ = CheckForUpdatesAsync(true);
+
+        // Auto-connect to last active profile if enabled
+        if (_appSettings.AutoConnectOnStartup && !string.IsNullOrEmpty(_appSettings.LastActiveProfileId))
+        {
+            var lastProfile = Profiles.FirstOrDefault(p => p.Id == _appSettings.LastActiveProfileId);
+            if (lastProfile != null)
+            {
+                SelectedProfile = lastProfile;
+                _ = ToggleConnectionAsync().ContinueWith(t =>
+                {
+                    if (t.IsFaulted)
+                        Application.Current?.Dispatcher.Invoke(() =>
+                            StatusText = $"خطای اتصال خودکار: {t.Exception?.InnerException?.Message}");
+                }, TaskScheduler.Default);
+            }
+        }
     }
 
     #region Properties
@@ -219,6 +238,46 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string GameModeStatusText => IsGameModeEnabled
         ? "Game Mode فعال است: Route نگهداری طولانی‌تر، DNS سریع‌تر و DSCP برای بسته‌های بازی اعمال می‌شود."
         : "Game Mode غیرفعال است: حالت متعادل برای مصرف عمومی.";
+
+    private bool _startWithWindows;
+    public bool StartWithWindows
+    {
+        get => _startWithWindows;
+        set
+        {
+            if (_startWithWindows == value) return;
+            _startWithWindows = value;
+            OnPropertyChanged();
+            UpdateStartupRegistry(value);
+            _appSettings.StartWithWindows = value;
+            _profileService.SaveAppSettings(_appSettings);
+        }
+    }
+
+    private bool _autoConnectOnStartup;
+    public bool AutoConnectOnStartup
+    {
+        get => _autoConnectOnStartup;
+        set
+        {
+            if (_autoConnectOnStartup == value) return;
+            _autoConnectOnStartup = value;
+            OnPropertyChanged();
+            _appSettings.AutoConnectOnStartup = value;
+            _profileService.SaveAppSettings(_appSettings);
+        }
+    }
+
+    public string? LastActiveProfileId
+    {
+        get => _appSettings.LastActiveProfileId;
+        set
+        {
+            if (_appSettings.LastActiveProfileId == value) return;
+            _appSettings.LastActiveProfileId = value;
+            _profileService.SaveAppSettings(_appSettings);
+        }
+    }
 
     private bool _isBusy;
     public bool IsBusy
@@ -916,6 +975,49 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HealthDnsText));
         OnPropertyChanged(nameof(HealthIpv6Text));
         OnPropertyChanged(nameof(HealthRoutesText));
+    }
+
+    private void LoadAppSettings()
+    {
+        _appSettings = _profileService.LoadAppSettings();
+        _startWithWindows = _appSettings.StartWithWindows;
+        _autoConnectOnStartup = _appSettings.AutoConnectOnStartup;
+        OnPropertyChanged(nameof(StartWithWindows));
+        OnPropertyChanged(nameof(AutoConnectOnStartup));
+    }
+
+    private static void UpdateStartupRegistry(bool enable)
+    {
+        const string runKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+        const string appName = "TunnelX";
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(runKey, writable: true);
+            if (key == null) return;
+
+            if (enable)
+            {
+                var exePath = Environment.ProcessPath ??
+                              Process.GetCurrentProcess().MainModule?.FileName ??
+                              System.IO.Path.Combine(AppContext.BaseDirectory, "TunnelX.exe");
+                key.SetValue(appName, $"\"{exePath}\"");
+
+                System.Windows.MessageBox.Show(
+                    "استارت‌آپ فعال شد.\n\n⚠️ برای کارکرد صحیح، پس از این نباید محل فایل اجرایی TunnelX را تغییر دهید.",
+                    "TunnelX — استارت‌آپ",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            else
+            {
+                if (key.GetValue(appName) != null)
+                    key.DeleteValue(appName);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[STARTUP] Registry update failed: {ex.Message}");
+        }
     }
 
     #endregion
