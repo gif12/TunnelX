@@ -54,10 +54,10 @@ public partial class MainViewModel
             StatusText = "کانفیگ V2Ray را وارد کنید";
             return;
         }
-        if (!ValidateSocks5Port(out var socksError))
+        if (!ValidateMixedProxyPort(out var socksError))
         {
             StatusText = socksError;
-            Socks5PortStatusText = socksError;
+            MixedProxyPortStatusText = socksError;
             return;
         }
 
@@ -83,6 +83,8 @@ public partial class MainViewModel
             Username = Username.Trim(),
             Password = Password,
             PreSharedKey = PreSharedKey,
+            TunnelType = _currentTunnelType,
+            V2RayConfig = _selectedV2RayConfig,
             AutoTuneMtu = AutoTuneMtu,
             EnableDnsOptimization = IsDnsOptimizationEnabled,
             EnableGameMode = IsGameModeEnabled
@@ -128,7 +130,7 @@ public partial class MainViewModel
             // Load user's exclude list (domains/IPs to bypass tunnel)
             _trafficRouter.SetExcludedDestinations(ExcludedDestinations);
             _trafficRouter.SetIncludedDestinations(IncludedDestinations);
-            _trafficRouter.Socks5Port = Socks5Port;
+            _trafficRouter.Socks5Port = MixedProxyPort;
             _trafficRouter.EnableDnsOptimization = IsDnsOptimizationEnabled;
             _trafficRouter.EnableGameMode = IsGameModeEnabled;
 
@@ -376,10 +378,10 @@ public partial class MainViewModel
                 return;
             }
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            var ms = await MeasureEndpointLatencyAsync(endpoint, cts.Token);
+            using var cts2 = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var ms2 = await MeasureEndpointLatencyAsync(endpoint, cts2.Token);
             var mode = endpoint.UseTls ? "TLS handshake" : "TCP connect";
-            ServerPingResult = $"{mode} {endpoint.Server}:{endpoint.Port}  {ms} ms";
+            ServerPingResult = $"{mode} {endpoint.Server}:{endpoint.Port}  {ms2} ms";
         }
         catch (OperationCanceledException)
         {
@@ -478,6 +480,16 @@ public partial class MainViewModel
                     return false;
                 endpoint = new ProxyEndpoint(server, port, false, null);
                 return true;
+            }
+
+            // SOCKS5 / HTTP proxy URIs
+            if (config.StartsWith("socks5://", StringComparison.OrdinalIgnoreCase) ||
+                config.StartsWith("socks://", StringComparison.OrdinalIgnoreCase) ||
+                config.StartsWith("http://", StringComparison.OrdinalIgnoreCase))
+            {
+                var uri = new Uri(config.Split('#')[0]);
+                endpoint = new ProxyEndpoint(uri.Host, uri.Port > 0 ? uri.Port : 1080, false, null);
+                return ValidateEndpoint(endpoint.Server, endpoint.Port, out error);
             }
 
             if (config.StartsWith("{"))

@@ -7,14 +7,6 @@ namespace AppTunnel.Services;
 
 /// <summary>
 /// Routes traffic from selected applications through the VPN tunnel using WinDivert.
-/// 
-/// How it works:
-/// 1. WinDivert captures all outbound TCP/UDP packets
-/// 2. For each packet, we look up the owning process via GetExtendedTcpTable/GetExtendedUdpTable
-/// 3. If the process is in our target list, we set the outbound interface to the VPN adapter
-/// 4. The packet is re-injected with the modified interface
-///
-/// This approach is used by many commercial VPN apps for split tunneling.
 /// </summary>
 public partial class TrafficRouterService : IDisposable
 {
@@ -155,7 +147,7 @@ public partial class TrafficRouterService : IDisposable
     /// </summary>
     public bool EnableSocks5 { get; set; } = true;
 
-    /// <summary>Listener port for the built-in SOCKS5 proxy.</summary>
+    /// <summary>Listener port for the built-in mixed proxy (SOCKS5 + HTTP).</summary>
     public int Socks5Port { get; set; } = 1080;
 
     /// <summary>
@@ -184,7 +176,7 @@ public partial class TrafficRouterService : IDisposable
     private uint _dnsRedirectIpNbo = BitConverter.ToUInt32(new byte[] { 8, 8, 8, 8 }, 0);
     private byte[] _dnsRedirectIpBytes = new byte[] { 8, 8, 8, 8 };
 
-    private Socks5Server? _socks5;
+    private MixedProxyServer? _mixedProxy;
 
 #pragma warning disable CS0067
     public event Action<string, long, long>? TrafficUpdated;
@@ -515,13 +507,11 @@ public partial class TrafficRouterService : IDisposable
         _networkOutTask = Task.Run(() => NetworkOutboundLoop(_cts.Token));
         _networkInTask = Task.Run(() => NetworkInboundLoop(_cts.Token));
 
-        // Optional SOCKS5 proxy: apps with native SOCKS5 support (Telegram,
-        // Firefox, ...) can point at 127.0.0.1:1080 and get guaranteed VPN
-        // egress without relying on host routes.
+        // Optional mixed SOCKS5/HTTP proxy
         if (EnableSocks5)
         {
-            _socks5 = new Socks5Server(Socks5Port);
-            _socks5.Start(vpnLocalIp, EnsureHostRouteForSocks5);
+            _mixedProxy = new MixedProxyServer(Socks5Port);
+            _mixedProxy.Start(vpnLocalIp, EnsureHostRouteForSocks5);
         }
     }
 
@@ -760,8 +750,8 @@ public partial class TrafficRouterService : IDisposable
         _statsTimer?.Dispose();
         _statsTimer = null;
 
-        try { _socks5?.Stop(); } catch { }
-        _socks5 = null;
+        try { _mixedProxy?.Stop(); } catch { }
+        _mixedProxy = null;
 
         // Cancel all pending delayed route removals.
         foreach (var kvp in _pendingRouteRemoval)

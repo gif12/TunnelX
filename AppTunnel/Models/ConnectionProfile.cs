@@ -28,7 +28,7 @@ public class ConnectionProfile : INotifyPropertyChanged
     private List<string> _excludedDestinations = new();
     private TunnelType _tunnelType = TunnelType.L2tpIpsec;
     private string _v2RayConfig = "";
-    private int _socks5Port = 1080;
+    private int _mixedProxyPort = 1080;
     private bool _autoTuneMtu = true;
     private bool _enableDnsOptimization = true;
     private bool _enableGameMode = false;
@@ -110,10 +110,11 @@ public class ConnectionProfile : INotifyPropertyChanged
         set => SetField(ref _v2RayConfig, value);
     }
 
-    public int Socks5Port
+    [JsonPropertyName("socks5Port")]
+    public int MixedProxyPort
     {
-        get => _socks5Port;
-        set => SetField(ref _socks5Port, value);
+        get => _mixedProxyPort;
+        set => SetField(ref _mixedProxyPort, value);
     }
 
     public bool AutoTuneMtu

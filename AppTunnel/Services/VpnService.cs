@@ -11,10 +11,6 @@ public class VpnService
     private ITunnelProvider? _activeProvider;
     private readonly ConnectionStatus _defaultStatus = new();
 
-    /// <summary>
-    /// Invoked when the active V2Ray tunnel collapses unexpectedly.
-    /// Set this before calling ConnectAsync; it is forwarded to V2RayTunnelProvider.
-    /// </summary>
     public Action? OnTunnelFailed { get; set; }
 
     /// <summary>Live status, forwarded from the active provider.</summary>
@@ -42,9 +38,5 @@ public class VpnService
         await _activeProvider.DisconnectAsync();
     }
 
-    /// <summary>
-    /// Returns true when the active provider's network interface is still operational.
-    /// Mirrors the health-check used by the connection monitor.
-    /// </summary>
     public bool IsInterfaceUp() => _activeProvider?.IsInterfaceUp() ?? false;
 }

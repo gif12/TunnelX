@@ -397,6 +397,15 @@ public class V2RayTunnelProvider : ITunnelProvider
         {
             (outbound, outboundTag) = ParseShadowsocks(userConfig);
         }
+        else if (userConfig.StartsWith("socks5://") ||
+                 userConfig.StartsWith("socks://"))
+        {
+            (outbound, outboundTag) = ParseSocks5(userConfig);
+        }
+        else if (userConfig.StartsWith("http://"))
+        {
+            (outbound, outboundTag) = ParseHttp(userConfig);
+        }
         else
         {
             throw new InvalidOperationException(
@@ -744,6 +753,75 @@ public class V2RayTunnelProvider : ITunnelProvider
             ["method"]      = method,
             ["password"]    = password
         };
+
+        return (outbound, tag);
+    }
+
+    private static (JsonObject outbound, string tag) ParseSocks5(string uri)
+    {
+        var u = new Uri(uri);
+        var tag = Uri.UnescapeDataString(u.Fragment.TrimStart('#').Trim());
+        if (string.IsNullOrEmpty(tag)) tag = "socks5-out";
+
+        var outbound = new JsonObject
+        {
+            ["type"]        = "socks",
+            ["tag"]         = tag,
+            ["server"]      = u.Host,
+            ["server_port"] = u.Port > 0 ? u.Port : 1080,
+            ["version"]     = "5"
+        };
+
+        if (!string.IsNullOrEmpty(u.UserInfo))
+        {
+            var userInfo = Uri.UnescapeDataString(u.UserInfo);
+            var colonIdx = userInfo.IndexOf(':');
+            if (colonIdx >= 0)
+            {
+                outbound["users"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["username"] = userInfo[..colonIdx],
+                        ["password"] = userInfo[(colonIdx + 1)..]
+                    }
+                };
+            }
+        }
+
+        return (outbound, tag);
+    }
+
+    private static (JsonObject outbound, string tag) ParseHttp(string uri)
+    {
+        var u = new Uri(uri);
+        var tag = Uri.UnescapeDataString(u.Fragment.TrimStart('#').Trim());
+        if (string.IsNullOrEmpty(tag)) tag = "http-out";
+
+        var outbound = new JsonObject
+        {
+            ["type"]        = "http",
+            ["tag"]         = tag,
+            ["server"]      = u.Host,
+            ["server_port"] = u.Port > 0 ? u.Port : 3128
+        };
+
+        if (!string.IsNullOrEmpty(u.UserInfo))
+        {
+            var userInfo = Uri.UnescapeDataString(u.UserInfo);
+            var colonIdx = userInfo.IndexOf(':');
+            if (colonIdx >= 0)
+            {
+                outbound["users"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["username"] = userInfo[..colonIdx],
+                        ["password"] = userInfo[(colonIdx + 1)..]
+                    }
+                };
+            }
+        }
 
         return (outbound, tag);
     }

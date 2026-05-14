@@ -19,20 +19,20 @@
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
-                                   Text="پورت SOCKS5"
+                                   Text="پورت پروکسی محلی (SOCKS5/HTTP)"
                                    FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    VerticalAlignment="Center"/>
                         <TextBox Grid.Column="2"
                                  Style="{StaticResource ModernTextBox}"
-                                 Text="{Binding Socks5PortText, UpdateSourceTrigger=PropertyChanged}"
+                                 Text="{Binding MixedProxyPortText, UpdateSourceTrigger=PropertyChanged}"
                                  FlowDirection="LeftToRight"
                                  FontSize="12"
                                  Padding="8,5"
-                                 ToolTip="پورت داخلی 127.0.0.1 برای پروکسی SOCKS5"/>
+                                 ToolTip="پورت داخلی 127.0.0.1 برای پروکسی SOCKS5 و HTTP"/>
                         <TextBlock Grid.Column="4"
-                                   Text="{Binding Socks5PortStatusText}"
+                                   Text="{Binding MixedProxyPortStatusText}"
                                    FontSize="10"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    TextWrapping="Wrap"
@@ -43,6 +43,7 @@
                                Foreground="{StaticResource TextSecondaryBrush}"
                                TextWrapping="Wrap"
                                Margin="0,6,0,0"/>
+
                 </StackPanel>
             </Border>
 
