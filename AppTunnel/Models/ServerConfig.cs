@@ -1,7 +1,7 @@
 namespace AppTunnel.Models;
 
 /// <summary>
-/// L2TP/IPsec server connection configuration.
+/// Server connection configuration (L2TP/IPsec, V2Ray).
 /// </summary>
 public class ServerConfig
 {

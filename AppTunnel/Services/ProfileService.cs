@@ -2,6 +2,7 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using AppTunnel.Models;
 
 namespace AppTunnel.Services;
@@ -117,7 +118,7 @@ public class ProfileService
                 PreSharedKey = DecryptString(s.EncryptedPsk),
                 TunnelType = s.TunnelType,
                 V2RayConfig = s.V2RayConfig,
-                Socks5Port = s.Socks5Port > 0 ? s.Socks5Port : 1080,
+                MixedProxyPort = s.Socks5Port > 0 ? s.Socks5Port : 1080,
                 AutoTuneMtu = s.AutoTuneMtu,
                 EnableDnsOptimization = s.EnableDnsOptimization,
                 EnableGameMode = s.EnableGameMode
@@ -148,7 +149,7 @@ public class ProfileService
             EncryptedPsk = EncryptString(p.PreSharedKey),
             TunnelType = p.TunnelType,
             V2RayConfig = p.V2RayConfig,
-            Socks5Port = p.Socks5Port,
+            Socks5Port = p.MixedProxyPort,
             AutoTuneMtu = p.AutoTuneMtu,
             EnableDnsOptimization = p.EnableDnsOptimization,
             EnableGameMode = p.EnableGameMode
@@ -205,6 +206,7 @@ public class ProfileService
         public string EncryptedPsk { get; set; } = "";
         public TunnelType TunnelType { get; set; } = TunnelType.L2tpIpsec;
         public string V2RayConfig { get; set; } = "";
+        [JsonPropertyName("socks5Port")]
         public int Socks5Port { get; set; } = 1080;
         public bool AutoTuneMtu { get; set; } = true;
         public bool EnableDnsOptimization { get; set; } = true;

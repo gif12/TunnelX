@@ -142,55 +142,55 @@ public partial class MainViewModel : INotifyPropertyChanged
         set { _preSharedKey = value; OnPropertyChanged(); }
     }
 
-    private int _socks5Port = 1080;
-    public int Socks5Port
+    private int _mixedProxyPort = 1080;
+    public int MixedProxyPort
     {
-        get => _socks5Port;
+        get => _mixedProxyPort;
         set
         {
             var normalized = value;
-            if (_socks5Port == normalized) return;
-            _socks5Port = normalized;
+            if (_mixedProxyPort == normalized) return;
+            _mixedProxyPort = normalized;
             _trafficRouter.Socks5Port = normalized;
             OnPropertyChanged();
-            OnPropertyChanged(nameof(Socks5PortText));
-            OnPropertyChanged(nameof(Socks5Info));
-            UpdateSocks5PortStatus();
+            OnPropertyChanged(nameof(MixedProxyPortText));
+            OnPropertyChanged(nameof(MixedProxyInfo));
+            UpdateMixedProxyPortStatus();
             SaveCurrentState();
         }
     }
 
-    public string Socks5PortText
+    public string MixedProxyPortText
     {
-        get => _socks5Port.ToString();
+        get => _mixedProxyPort.ToString();
         set
         {
             if (int.TryParse((value ?? "").Trim(), out var port))
             {
-                if (_socks5Port != port)
+                if (_mixedProxyPort != port)
                 {
-                    _socks5Port = port;
+                    _mixedProxyPort = port;
                     _trafficRouter.Socks5Port = port;
                     OnPropertyChanged();
-                    OnPropertyChanged(nameof(Socks5Port));
-                    OnPropertyChanged(nameof(Socks5Info));
-                    UpdateSocks5PortStatus();
+                    OnPropertyChanged(nameof(MixedProxyPort));
+                    OnPropertyChanged(nameof(MixedProxyInfo));
+                    UpdateMixedProxyPortStatus();
                     SaveCurrentState();
                 }
                 return;
             }
 
-            Socks5PortStatusText = string.IsNullOrWhiteSpace(value)
+            MixedProxyPortStatusText = string.IsNullOrWhiteSpace(value)
                 ? "پورت SOCKS5 را وارد کنید"
                 : "فقط عدد مجاز است";
         }
     }
 
-    private string _socks5PortStatusText = "";
-    public string Socks5PortStatusText
+    private string _mixedProxyPortStatusText = "";
+    public string MixedProxyPortStatusText
     {
-        get => _socks5PortStatusText;
-        set { _socks5PortStatusText = value; OnPropertyChanged(); }
+        get => _mixedProxyPortStatusText;
+        set { _mixedProxyPortStatusText = value; OnPropertyChanged(); }
     }
 
     private bool _autoTuneMtu = true;
@@ -627,7 +627,7 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     public int EnabledAppsCount => TunnelApps.Count(a => a.IsEnabled);
 
-    public string Socks5Info => $"127.0.0.1:{_trafficRouter.Socks5Port}";
+    public string MixedProxyInfo => $"127.0.0.1:{_trafficRouter.Socks5Port}";
 
     // Exclude list
     public ObservableCollection<string> ExcludedDestinations { get; } = new();
@@ -845,7 +845,7 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     private void UpdateConfigDiagnostics()
     {
-        if (CurrentTunnelType != TunnelType.V2Ray)
+        if (CurrentTunnelType == TunnelType.L2tpIpsec)
         {
             ConfigCoreHint = "L2TP/IPsec";
             ConfigValidationText = string.IsNullOrWhiteSpace(ServerAddress)
@@ -871,9 +871,9 @@ public partial class MainViewModel : INotifyPropertyChanged
             : error;
     }
 
-    private bool ValidateSocks5Port(out string message)
+    private bool ValidateMixedProxyPort(out string message)
     {
-        var port = _socks5Port;
+        var port = _mixedProxyPort;
         if (port < 1024 || port > 65535)
         {
             message = "پورت باید بین 1024 تا 65535 باشد";
@@ -910,10 +910,10 @@ public partial class MainViewModel : INotifyPropertyChanged
         return true;
     }
 
-    private void UpdateSocks5PortStatus()
+    private void UpdateMixedProxyPortStatus()
     {
-        ValidateSocks5Port(out var message);
-        Socks5PortStatusText = message;
+        ValidateMixedProxyPort(out var message);
+        MixedProxyPortStatusText = message;
     }
 
     private void TryAutoNameProfileFromConfig(string config)

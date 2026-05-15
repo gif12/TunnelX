@@ -202,7 +202,7 @@
                 </StackPanel>
                 <!-- End V2Ray fields -->
 
-                <Border Background="#11FFFFFF" CornerRadius="8" Padding="10,8" Margin="0,8,0,0">
+<Border Background="#11FFFFFF" CornerRadius="8" Padding="10,8" Margin="0,8,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -328,7 +328,7 @@
                 </Border>
             </Grid>
 
-            <!-- Apps + SOCKS5 in one row -->
+            <!-- Apps + Mixed Proxy in one row -->
             <Grid Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
@@ -357,9 +357,9 @@
                     </Grid>
                 </Border>
 
-                <!-- SOCKS5 Proxy -->
+                <!-- Mixed Proxy -->
                 <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="12,10"
-                        ToolTip="پروکسی SOCKS5 داخلی روی 127.0.0.1:1080 — برای برنامه‌هایی که از VPN تشخیص داده نمی‌شوند می‌توانید پروکسی را دستی تنظیم کنید">
+                        ToolTip="پروکسی Mixed داخلی روی 127.0.0.1:1080 — برای برنامه‌هایی که از VPN تشخیص داده نمی‌شوند می‌توانید پروکسی را دستی تنظیم کنید">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto"/>
@@ -367,11 +367,11 @@
                             <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="🧦" FontSize="16" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="SOCKS5" FontSize="11"
+                        <TextBlock Grid.Column="1" Text="Mixed" FontSize="11"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    VerticalAlignment="Center" Margin="8,0,0,0"/>
                         <Border Grid.Column="2" Background="#1AE8803A" CornerRadius="8" Padding="8,3">
-                            <TextBlock Text="{Binding Socks5Info}" FontSize="11" FontWeight="SemiBold"
+                            <TextBlock Text="{Binding MixedProxyInfo}" FontSize="11" FontWeight="SemiBold"
                                        Foreground="{StaticResource AccentBrush}"
                                        FlowDirection="LeftToRight"/>
                         </Border>

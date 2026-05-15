@@ -111,7 +111,7 @@ public partial class MainViewModel
         _selectedProfile.PreSharedKey = PreSharedKey;
         _selectedProfile.TunnelType = _currentTunnelType;
         _selectedProfile.V2RayConfig = SelectedV2RayConfig;
-        _selectedProfile.Socks5Port = Socks5Port;
+        _selectedProfile.MixedProxyPort = MixedProxyPort;
         _selectedProfile.AutoTuneMtu = AutoTuneMtu;
         _selectedProfile.EnableDnsOptimization = IsDnsOptimizationEnabled;
         _selectedProfile.EnableGameMode = IsGameModeEnabled;
@@ -145,12 +145,12 @@ public partial class MainViewModel
         Username = profile.Username;
         Password = profile.Password;
         PreSharedKey = profile.PreSharedKey;
-        _socks5Port = profile.Socks5Port > 0 ? profile.Socks5Port : 1080;
-        _trafficRouter.Socks5Port = _socks5Port;
-        OnPropertyChanged(nameof(Socks5Port));
-        OnPropertyChanged(nameof(Socks5PortText));
-        OnPropertyChanged(nameof(Socks5Info));
-        UpdateSocks5PortStatus();
+        _mixedProxyPort = profile.MixedProxyPort > 0 ? profile.MixedProxyPort : 1080;
+        _trafficRouter.Socks5Port = _mixedProxyPort;
+        OnPropertyChanged(nameof(MixedProxyPort));
+        OnPropertyChanged(nameof(MixedProxyPortText));
+        OnPropertyChanged(nameof(MixedProxyInfo));
+        UpdateMixedProxyPortStatus();
         _autoTuneMtu = profile.AutoTuneMtu;
         _isDnsOptimizationEnabled = profile.EnableDnsOptimization;
         _isGameModeEnabled = profile.EnableGameMode;
@@ -174,7 +174,7 @@ public partial class MainViewModel
     private void CreateNewProfile()
     {
         SaveCurrentProfileState();
-        var profile = new ConnectionProfile { Name = $"پروفایل {Profiles.Count + 1}", Socks5Port = Socks5Port };
+        var profile = new ConnectionProfile { Name = $"پروفایل {Profiles.Count + 1}", MixedProxyPort = MixedProxyPort };
         profile.AutoTuneMtu = AutoTuneMtu;
         profile.EnableDnsOptimization = IsDnsOptimizationEnabled;
         profile.EnableGameMode = IsGameModeEnabled;
@@ -196,7 +196,7 @@ public partial class MainViewModel
             PreSharedKey = _selectedProfile.PreSharedKey,
             TunnelType = _selectedProfile.TunnelType,
             V2RayConfig = _selectedProfile.V2RayConfig,
-            Socks5Port = _selectedProfile.Socks5Port,
+            MixedProxyPort = _selectedProfile.MixedProxyPort,
             AutoTuneMtu = _selectedProfile.AutoTuneMtu,
             EnableDnsOptimization = _selectedProfile.EnableDnsOptimization,
             EnableGameMode = _selectedProfile.EnableGameMode,
