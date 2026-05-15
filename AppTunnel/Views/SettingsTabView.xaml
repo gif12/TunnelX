@@ -112,6 +112,52 @@
                 </StackPanel>
             </Border>
 
+            <!-- Startup & Auto-Connect -->
+            <Border Style="{StaticResource CardPanel}">
+                <StackPanel>
+                    <TextBlock Style="{StaticResource SectionHeader}" Text="🖥️ استارت‌آپ و اتصال خودکار"
+                               Margin="0,0,0,4"/>
+
+                    <Grid Margin="0,2,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="اجرای خودکار هنگام روشن شدن ویندوز" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="⚠️ پس از فعال کردن، نباید محل فایل اجرایی TunnelX را تغییر دهید."
+                                       FontSize="10" Foreground="{StaticResource WarningBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1"
+                                  Style="{StaticResource ToggleSwitch}"
+                                  IsChecked="{Binding StartWithWindows, Mode=TwoWay}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+
+                    <Border Background="#18FFFFFF" Height="1" Margin="0,8,0,8"/>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Text="اتصال خودکار به آخرین کانکشن فعال" FontSize="11" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="اگر آخرین بار یک پروفایل متصل بوده، هنگام اجرای برنامه به آن وصل می‌شود."
+                                       FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
+                                       TextWrapping="Wrap" Margin="0,2,0,0"/>
+                        </StackPanel>
+                        <CheckBox Grid.Column="1"
+                                  Style="{StaticResource ToggleSwitch}"
+                                  IsChecked="{Binding AutoConnectOnStartup, Mode=TwoWay}"
+                                  VerticalAlignment="Center"/>
+                    </Grid>
+                </StackPanel>
+            </Border>
+
         </StackPanel>
     </ScrollViewer>
 </UserControl>
