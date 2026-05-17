@@ -6,6 +6,18 @@
 
 ### فارسی
 
+## 1.2.28 - 2026-05-17
+
+### English
+
+- Fixed Full Route default-route installation by preferring the VPN gateway, retrying with an on-link gateway when needed, and cleaning up the pinned physical route to the tunnel server when Full Route is disabled.
+- Updated English/Persian README and in-app Help content for the new SOCKS/Proxy profile flow, connection types, routing notes, local data, and troubleshooting guidance.
+
+### فارسی
+
+- نصب default route در حالت Full Route اصلاح شد؛ ابتدا gateway تونل استفاده می‌شود، در صورت نیاز با gateway روی‌لینک دوباره تلاش می‌شود، و route فیزیکی ثابت‌شده برای سرور تونل هنگام خاموش شدن Full Route پاک‌سازی می‌شود.
+- README فارسی/انگلیسی و محتوای راهنمای داخل برنامه برای جریان جدید SOCKS/Proxy، نوع‌های اتصال، نکته‌های مسیر، داده‌های محلی و عیب‌یابی به‌روز شد.
+
 ## 1.2.27 - 2026-05-17
 
 ### English

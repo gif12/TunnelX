@@ -5,6 +5,8 @@ namespace AppTunnel.Services;
 
 public partial class TrafficRouterService
 {
+    private bool _vpnServerPhysicalRouteAdded;
+
     public bool IsFullRouteEnabled => _fullRouteEnabled;
 
     public bool SetFullRouteEnabled(bool enabled)
@@ -17,9 +19,19 @@ public partial class TrafficRouterService
             if (!AddVpnServerPhysicalRoute())
                 Logger.Warning("[FULL-ROUTE] Could not pin VPN server to the physical gateway; enabling full-route may fail.");
 
-            if (!TryRunRouteCommand($"add 0.0.0.0 mask 0.0.0.0 0.0.0.0 IF {_vpnInterfaceIndex} METRIC 1", out var stderr))
+            RemoveFullRouteDefault();
+            var gateway = GetVpnRouteGateway();
+            var added = TryRunRouteCommand($"add 0.0.0.0 mask 0.0.0.0 {gateway} IF {_vpnInterfaceIndex} METRIC 1", out var stderr);
+            if (!added && gateway != "0.0.0.0")
+            {
+                Logger.Warning($"[FULL-ROUTE] Failed to add VPN default route via {gateway}; retrying on-link gateway. stderr={stderr.Trim()}");
+                added = TryRunRouteCommand($"add 0.0.0.0 mask 0.0.0.0 0.0.0.0 IF {_vpnInterfaceIndex} METRIC 1", out stderr);
+            }
+
+            if (!added)
             {
                 Logger.Warning($"[FULL-ROUTE] Failed to add VPN default route: {stderr}");
+                RemoveVpnServerPhysicalRoute();
                 return false;
             }
 
@@ -32,6 +44,7 @@ public partial class TrafficRouterService
 
         RemoveExcludedDirectRoutes();
         RemoveFullRouteDefault();
+        RemoveVpnServerPhysicalRoute();
         _fullRouteEnabled = false;
         MarkPolicyTransitionGrace(TimeSpan.FromSeconds(25));
         CleanupRoutesForCurrentMode(dropStaleNat: true);
@@ -42,15 +55,28 @@ public partial class TrafficRouterService
 
     private bool AddVpnServerPhysicalRoute()
     {
+        _vpnServerPhysicalRouteAdded = false;
         if (string.IsNullOrWhiteSpace(_vpnServerIp) || _vpnServerIp == "0.0.0.0")
             return false;
         if (string.IsNullOrWhiteSpace(_physicalGatewayIp) || _physicalInterfaceIndex <= 0)
             return false;
 
         TryRunRouteCommand($"delete {_vpnServerIp}", out _);
-        return TryRunRouteCommand(
+        var added = TryRunRouteCommand(
             $"add {_vpnServerIp} mask 255.255.255.255 {_physicalGatewayIp} IF {_physicalInterfaceIndex} METRIC 1",
             out _);
+        _vpnServerPhysicalRouteAdded = added;
+        return added;
+    }
+
+    private void RemoveVpnServerPhysicalRoute()
+    {
+        if (!_vpnServerPhysicalRouteAdded)
+            return;
+
+        if (!string.IsNullOrWhiteSpace(_vpnServerIp) && _vpnServerIp != "0.0.0.0")
+            TryRunRouteCommand($"delete {_vpnServerIp}", out _);
+        _vpnServerPhysicalRouteAdded = false;
     }
 
     private void RemoveFullRouteDefault()
@@ -58,6 +84,9 @@ public partial class TrafficRouterService
         TryRunRouteCommand($"delete 0.0.0.0 mask 0.0.0.0 IF {_vpnInterfaceIndex}", out _);
         RemoveDefaultRouteOnVpn();
     }
+
+    private string GetVpnRouteGateway()
+        => string.IsNullOrWhiteSpace(_vpnGatewayIp) ? "0.0.0.0" : _vpnGatewayIp;
 
     /// <summary>
     /// Remove default routes (0.0.0.0/0) on the VPN interface so only
@@ -357,7 +386,7 @@ public partial class TrafficRouterService
     /// </summary>
     private bool TryAddRouteViaCommandLine(IPAddress dstIp)
     {
-        var gateway = string.IsNullOrWhiteSpace(_vpnGatewayIp) ? "0.0.0.0" : _vpnGatewayIp;
+        var gateway = GetVpnRouteGateway();
         var ok = TryRunRouteCommand($"add {dstIp} mask 255.255.255.255 {gateway} IF {_vpnInterfaceIndex} METRIC 1", out var stderr);
         if (!ok && Interlocked.Read(ref _statRoutesFailed) <= 10)
             Logger.Warning($"[ROUTE!] route.exe add {dstIp} via {gateway} stderr='{stderr.Trim()}'");
