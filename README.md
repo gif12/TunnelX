@@ -20,6 +20,10 @@ TunnelX can run an installed **OpenVPN Community** `openvpn.exe` with a user-sel
 
 OpenVPN is not bundled with TunnelX. Install OpenVPN Community separately, select the `.ovpn` file in TunnelX, and enter the OpenVPN username/password if the server requires credentials. OpenVPN Connect alone is not enough for this mode because it manages routes and DNS through its own client.
 
+## Routing Notes
+
+Destination include/exclude rules match both the entered domain and its subdomains. For example, adding `githubusercontent.com` also covers `raw.githubusercontent.com` after DNS resolves it. Some HTTPS clients may still fail during certificate revocation checks if their OCSP/CRL hosts are not reachable through the selected route; add the downloader app or the relevant revocation domains to the include list when that happens.
+
 ## Screenshots
 
 | Connection dashboard | Profile and server setup |
@@ -60,17 +64,19 @@ More release notes are in `docs/BUILD.md`. Future ideas are tracked in `docs/ROA
 
 ## License
 
-TunnelX is licensed under **GPL-3.0-or-later**. Bundled third-party components keep their own licenses. See:
+TunnelX is licensed under **GPL-3.0-or-later**. Commercial use is allowed under the terms of the GPL. Bundled third-party components keep their own licenses. See:
 
 - `LICENSE`
 - `THIRD_PARTY_NOTICES.md`
 - `docs/LEGAL.md`
 
-## Donate
+## Support, Customization, and Donations
 
-TunnelX is free. Donations are optional and help keep the project maintained.
+TunnelX is free and open-source. Donations are optional and help keep the project maintained.
 
-Use the GitHub funding button or see `docs/DONATE.md` for donation options.
+Paid services may be available separately for private support, deployment help, custom builds, company-specific customization, or development of a similar application. These paid services do not limit the rights granted by the GPL license.
+
+Use the GitHub funding button or see `docs/DONATE.md` for donation and contact options.
 
 ## Safety Notice
 

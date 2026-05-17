@@ -2,7 +2,7 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <Grid Margin="0,8,0,0">
+    <Grid Margin="12,8,12,4">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
             <ColumnDefinition Width="12"/>
@@ -10,25 +10,29 @@
         </Grid.ColumnDefinitions>
 
         <!-- LEFT: Selected Apps (Tunnel List) -->
-        <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0">
+        <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0" BorderBrush="#2233C481">
             <DockPanel>
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="✅ برنامه‌های تونل" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="ترافیک این برنامه‌ها از VPN عبور می‌کند"
+                        <TextBlock Text="✅ برنامه‌های داخل تونل" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="برنامه‌های فعال‌شده از مسیر تونل عبور می‌کنند"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontSize="10" Margin="0,2,0,0"/>
+                                   FontSize="10" Margin="0,2,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <Button Grid.Column="1" Style="{StaticResource SecondaryButton}"
-                            Content="📁 افزودن"
+                    <Button Grid.Column="2" Style="{StaticResource SecondaryButton}"
+                            Content="افزودن دستی"
                             ToolTip="افزودن دستی فایل exe"
                             Command="{Binding AddAppCommand}"
-                            FontSize="11" Padding="10,6"/>
+                            FontSize="10" Padding="10,6"
+                            VerticalAlignment="Center"/>
                 </Grid>
 
                 <!-- Tunnel Search -->
@@ -37,8 +41,8 @@
                          Text="{Binding TunnelSearchText, UpdateSourceTrigger=PropertyChanged}"
                          Tag="فیلتر برنامه‌های تونل..."
                          DockPanel.Dock="Top"
-                         Margin="0,0,0,8"
-                         FontSize="12" Padding="10,7"
+                         Margin="0,0,0,7"
+                         FontSize="12" Padding="9,6"
                          PreviewMouseDoubleClick="OnSearchBoxPreviewMouseDoubleClick"/>
 
                 <!-- Tunnel Apps List -->
@@ -51,8 +55,8 @@
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#11FFFFFF" CornerRadius="8"
-                                    Padding="10,8" Margin="0,2" Cursor="Arrow">
+                            <Border Background="#12FFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1" CornerRadius="9"
+                                    Padding="9,7" Margin="0,2" Cursor="Arrow">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
@@ -64,22 +68,22 @@
 
                                     <!-- App Icon -->
                                     <Image Grid.Column="0" Source="{Binding Icon}"
-                                           Width="28" Height="28" Margin="0,0,10,0"/>
+                                           Width="26" Height="26" Margin="0,0,9,0"/>
 
                                     <!-- App Name & Exe -->
                                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding DisplayName}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontSize="13" TextTrimming="CharacterEllipsis"/>
+                                                   FontSize="12" TextTrimming="CharacterEllipsis"/>
                                         <TextBlock Text="{Binding ExecutableName}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                   FontSize="10" FlowDirection="LeftToRight"/>
+                                                   FontSize="9" FlowDirection="LeftToRight"/>
                                     </StackPanel>
 
                                     <!-- Traffic -->
                                     <TextBlock Grid.Column="2" Text="{Binding TrafficDisplay}"
                                                Foreground="{StaticResource AccentBrush}"
-                                               FontSize="11" VerticalAlignment="Center"
+                                               FontSize="10" VerticalAlignment="Center"
                                                Margin="8,0" FlowDirection="LeftToRight"/>
 
                                     <!-- Toggle -->
@@ -92,7 +96,7 @@
 
                                     <!-- Remove -->
                                     <Button Grid.Column="4" Style="{StaticResource DangerButton}"
-                                            Content="✕" FontSize="14"
+                                            Content="حذف" FontSize="10" Padding="7,3"
                                             Command="{Binding DataContext.RemoveAppCommand,
                                                 RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             CommandParameter="{Binding}"/>
@@ -119,32 +123,38 @@
         </Border>
 
         <!-- RIGHT: Available Apps (Discovery) -->
-        <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="0">
+        <Border Grid.Column="2" Style="{StaticResource CardPanel}" Margin="0" BorderBrush="#22E8803A">
             <DockPanel>
                 <Grid DockPanel.Dock="Top" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="🔍 برنامه‌های نصب شده" FontSize="14" FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="کلیک کنید تا به تونل اضافه شود"
+                        <TextBlock Text="🔍 برنامه‌های نصب‌شده" FontSize="14" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   TextTrimming="CharacterEllipsis"/>
+                        <TextBlock Text="روی برنامه کلیک کنید تا به لیست تونل اضافه شود"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontSize="10" Margin="0,2,0,0"/>
+                                   FontSize="10" Margin="0,2,0,0"
+                                   TextTrimming="CharacterEllipsis"/>
                     </StackPanel>
-                    <Button Grid.Column="1" Style="{StaticResource SecondaryButton}"
-                            Content="🔄 بارگذاری"
+                    <Button Grid.Column="2" Style="{StaticResource SecondaryButton}"
+                            Content="بروزرسانی"
                             ToolTip="بارگذاری مجدد لیست برنامه‌ها"
                             Command="{Binding RefreshAppsCommand}"
-                            FontSize="11" Padding="10,6"/>
+                            FontSize="10" Padding="10,6"
+                            VerticalAlignment="Center"/>
                 </Grid>
                 <TextBox x:Name="AvailableSearchBox"
                          Style="{StaticResource ModernTextBox}"
                          Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
                          Tag="جستجوی برنامه..."
                          DockPanel.Dock="Top"
-                         Margin="0,0,0,8"
+                         Margin="0,0,0,7"
+                         FontSize="12"
+                         Padding="9,6"
                          PreviewMouseDoubleClick="OnSearchBoxPreviewMouseDoubleClick"/>
 
                 <!-- Available Apps List -->
@@ -156,8 +166,8 @@
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <Border x:Name="itemBorder"
-                                    Background="#08FFFFFF" CornerRadius="6"
-                                    Padding="8,6" Margin="0,1" Cursor="Hand"
+                                    Background="#0CFFFFFF" BorderBrush="#10FFFFFF" BorderThickness="1" CornerRadius="9"
+                                    Padding="8,6" Margin="0,2" Cursor="Hand"
                                     MouseLeftButtonUp="OnAvailableAppClick">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
@@ -179,9 +189,9 @@
                                     </StackPanel>
 
                                     <Border Grid.Column="2" x:Name="addBadge"
-                                            Background="#25E07820" CornerRadius="4"
-                                            Padding="6,2" Margin="4,0,0,0">
-                                        <TextBlock Text="＋" FontSize="11"
+                                            Background="#1AE8803A" CornerRadius="7"
+                                            Padding="6,2" Margin="6,0,0,0">
+                                        <TextBlock Text="افزودن" FontSize="9"
                                                    Foreground="{StaticResource PrimaryBrush}"
                                                    VerticalAlignment="Center"/>
                                     </Border>

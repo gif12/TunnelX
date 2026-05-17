@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
+using System.IO;
 using AppTunnel.Models;
 using AppTunnel.Services;
+using AppTunnel.Views;
 
 namespace AppTunnel.ViewModels;
 
@@ -22,6 +24,7 @@ public partial class MainViewModel
             _selectedProfile = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedProfileName));
+            RaiseProfileCardChanged();
             if (value != null)
                 LoadProfileIntoUi(value);
             SaveProfiles();
@@ -29,12 +32,44 @@ public partial class MainViewModel
     }
 
     public string SelectedProfileName => _selectedProfile?.Name ?? "";
+    public string ProfileCountText => Profiles.Count == 1
+        ? "۱ پروفایل ذخیره‌شده"
+        : $"{Profiles.Count} پروفایل ذخیره‌شده";
+
+    public string ActiveProfileTypeText => CurrentTunnelType switch
+    {
+        TunnelType.L2tpIpsec => "L2TP/IPsec",
+        TunnelType.V2Ray => TunnelProviderFactory.RequiresXray(SelectedV2RayConfig) ? "V2Ray / Xray" : "V2Ray / sing-box",
+        TunnelType.OpenVpn => "OpenVPN",
+        TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy",
+        _ => "نوع اتصال نامشخص"
+    };
+
+    public string ActiveProfileEndpointText => CurrentTunnelType switch
+    {
+        TunnelType.L2tpIpsec => string.IsNullOrWhiteSpace(ServerAddress) ? "آدرس سرور هنوز وارد نشده" : ServerAddress.Trim(),
+        TunnelType.V2Ray => TryExtractProxyEndpoint(SelectedV2RayConfig.Trim(), out var server, out var port, out _)
+            ? $"{server}:{port}"
+            : "کانفیگ V2Ray/Xray آماده نمایش نیست",
+        TunnelType.OpenVpn => string.IsNullOrWhiteSpace(SelectedOpenVpnConfigPath)
+            ? "فایل OpenVPN انتخاب نشده"
+            : Path.GetFileName(SelectedOpenVpnConfigPath),
+        TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress)
+            ? "آدرس پراکسی هنوز وارد نشده"
+            : $"{ProxyServerAddress.Trim()}:{ProxyPort}",
+        _ => ""
+    };
+
+    public string ProfileSaveHintText => string.IsNullOrWhiteSpace(SaveStatusText)
+        ? "تغییرات این پروفایل به‌صورت خودکار ذخیره می‌شود"
+        : SaveStatusText;
 
     /// <summary>
     /// Event to notify code-behind to update PasswordBox controls.
     /// </summary>
     public event Action<string, string>? PasswordChanged;
     public event Action<string>? OpenVpnPasswordChanged;
+    public event Action<string>? ProxyPasswordChanged;
 
     private void LoadProfiles()
     {
@@ -46,6 +81,7 @@ public partial class MainViewModel
 
         foreach (var p in profiles.OrderByDescending(p => p.LastUsedAt))
             Profiles.Add(p);
+        OnPropertyChanged(nameof(ProfileCountText));
 
         _selectedProfile = Profiles[0];
         OnPropertyChanged(nameof(SelectedProfile));
@@ -117,6 +153,11 @@ public partial class MainViewModel
         _selectedProfile.OpenVpnConfigPath = SelectedOpenVpnConfigPath;
         _selectedProfile.OpenVpnUsername = OpenVpnUsername;
         _selectedProfile.OpenVpnPassword = OpenVpnPassword;
+        _selectedProfile.ProxyProtocol = ProxyProtocol;
+        _selectedProfile.ProxyServerAddress = ProxyServerAddress;
+        _selectedProfile.ProxyPort = ProxyPort;
+        _selectedProfile.ProxyUsername = ProxyUsername;
+        _selectedProfile.ProxyPassword = ProxyPassword;
         _selectedProfile.MixedProxyPort = MixedProxyPort;
         _selectedProfile.AutoTuneMtu = AutoTuneMtu;
         _selectedProfile.EnableDnsOptimization = IsDnsOptimizationEnabled;
@@ -178,15 +219,28 @@ public partial class MainViewModel
             _selectedOpenVpnConfigPath = profile.OpenVpnConfigPath;
             _openVpnUsername = profile.OpenVpnUsername;
             _openVpnPassword = profile.OpenVpnPassword;
+            _proxyProtocol = profile.ProxyProtocol;
+            _proxyServerAddress = profile.ProxyServerAddress;
+            _proxyPort = profile.ProxyPort > 0 ? profile.ProxyPort : 1080;
+            _proxyUsername = profile.ProxyUsername;
+            _proxyPassword = profile.ProxyPassword;
             OnPropertyChanged(nameof(CurrentTunnelType));
+            OnPropertyChanged(nameof(ConnectedBadgeText));
             OnPropertyChanged(nameof(SelectedV2RayConfig));
             OnPropertyChanged(nameof(SelectedOpenVpnConfig));
             OnPropertyChanged(nameof(SelectedOpenVpnConfigPath));
             OnPropertyChanged(nameof(OpenVpnUsername));
+            OnPropertyChanged(nameof(ProxyProtocol));
+            OnPropertyChanged(nameof(ProxyServerAddress));
+            OnPropertyChanged(nameof(ProxyPort));
+            OnPropertyChanged(nameof(ProxyPortText));
+            OnPropertyChanged(nameof(ProxyUsername));
             UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
 
             PasswordChanged?.Invoke(profile.Password, profile.PreSharedKey);
             OpenVpnPasswordChanged?.Invoke(profile.OpenVpnPassword);
+            ProxyPasswordChanged?.Invoke(profile.ProxyPassword);
         }
         finally
         {
@@ -197,48 +251,137 @@ public partial class MainViewModel
     private void CreateNewProfile()
     {
         SaveCurrentProfileState();
-        var profile = new ConnectionProfile { Name = $"پروفایل {Profiles.Count + 1}", MixedProxyPort = MixedProxyPort };
-        profile.AutoTuneMtu = AutoTuneMtu;
-        profile.EnableDnsOptimization = IsDnsOptimizationEnabled;
-        profile.EnableGameMode = IsGameModeEnabled;
+        var profile = new ConnectionProfile
+        {
+            Name = $"پروفایل {Profiles.Count + 1}",
+            MixedProxyPort = MixedProxyPort,
+            AutoTuneMtu = AutoTuneMtu,
+            EnableDnsOptimization = IsDnsOptimizationEnabled,
+            EnableGameMode = IsGameModeEnabled
+        };
+
+        if (ProfileEditorDialog.Show(profile, "افزودن کانفیگ جدید", System.Windows.Application.Current.MainWindow) != true)
+            return;
+
         Profiles.Add(profile);
+        OnPropertyChanged(nameof(ProfileCountText));
         SelectedProfile = profile;
+        SaveProfiles();
     }
 
-    private void DuplicateCurrentProfile()
+    private void DuplicateCurrentProfile(object? parameter = null)
     {
-        if (_selectedProfile == null) return;
+        var source = parameter as ConnectionProfile ?? _selectedProfile;
+        if (source == null) return;
         SaveCurrentProfileState();
 
-        var clone = new ConnectionProfile
-        {
-            Name = $"{_selectedProfile.Name} (کپی)",
-            ServerAddress = _selectedProfile.ServerAddress,
-            Username = _selectedProfile.Username,
-            Password = _selectedProfile.Password,
-            PreSharedKey = _selectedProfile.PreSharedKey,
-            TunnelType = _selectedProfile.TunnelType,
-            V2RayConfig = _selectedProfile.V2RayConfig,
-            OpenVpnConfig = _selectedProfile.OpenVpnConfig,
-            OpenVpnConfigPath = _selectedProfile.OpenVpnConfigPath,
-            OpenVpnUsername = _selectedProfile.OpenVpnUsername,
-            OpenVpnPassword = _selectedProfile.OpenVpnPassword,
-            MixedProxyPort = _selectedProfile.MixedProxyPort,
-            AutoTuneMtu = _selectedProfile.AutoTuneMtu,
-            EnableDnsOptimization = _selectedProfile.EnableDnsOptimization,
-            EnableGameMode = _selectedProfile.EnableGameMode,
-        };
+        var clone = CloneProfile(source);
+        clone.Name = $"{source.Name} (کپی)";
+
+        if (ProfileEditorDialog.Show(clone, "کپی پروفایل", System.Windows.Application.Current.MainWindow) != true)
+            return;
+
         Profiles.Add(clone);
+        OnPropertyChanged(nameof(ProfileCountText));
         SelectedProfile = clone;
+        SaveProfiles();
     }
 
-    private void DeleteCurrentProfile()
+    private void EditProfile(object? parameter)
     {
-        if (_selectedProfile == null || Profiles.Count <= 1) return;
-        var toRemove = _selectedProfile;
+        var profile = parameter as ConnectionProfile ?? _selectedProfile;
+        if (profile == null) return;
+
+        SaveCurrentProfileState();
+        var editable = CloneProfile(profile);
+        editable.Id = profile.Id;
+        editable.CreatedAt = profile.CreatedAt;
+        editable.LastUsedAt = profile.LastUsedAt;
+
+        if (ProfileEditorDialog.Show(editable, "ویرایش پروفایل", System.Windows.Application.Current.MainWindow) != true)
+            return;
+
+        ApplyProfileValues(profile, editable);
+        if (_selectedProfile == profile)
+            LoadProfileIntoUi(profile);
+        SaveProfiles();
+        RaiseProfileCardChanged();
+    }
+
+    private void SelectProfile(object? parameter)
+    {
+        if (parameter is ConnectionProfile profile)
+            SelectedProfile = profile;
+    }
+
+    private void DeleteCurrentProfile(object? parameter = null)
+    {
+        var toRemove = parameter as ConnectionProfile ?? _selectedProfile;
+        if (toRemove == null || Profiles.Count <= 1) return;
+        if (!Helpers.DialogService.Confirm($"پروفایل «{toRemove.Name}» حذف شود؟", "حذف پروفایل"))
+            return;
+
         var idx = Profiles.IndexOf(toRemove);
         Profiles.Remove(toRemove);
+        OnPropertyChanged(nameof(ProfileCountText));
         SelectedProfile = Profiles[Math.Min(idx, Profiles.Count - 1)];
+        SaveProfiles();
+    }
+
+    private static ConnectionProfile CloneProfile(ConnectionProfile source) => new()
+    {
+        Name = source.Name,
+        ServerAddress = source.ServerAddress,
+        Username = source.Username,
+        Password = source.Password,
+        PreSharedKey = source.PreSharedKey,
+        TunnelType = source.TunnelType,
+        V2RayConfig = source.V2RayConfig,
+        OpenVpnConfig = source.OpenVpnConfig,
+        OpenVpnConfigPath = source.OpenVpnConfigPath,
+        OpenVpnUsername = source.OpenVpnUsername,
+        OpenVpnPassword = source.OpenVpnPassword,
+        ProxyProtocol = source.ProxyProtocol,
+        ProxyServerAddress = source.ProxyServerAddress,
+        ProxyPort = source.ProxyPort,
+        ProxyUsername = source.ProxyUsername,
+        ProxyPassword = source.ProxyPassword,
+        MixedProxyPort = source.MixedProxyPort,
+        AutoTuneMtu = source.AutoTuneMtu,
+        EnableDnsOptimization = source.EnableDnsOptimization,
+        EnableGameMode = source.EnableGameMode
+    };
+
+    private static void ApplyProfileValues(ConnectionProfile target, ConnectionProfile source)
+    {
+        target.Name = source.Name;
+        target.ServerAddress = source.ServerAddress;
+        target.Username = source.Username;
+        target.Password = source.Password;
+        target.PreSharedKey = source.PreSharedKey;
+        target.TunnelType = source.TunnelType;
+        target.V2RayConfig = source.V2RayConfig;
+        target.OpenVpnConfig = source.OpenVpnConfig;
+        target.OpenVpnConfigPath = source.OpenVpnConfigPath;
+        target.OpenVpnUsername = source.OpenVpnUsername;
+        target.OpenVpnPassword = source.OpenVpnPassword;
+        target.ProxyProtocol = source.ProxyProtocol;
+        target.ProxyServerAddress = source.ProxyServerAddress;
+        target.ProxyPort = source.ProxyPort;
+        target.ProxyUsername = source.ProxyUsername;
+        target.ProxyPassword = source.ProxyPassword;
+        target.MixedProxyPort = source.MixedProxyPort;
+        target.AutoTuneMtu = source.AutoTuneMtu;
+        target.EnableDnsOptimization = source.EnableDnsOptimization;
+        target.EnableGameMode = source.EnableGameMode;
+    }
+
+    private void RaiseProfileCardChanged()
+    {
+        OnPropertyChanged(nameof(ProfileCountText));
+        OnPropertyChanged(nameof(ActiveProfileTypeText));
+        OnPropertyChanged(nameof(ActiveProfileEndpointText));
+        OnPropertyChanged(nameof(ProfileSaveHintText));
     }
 
     #endregion
@@ -273,7 +416,9 @@ public partial class MainViewModel
         var entry = new ConnectionHistoryEntry
         {
             ProfileName = _selectedProfile?.Name ?? "پیش‌فرض",
-            ServerAddress = ServerAddress,
+            ServerAddress = CurrentTunnelType == TunnelType.SocksProxy
+                ? $"{ProxyServerAddress}:{ProxyPort}"
+                : ServerAddress,
             ConnectedAt = _connectionStartTime,
             DisconnectedAt = DateTime.Now,
             BytesSent = totalSent,

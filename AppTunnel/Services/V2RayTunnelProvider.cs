@@ -290,14 +290,18 @@ public class V2RayTunnelProvider : ITunnelProvider
 
             _vpnInterfaceIndex = interfaceIndex;
 
+            var statusServerHost = ExtractServerHost(config.V2RayConfig);
+            var statusServerPort = ExtractServerPort(config.V2RayConfig);
             Status.State             = ConnectionState.Connected;
             Status.ConnectedSince    = DateTime.Now;
             Status.VpnLocalIp        = VpnLocalIp;
-            Status.VpnServerIp       = ExtractServerHost(config.V2RayConfig);
+            Status.VpnServerHost     = statusServerHost;
+            Status.VpnServerIp       = statusServerHost;
+            Status.VpnServerPort     = statusServerPort;
             Status.VpnInterfaceIndex = interfaceIndex;
             Status.SingBoxMixedPort  = MixedProxyPort;
-            Status.Message           = "V2Ray connected";
-            Logger.Info($"V2Ray tunnel up — interface index {interfaceIndex}, server={Status.VpnServerIp}");
+            Status.Message           = config.TunnelType == TunnelType.SocksProxy ? "Proxy connected" : "V2Ray connected";
+            Logger.Info($"{(config.TunnelType == TunnelType.SocksProxy ? "Proxy" : "V2Ray")} tunnel up — interface index {interfaceIndex}, server={Status.VpnServerIp}:{Status.VpnServerPort}");
 
             return true;
         }
@@ -339,6 +343,9 @@ public class V2RayTunnelProvider : ITunnelProvider
         Status.State             = ConnectionState.Disconnected;
         Status.ConnectedSince    = null;
         Status.VpnLocalIp        = string.Empty;
+        Status.VpnServerHost     = string.Empty;
+        Status.VpnServerIp       = string.Empty;
+        Status.VpnServerPort     = 0;
         Status.VpnInterfaceIndex = -1;
         Status.SingBoxMixedPort  = 0;
         Status.Message           = "قطع شد";
@@ -844,6 +851,22 @@ public class V2RayTunnelProvider : ITunnelProvider
             return uri.Host;
         }
         catch { return ""; }
+    }
+
+    private static int ExtractServerPort(string userConfig)
+    {
+        try
+        {
+            userConfig = userConfig.Trim();
+            if (userConfig.StartsWith("{")) return 0;
+            var uri = new Uri(userConfig.Split('#')[0]);
+            if (uri.Port > 0) return uri.Port;
+
+            return uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
+                ? 3128
+                : 443;
+        }
+        catch { return 0; }
     }
 
     private static int FindInterfaceIndex(string interfaceName)

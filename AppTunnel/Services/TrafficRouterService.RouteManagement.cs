@@ -25,10 +25,12 @@ public partial class TrafficRouterService
 
             _fullRouteEnabled = true;
             InvalidateProcessCaches();
+            RefreshExcludedDirectRoutes();
             Logger.Info($"[FULL-ROUTE] Enabled via VPN IF {_vpnInterfaceIndex}");
             return true;
         }
 
+        RemoveExcludedDirectRoutes();
         RemoveFullRouteDefault();
         _fullRouteEnabled = false;
         MarkPolicyTransitionGrace(TimeSpan.FromSeconds(25));

@@ -47,8 +47,10 @@ public partial class MainViewModel : INotifyPropertyChanged
 
         // Profile commands
         NewProfileCommand = new RelayCommand(_ => CreateNewProfile(), _ => !IsConnected);
-        DeleteProfileCommand = new RelayCommand(_ => DeleteCurrentProfile(), _ => !IsConnected && Profiles.Count > 1);
-        DuplicateProfileCommand = new RelayCommand(_ => DuplicateCurrentProfile(), _ => !IsConnected);
+        DeleteProfileCommand = new RelayCommand(DeleteCurrentProfile, _ => !IsConnected && Profiles.Count > 1);
+        DuplicateProfileCommand = new RelayCommand(DuplicateCurrentProfile, _ => !IsConnected);
+        EditProfileCommand = new RelayCommand(EditProfile, _ => !IsConnected);
+        SelectProfileCommand = new RelayCommand(SelectProfile, _ => !IsConnected);
 
         // History command
         ClearHistoryCommand = new RelayCommand(_ => ClearHistory());
@@ -124,7 +126,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string ServerAddress
     {
         get => _serverAddress;
-        set { _serverAddress = value; OnPropertyChanged(); UpdateConfigDiagnostics(); SaveCurrentState(); }
+        set { _serverAddress = value; OnPropertyChanged(); UpdateConfigDiagnostics(); RaiseProfileCardChanged(); SaveCurrentState(); }
     }
 
     private string _username = "";
@@ -456,12 +458,15 @@ public partial class MainViewModel : INotifyPropertyChanged
             _currentTunnelType = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsOpenVpnConnectionPending));
+            OnPropertyChanged(nameof(ConnectedBadgeText));
+            OnPropertyChanged(nameof(ConnectionIpLabel));
             OnPropertyChanged(nameof(ConnectedServerPingButtonText));
             if (_selectedProfile != null)
                 _selectedProfile.TunnelType = value;
             if (value == TunnelType.OpenVpn)
                 RefreshOpenVpnInstallStatus();
             UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
             RaiseHealthStatusChanged();
             SaveCurrentState();
             CommandManager.InvalidateRequerySuggested();
@@ -481,6 +486,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             TryAutoNameProfileFromConfig(value);
             UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
             RaiseHealthStatusChanged();
             SaveCurrentState();
             CommandManager.InvalidateRequerySuggested();
@@ -499,6 +505,7 @@ public partial class MainViewModel : INotifyPropertyChanged
                 _selectedProfile.OpenVpnConfig = value;
             OnPropertyChanged();
             UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
             RaiseHealthStatusChanged();
             SaveCurrentState();
             CommandManager.InvalidateRequerySuggested();
@@ -516,6 +523,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (_selectedProfile != null)
                 _selectedProfile.OpenVpnConfigPath = value;
             OnPropertyChanged();
+            RaiseProfileCardChanged();
             SaveCurrentState();
         }
     }
@@ -550,6 +558,108 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private ProxyProtocol _proxyProtocol = ProxyProtocol.Socks5;
+    public ProxyProtocol ProxyProtocol
+    {
+        get => _proxyProtocol;
+        set
+        {
+            if (_proxyProtocol == value) return;
+            _proxyProtocol = value;
+            if (_selectedProfile != null)
+                _selectedProfile.ProxyProtocol = value;
+            OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
+            SaveCurrentState();
+        }
+    }
+
+    private string _proxyServerAddress = "";
+    public string ProxyServerAddress
+    {
+        get => _proxyServerAddress;
+        set
+        {
+            if (_proxyServerAddress == value) return;
+            _proxyServerAddress = value;
+            if (_selectedProfile != null)
+                _selectedProfile.ProxyServerAddress = value;
+            OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
+            SaveCurrentState();
+        }
+    }
+
+    private int _proxyPort = 1080;
+    public int ProxyPort
+    {
+        get => _proxyPort;
+        set
+        {
+            var normalized = value;
+            if (_proxyPort == normalized) return;
+            _proxyPort = normalized;
+            if (_selectedProfile != null)
+                _selectedProfile.ProxyPort = normalized;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(ProxyPortText));
+            UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
+            SaveCurrentState();
+        }
+    }
+
+    public string ProxyPortText
+    {
+        get => _proxyPort.ToString();
+        set
+        {
+            if (int.TryParse((value ?? "").Trim(), out var port))
+            {
+                ProxyPort = port;
+                return;
+            }
+
+            ConfigValidationText = string.IsNullOrWhiteSpace(value)
+                ? "پورت پراکسی را وارد کنید"
+                : "پورت پراکسی باید عدد باشد";
+        }
+    }
+
+    private string _proxyUsername = "";
+    public string ProxyUsername
+    {
+        get => _proxyUsername;
+        set
+        {
+            if (_proxyUsername == value) return;
+            _proxyUsername = value;
+            if (_selectedProfile != null)
+                _selectedProfile.ProxyUsername = value;
+            OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
+            SaveCurrentState();
+        }
+    }
+
+    private string _proxyPassword = "";
+    public string ProxyPassword
+    {
+        get => _proxyPassword;
+        set
+        {
+            if (_proxyPassword == value) return;
+            _proxyPassword = value;
+            if (_selectedProfile != null)
+                _selectedProfile.ProxyPassword = value;
+            OnPropertyChanged();
+            SaveCurrentState();
+        }
+    }
+
     private string _configCoreHint = "";
     public string ConfigCoreHint
     {
@@ -568,7 +678,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string SaveStatusText
     {
         get => _saveStatusText;
-        set { _saveStatusText = value; OnPropertyChanged(); }
+        set { _saveStatusText = value; OnPropertyChanged(); OnPropertyChanged(nameof(ProfileSaveHintText)); }
     }
 
     private string _connectionDuration = "--:--:--";
@@ -584,6 +694,15 @@ public partial class MainViewModel : INotifyPropertyChanged
         get => _vpnIp;
         set { _vpnIp = value; OnPropertyChanged(); }
     }
+
+    private string _connectionIpText = "-";
+    public string ConnectionIpText
+    {
+        get => _connectionIpText;
+        set { _connectionIpText = value; OnPropertyChanged(); }
+    }
+
+    public string ConnectionIpLabel => "IP خروجی";
 
     private string _vpnAdapterName = "";
     public string VpnAdapterName
@@ -626,8 +745,8 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     public string RouteModeTitle => IsFullRouteEnabled ? "حالت کل سیستم" : "حالت انتخابی";
     public string RouteModeDescription => IsFullRouteEnabled
-        ? "همه برنامه‌ها از تونل عبور می‌کنند. برای تست یا وقتی می‌خواهید کل ویندوز پشت VPN باشد مناسب است."
-        : "فقط برنامه‌های فعال در تب برنامه‌ها و مقصدهای لزومی از تونل عبور می‌کنند. حالت پیشنهادی برای مصرف کمتر و کنترل بهتر.";
+        ? "ترافیک کل سیستم از تونل عبور خواهد کرد؛ برای وقتی مناسب است که همه برنامه‌ها باید پشت تونل باشند."
+        : "فقط برنامه‌ها و مقصدهای انتخابی از تونل عبور می‌کنند؛ بقیه ترافیک مستقیم می‌ماند.";
 
     public string HeaderCoreText => $"Core: {ActiveCoreName}";
     public string HeaderRouteText => IsFullRouteEnabled ? "Mode: Full" : "Mode: Split";
@@ -661,12 +780,17 @@ public partial class MainViewModel : INotifyPropertyChanged
         ? $"routes {_trafficRouter.ActiveRouteCount}/{_trafficRouter.RouteFailureCount} fail"
         : "-";
 
+    public string ConnectedBadgeText => CurrentTunnelType == TunnelType.SocksProxy
+        ? "متصل به پراکسی"
+        : "متصل به VPN";
+
     private string ActiveCoreName => CurrentTunnelType switch
     {
         TunnelType.L2tpIpsec => "L2TP",
         TunnelType.V2Ray when TunnelProviderFactory.RequiresXray(SelectedV2RayConfig) => "Xray",
         TunnelType.V2Ray => "sing-box",
         TunnelType.OpenVpn => "OpenVPN",
+        TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5",
         _ => "-"
     };
 
@@ -712,7 +836,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         set { _isPinging = value; OnPropertyChanged(); OnPropertyChanged(nameof(PingButtonText)); }
     }
 
-    public string PingButtonText => _isPinging ? "⏹ توقف" : "▶ شروع";
+    public string PingButtonText => _isPinging ? "توقف تست" : "تست مقصد";
 
     private bool _isTestingConnectedServerPing;
     public bool IsTestingConnectedServerPing
@@ -855,6 +979,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     public ICommand NewProfileCommand { get; }
     public ICommand DeleteProfileCommand { get; }
     public ICommand DuplicateProfileCommand { get; }
+    public ICommand EditProfileCommand { get; }
+    public ICommand SelectProfileCommand { get; }
     public ICommand ClearHistoryCommand { get; }
     public ICommand AddExcludeCommand { get; }
     public ICommand RemoveExcludeCommand { get; }
@@ -1051,6 +1177,15 @@ public partial class MainViewModel : INotifyPropertyChanged
             return;
         }
 
+        if (CurrentTunnelType == TunnelType.SocksProxy)
+        {
+            ConfigCoreHint = ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy";
+            ConfigValidationText = ValidateProxySettings(out var proxyMessage)
+                ? BuildProxyValidationText()
+                : proxyMessage;
+            return;
+        }
+
         var config = SelectedV2RayConfig.Trim();
         if (string.IsNullOrWhiteSpace(config))
         {
@@ -1066,6 +1201,41 @@ public partial class MainViewModel : INotifyPropertyChanged
         ConfigValidationText = TryExtractProxyEndpoint(config, out var server, out var port, out var error)
             ? $"سرور: {server}:{port}"
             : error;
+    }
+
+    private string BuildProxyValidationText()
+    {
+        var endpoint = $"{ProxyServerAddress.Trim()}:{ProxyPort}";
+        return IsLoopbackProxyServer()
+            ? $"پراکسی آماده است: {endpoint} — توجه: این پراکسی محلی است؛ برنامه‌هایی که خودشان مستقیم از همین پراکسی استفاده کنند خارج از لیست برنامه‌های TunnelX هم پروکسی می‌شوند."
+            : $"پراکسی آماده است: {endpoint}";
+    }
+
+    private bool IsLoopbackProxyServer()
+    {
+        var host = ProxyServerAddress.Trim();
+        return host.Equals("localhost", StringComparison.OrdinalIgnoreCase) ||
+               host.Equals("127.0.0.1", StringComparison.OrdinalIgnoreCase) ||
+               host.StartsWith("127.", StringComparison.OrdinalIgnoreCase) ||
+               host.Equals("::1", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool ValidateProxySettings(out string message)
+    {
+        if (string.IsNullOrWhiteSpace(ProxyServerAddress))
+        {
+            message = "آدرس IP یا دامنه سرور پراکسی را وارد کنید";
+            return false;
+        }
+
+        if (ProxyPort <= 0 || ProxyPort > 65535)
+        {
+            message = "پورت پراکسی باید بین 1 تا 65535 باشد";
+            return false;
+        }
+
+        message = "تنظیمات پراکسی آماده است";
+        return true;
     }
 
     private bool ValidateMixedProxyPort(out string message)

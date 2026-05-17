@@ -22,12 +22,18 @@ public partial class TrafficRouterService : IDisposable
     private readonly ConcurrentDictionary<uint, bool> _excludedIps = new();
     // Raw exclude entries → resolved NBO IPs, so we can remove cleanly.
     private readonly ConcurrentDictionary<string, HashSet<uint>> _excludedEntries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, bool> _excludedDomainRules = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<uint, bool> _excludedDirectRoutes = new();
 
     // Included destination IPs (network byte order). Populated from user-entered
     // domains/IPs; forced through tunnel regardless of target app selection.
     private readonly ConcurrentDictionary<uint, bool> _includedIps = new();
     // Raw include entries → resolved NBO IPs, so we can remove cleanly.
     private readonly ConcurrentDictionary<string, HashSet<uint>> _includedEntries = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, bool> _includedDomainRules = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, DnsRuleQuery> _dnsRuleQueries = new();
+    private readonly object _destinationListLock = new();
+    private System.Threading.Timer? _destinationRefreshTimer;
 
     // NAT table: key=(protocol, srcPort); value=entry with original IP/ifIdx/process
     // Used to reverse-translate inbound packets so replies reach the correct socket.
@@ -49,6 +55,7 @@ public partial class TrafficRouterService : IDisposable
     private string _vpnLocalIp = "";
     private string _vpnServerIp = "";    // resolved IPv4 — used in WinDivert filter strings
     private string _vpnServerHost = "";   // original hostname/IP from config — used for TCP health checks
+    private int _vpnServerPort = 443;     // original server port from config — used for TCP health checks
     private string _vpnGatewayIp = "";    // optional next hop for TAP/OpenVPN host routes
     private byte[]? _vpnLocalIpBytes;
     private volatile bool _isRunning;
@@ -296,7 +303,13 @@ public partial class TrafficRouterService : IDisposable
     public long ActiveRouteCount => _addedRoutes.Count;
     public long RouteFailureCount => Interlocked.Read(ref _statRoutesFailed);
 
-    public void Start(int vpnInterfaceIndex, string vpnLocalIp, string vpnServerIp, string vpnGatewayIp = "")
+    public void Start(
+        int vpnInterfaceIndex,
+        string vpnLocalIp,
+        string vpnServerIp,
+        string vpnGatewayIp = "",
+        int vpnServerPort = 443,
+        bool resetCounters = true)
     {
         if (_isRunning) return;
 
@@ -312,6 +325,7 @@ public partial class TrafficRouterService : IDisposable
         // Keep the original hostname for TCP-based health checks (domain may be behind
         // a CDN that returns different IPs; we should connect by name, not cached IP).
         _vpnServerHost = vpnServerIp;
+        _vpnServerPort = vpnServerPort > 0 && vpnServerPort <= 65535 ? vpnServerPort : 443;
 
         // Resolve VPN server address to an IPv4 string.
         // WinDivert filters require a literal IP address — hostnames are invalid
@@ -391,16 +405,8 @@ public partial class TrafficRouterService : IDisposable
 
         ConfigureDnsRedirectTarget();
 
-        // Reset total-throughput counters for this session.
-        Interlocked.Exchange(ref _totalVpnBytesSent, 0);
-        Interlocked.Exchange(ref _totalVpnBytesReceived, 0);
-        Interlocked.Exchange(ref _directBytesSent, 0);
-        Interlocked.Exchange(ref _directBytesReceived, 0);
-        foreach (var counter in _trafficCounters.Values)
-        {
-            Interlocked.Exchange(ref counter.BytesSent, 0);
-            Interlocked.Exchange(ref counter.BytesReceived, 0);
-        }
+        if (resetCounters)
+            ResetLiveTrafficCounters();
 
         // Reset flow-log counters so session 2 gets fresh log output.
         _flowLogCount = 0;
@@ -471,6 +477,9 @@ public partial class TrafficRouterService : IDisposable
 
         RemoveDefaultRouteOnVpn();
         _fullRouteEnabled = false;
+        RefreshDestinationLists(installIncludedRoutes: true);
+        _destinationRefreshTimer = new System.Threading.Timer(_ => RefreshDestinationLists(installIncludedRoutes: true), null,
+            TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
         _ = Task.Run(RunConnectivityChecks);
 
         // NEW ARCHITECTURE (flow-based, zero-copy):
@@ -742,7 +751,7 @@ public partial class TrafficRouterService : IDisposable
             Logger.Info($"[APP-RECONCILE] '{executableName}' disabled: removedRoutes={removedRouteIps.Count}, removedNat={natRemoved}");
     }
 
-    public async Task StopAsync()
+    public async Task StopAsync(bool resetCounters = true)
     {
         if (!_isRunning) return;
 
@@ -751,6 +760,8 @@ public partial class TrafficRouterService : IDisposable
         _cts?.Cancel();
         _statsTimer?.Dispose();
         _statsTimer = null;
+        _destinationRefreshTimer?.Dispose();
+        _destinationRefreshTimer = null;
 
         try { _mixedProxy?.Stop(); } catch { }
         _mixedProxy = null;
@@ -854,7 +865,8 @@ public partial class TrafficRouterService : IDisposable
         Interlocked.Exchange(ref _statLeakBlockedRecovered, 0);
         Interlocked.Exchange(ref _statLeakBlockedSuppressed, 0);
         Interlocked.Exchange(ref _policyTransitionGraceUntilTick, 0);
-        ResetLiveTrafficCounters();
+        if (resetCounters)
+            ResetLiveTrafficCounters();
         Interlocked.Exchange(ref _statRoutesAdded, 0);
         Interlocked.Exchange(ref _statRoutesFailed, 0);
         Interlocked.Exchange(ref _statFlowEstablished, 0);

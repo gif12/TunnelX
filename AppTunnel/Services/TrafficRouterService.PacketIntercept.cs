@@ -73,6 +73,7 @@ public partial class TrafficRouterService
                 }
 
                 uint dstNbo = BitConverter.ToUInt32(buffer, 16);
+                LearnDnsRuleFromOutboundPacket(buffer, readLen);
 
                 // ── Fast path: destination already has a VPN host route ──
                 if (_addedRoutes.ContainsKey(dstNbo))
@@ -361,7 +362,7 @@ public partial class TrafficRouterService
     {
         try
         {
-            string filter = $"inbound and ip and (tcp or udp) and ip.DstAddr == {_vpnLocalIp}";
+            string filter = $"inbound and ip and ((tcp or udp) and ip.DstAddr == {_vpnLocalIp} or udp.SrcPort == 53)";
 
             IntPtr h;
             lock (_handleLock)
@@ -394,6 +395,9 @@ public partial class TrafficRouterService
                     if (ct.IsCancellationRequested || !_isRunning) break;
                     continue;
                 }
+
+                if (readLen >= 20)
+                    ApplyDnsRuleFromInboundPacket(buffer, readLen);
 
                 if (readLen >= 20 && TryParseConnectionTuple(buffer, readLen, out var tuple))
                 {

@@ -19,7 +19,7 @@ public partial class TrafficRouterService
 
             using var ping = new System.Net.NetworkInformation.Ping();
 
-            // 1. TCP-connect to VPN server port 443 directly (via physical NIC).
+            // 1. TCP-connect to the tunnel/proxy server directly (via physical NIC).
             //    ICMP is useless here: CDN servers (e.g. Cloudflare, Arvancloud) never
             //    respond to pings, so Ping.Send() always times out even when the server
             //    is perfectly healthy.  We use the original hostname (_vpnServerHost) so
@@ -30,12 +30,12 @@ public partial class TrafficRouterService
                 var sw = System.Diagnostics.Stopwatch.StartNew();
                 using var tcpServer = new TcpClient();
                 using var serverCts = new System.Threading.CancellationTokenSource(3000);
-                await tcpServer.ConnectAsync(_vpnServerHost, 443, serverCts.Token);
+                await tcpServer.ConnectAsync(_vpnServerHost, _vpnServerPort, serverCts.Token);
                 sw.Stop();
-                Logger.Info($"[CONN-CHECK] TCP VPN server {_vpnServerHost}:443 (direct): {sw.ElapsedMilliseconds}ms — reachable");
+                Logger.Info($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} (direct): {sw.ElapsedMilliseconds}ms — reachable");
             }
-            catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP VPN server {_vpnServerHost}:443: timeout (3000ms) — server unreachable or port blocked"); }
-            catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP VPN server {_vpnServerHost}:443 failed: {ex.Message}"); }
+            catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort}: timeout (3000ms) — server unreachable or port blocked"); }
+            catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} failed: {ex.Message}"); }
 
             // 2. Resolve an Iranian intranet hostname and ping it via the
             //    default route (physical NIC). Confirms the local intranet

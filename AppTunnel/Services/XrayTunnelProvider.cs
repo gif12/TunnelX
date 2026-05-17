@@ -119,7 +119,9 @@ public class XrayTunnelProvider : ITunnelProvider
             Status.State = ConnectionState.Connected;
             Status.ConnectedSince = DateTime.Now;
             Status.VpnLocalIp = VpnLocalIp;
-            Status.VpnServerIp = ExtractServerHost(config.V2RayConfig);
+            Status.VpnServerHost = ExtractServerHost(config.V2RayConfig);
+            Status.VpnServerIp = Status.VpnServerHost;
+            Status.VpnServerPort = ExtractServerPort(config.V2RayConfig);
             Status.VpnInterfaceIndex = interfaceIndex;
             Status.SingBoxMixedPort = MixedProxyPort;
             Status.Message = "Xray connected";
@@ -158,6 +160,9 @@ public class XrayTunnelProvider : ITunnelProvider
         Status.State = ConnectionState.Disconnected;
         Status.ConnectedSince = null;
         Status.VpnLocalIp = string.Empty;
+        Status.VpnServerHost = string.Empty;
+        Status.VpnServerIp = string.Empty;
+        Status.VpnServerPort = 0;
         Status.VpnInterfaceIndex = -1;
         Status.SingBoxMixedPort = 0;
         Status.Message = "قطع شد";
@@ -635,6 +640,33 @@ public class XrayTunnelProvider : ITunnelProvider
         catch { }
 
         return "";
+    }
+
+    private static int ExtractServerPort(string userConfig)
+    {
+        try
+        {
+            userConfig = userConfig.Trim();
+            if (!userConfig.StartsWith("{"))
+            {
+                var uri = new Uri(userConfig.Split('#')[0]);
+                return uri.Port > 0 ? uri.Port : 443;
+            }
+
+            var root = JsonNode.Parse(userConfig)?.AsObject();
+            if (root?["outbounds"] is JsonArray outbounds)
+            {
+                foreach (var item in outbounds.OfType<JsonObject>())
+                {
+                    var port = item["server_port"]?.GetValue<int>() ??
+                               item["settings"]?["vnext"]?[0]?["port"]?.GetValue<int>();
+                    if (port is > 0 and <= 65535) return port.Value;
+                }
+            }
+        }
+        catch { }
+
+        return 0;
     }
 
     private static int FindInterfaceIndex(string interfaceName)

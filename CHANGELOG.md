@@ -4,10 +4,26 @@
 
 ### English
 
+### فارسی
+
+## 1.2.27 - 2026-05-17
+
+### English
+
+- Added a dedicated SOCKS5/HTTP Proxy profile type with separate server, port, username, and password fields, encrypted proxy password persistence, validation hints, and proxy-specific connection handling through sing-box.
+- Reworked profile management into a compact profile list with separate add/edit dialogs, clearer active profile selection, and improved Persian-first profile cards.
+- Improved the connected dashboard with public exit IP detection, shorter ping results, clearer tunnel/direct traffic cards, manual proxy guidance, full-route controls, and a dedicated disconnect action.
+- Refined Persian font rendering, global WPF text settings, tab headers, footer, connection controls, route rules, app selection, history, and traffic views for a cleaner desktop UI.
+- Improved routing diagnostics and split-tunnel handling for V2Ray, SOCKS/Proxy, OpenVPN, include/exclude destination rules, DNS rule learning, and tunnel server health checks.
 - Fixed OpenVPN internal reconnect handling by detecting runtime tunnel IP, gateway, interface, or remote endpoint changes and restarting TunnelX packet routing with the new values.
 
 ### فارسی
 
+- نوع پروفایل اختصاصی SOCKS5/HTTP Proxy اضافه شد؛ شامل فیلدهای جداگانه سرور، پورت، نام کاربری و رمز عبور، ذخیره امن رمز پراکسی، راهنمای اعتبارسنجی و اتصال از طریق sing-box.
+- مدیریت پروفایل‌ها به لیست فشرده کانفیگ‌ها با پنجره جدا برای افزودن/ویرایش، انتخاب واضح پروفایل فعال و کارت‌های فارسی‌محور بهتر بازطراحی شد.
+- داشبورد بعد از اتصال بهبود یافت؛ نمایش IP خروجی عمومی، نتیجه کوتاه پینگ، کارت‌های واضح‌تر مصرف تونل/خارج تونل، راهنمای پراکسی دستی، کنترل Full Route و دکمه اختصاصی قطع اتصال اضافه شد.
+- رندر فونت فارسی، تنظیمات عمومی متن در WPF، تب‌ها، فوتر، کنترل‌های اتصال، قوانین مسیر، انتخاب برنامه‌ها، تاریخچه و نمای مصرف ترافیک برای رابط کاربری تمیزتر اصلاح شد.
+- عیب‌یابی مسیر و Split Tunneling برای V2Ray، SOCKS/Proxy، OpenVPN، قوانین include/exclude، یادگیری قوانین DNS و health check سرور تونل بهبود پیدا کرد.
 - مشکل reconnect داخلی OpenVPN اصلاح شد؛ اگر هنگام اتصال طولانی IP تونل، gateway، interface یا سرور مقصد عوض شود، TunnelX مسیر‌دهی ترافیک را با مقادیر جدید دوباره راه‌اندازی می‌کند.
 
 ## 1.2.26 - 2026-05-17

@@ -124,6 +124,11 @@ public class ProfileService
                     : (s.OpenVpnExePath.EndsWith(".ovpn", StringComparison.OrdinalIgnoreCase) ? s.OpenVpnExePath : ""),
                 OpenVpnUsername = s.OpenVpnUsername,
                 OpenVpnPassword = DecryptString(s.EncryptedOpenVpnPassword),
+                ProxyProtocol = s.ProxyProtocol,
+                ProxyServerAddress = s.ProxyServerAddress,
+                ProxyPort = s.ProxyPort > 0 ? s.ProxyPort : 1080,
+                ProxyUsername = s.ProxyUsername,
+                ProxyPassword = DecryptString(s.EncryptedProxyPassword),
                 MixedProxyPort = s.Socks5Port > 0 ? s.Socks5Port : 1080,
                 AutoTuneMtu = s.AutoTuneMtu,
                 EnableDnsOptimization = s.EnableDnsOptimization,
@@ -160,6 +165,11 @@ public class ProfileService
             OpenVpnConfigPath = p.OpenVpnConfigPath,
             OpenVpnUsername = p.OpenVpnUsername,
             EncryptedOpenVpnPassword = EncryptString(p.OpenVpnPassword),
+            ProxyProtocol = p.ProxyProtocol,
+            ProxyServerAddress = p.ProxyServerAddress,
+            ProxyPort = p.ProxyPort,
+            ProxyUsername = p.ProxyUsername,
+            EncryptedProxyPassword = EncryptString(p.ProxyPassword),
             Socks5Port = p.MixedProxyPort,
             AutoTuneMtu = p.AutoTuneMtu,
             EnableDnsOptimization = p.EnableDnsOptimization,
@@ -223,6 +233,11 @@ public class ProfileService
         public string OpenVpnExePath { get; set; } = "";
         public string OpenVpnUsername { get; set; } = "";
         public string EncryptedOpenVpnPassword { get; set; } = "";
+        public ProxyProtocol ProxyProtocol { get; set; } = ProxyProtocol.Socks5;
+        public string ProxyServerAddress { get; set; } = "";
+        public int ProxyPort { get; set; } = 1080;
+        public string ProxyUsername { get; set; } = "";
+        public string EncryptedProxyPassword { get; set; } = "";
         [JsonPropertyName("socks5Port")]
         public int Socks5Port { get; set; } = 1080;
         public bool AutoTuneMtu { get; set; } = true;

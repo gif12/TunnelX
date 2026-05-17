@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 
 namespace AppTunnel.Models;
@@ -8,7 +9,14 @@ public enum TunnelType
 {
     L2tpIpsec,
     V2Ray,
-    OpenVpn
+    OpenVpn,
+    SocksProxy
+}
+
+public enum ProxyProtocol
+{
+    Socks5,
+    Http
 }
 
 /// <summary>
@@ -33,6 +41,11 @@ public class ConnectionProfile : INotifyPropertyChanged
     private string _openVpnConfigPath = "";
     private string _openVpnUsername = "";
     private string _openVpnPassword = "";
+    private ProxyProtocol _proxyProtocol = ProxyProtocol.Socks5;
+    private string _proxyServerAddress = "";
+    private int _proxyPort = 1080;
+    private string _proxyUsername = "";
+    private string _proxyPassword = "";
     private int _mixedProxyPort = 1080;
     private bool _autoTuneMtu = true;
     private bool _enableDnsOptimization = true;
@@ -139,6 +152,36 @@ public class ConnectionProfile : INotifyPropertyChanged
         set => SetField(ref _openVpnPassword, value);
     }
 
+    public ProxyProtocol ProxyProtocol
+    {
+        get => _proxyProtocol;
+        set => SetField(ref _proxyProtocol, value);
+    }
+
+    public string ProxyServerAddress
+    {
+        get => _proxyServerAddress;
+        set => SetField(ref _proxyServerAddress, value);
+    }
+
+    public int ProxyPort
+    {
+        get => _proxyPort;
+        set => SetField(ref _proxyPort, value);
+    }
+
+    public string ProxyUsername
+    {
+        get => _proxyUsername;
+        set => SetField(ref _proxyUsername, value);
+    }
+
+    public string ProxyPassword
+    {
+        get => _proxyPassword;
+        set => SetField(ref _proxyPassword, value);
+    }
+
     [JsonPropertyName("socks5Port")]
     public int MixedProxyPort
     {
@@ -167,6 +210,42 @@ public class ConnectionProfile : INotifyPropertyChanged
     [JsonIgnore]
     public string ConnectionName => $"TunnelX-{Id}";
 
+    [JsonIgnore]
+    public string TunnelTypeDisplay => TunnelType switch
+    {
+        TunnelType.L2tpIpsec => "L2TP/IPsec",
+        TunnelType.V2Ray => "V2Ray / Xray",
+        TunnelType.OpenVpn => "OpenVPN",
+        TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy",
+        _ => "نامشخص"
+    };
+
+    [JsonIgnore]
+    public string EndpointDisplay => TunnelType switch
+    {
+        TunnelType.L2tpIpsec => string.IsNullOrWhiteSpace(ServerAddress) ? "آدرس سرور وارد نشده" : ServerAddress,
+        TunnelType.V2Ray => string.IsNullOrWhiteSpace(V2RayConfig) ? "کانفیگ وارد نشده" : "کانفیگ آماده",
+        TunnelType.OpenVpn => string.IsNullOrWhiteSpace(OpenVpnConfigPath) ? "فایل .ovpn انتخاب نشده" : Path.GetFileName(OpenVpnConfigPath),
+        TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress) ? "آدرس پراکسی وارد نشده" : $"{ProxyServerAddress}:{ProxyPort}",
+        _ => ""
+    };
+
+    [JsonIgnore]
+    public bool IsReady => TunnelType switch
+    {
+        TunnelType.L2tpIpsec => !string.IsNullOrWhiteSpace(ServerAddress),
+        TunnelType.V2Ray => !string.IsNullOrWhiteSpace(V2RayConfig),
+        TunnelType.OpenVpn => !string.IsNullOrWhiteSpace(OpenVpnConfig),
+        TunnelType.SocksProxy => !string.IsNullOrWhiteSpace(ProxyServerAddress) && ProxyPort is > 0 and <= 65535,
+        _ => false
+    };
+
+    [JsonIgnore]
+    public string ReadinessText => IsReady ? "آماده اتصال" : "نیاز به تکمیل";
+
+    [JsonIgnore]
+    public string ReadinessColor => IsReady ? "#6CCB5F" : "#E0A020";
+
     public ServerConfig ToServerConfig() => new()
     {
         ServerAddress = ServerAddress,
@@ -179,6 +258,11 @@ public class ConnectionProfile : INotifyPropertyChanged
         OpenVpnConfig = OpenVpnConfig,
         OpenVpnUsername = OpenVpnUsername,
         OpenVpnPassword = OpenVpnPassword,
+        ProxyProtocol = ProxyProtocol,
+        ProxyServerAddress = ProxyServerAddress,
+        ProxyPort = ProxyPort,
+        ProxyUsername = ProxyUsername,
+        ProxyPassword = ProxyPassword,
         AutoTuneMtu = AutoTuneMtu,
         EnableDnsOptimization = EnableDnsOptimization,
         EnableGameMode = EnableGameMode
@@ -196,6 +280,11 @@ public class ConnectionProfile : INotifyPropertyChanged
         if (EqualityComparer<T>.Default.Equals(field, value)) return false;
         field = value;
         OnPropertyChanged(propertyName);
+        OnPropertyChanged(nameof(TunnelTypeDisplay));
+        OnPropertyChanged(nameof(EndpointDisplay));
+        OnPropertyChanged(nameof(IsReady));
+        OnPropertyChanged(nameof(ReadinessText));
+        OnPropertyChanged(nameof(ReadinessColor));
         return true;
     }
 }

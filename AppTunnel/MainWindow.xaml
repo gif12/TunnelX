@@ -51,8 +51,10 @@
             </Grid.RowDefinitions>
 
             <!-- ═══ CUSTOM TITLE BAR ═══ -->
-            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}" 
-                    CornerRadius="12,0,0,0" Padding="16,10">
+            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="#12FFFFFF"
+                    BorderThickness="0,0,0,1"
+                    CornerRadius="12,0,0,0" Padding="14,8">
                 <Grid FlowDirection="LeftToRight">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -62,9 +64,9 @@
                     </Grid.ColumnDefinitions>
 
                     <!-- Logo & Title -->
-                    <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                         <!-- Tx Icon SVG -->
-                        <Viewbox Width="28" Height="28" Margin="0,0,10,0">
+                        <Viewbox Width="30" Height="30" Margin="0,0,10,0">
                             <Canvas Width="48" Height="48">
                                 <Rectangle Width="48" Height="48" RadiusX="8" RadiusY="8" Fill="{StaticResource PrimaryBrush}"/>
                                 <TextBlock Text="Tx" FontSize="24" FontWeight="Bold" 
@@ -72,28 +74,37 @@
                                            FontFamily="Segoe UI"/>
                             </Canvas>
                         </Viewbox>
-                        <StackPanel VerticalAlignment="Center">
+                        <StackPanel VerticalAlignment="Bottom" Margin="0,0,0,1">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Tunnel" FontSize="17" FontWeight="Bold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
                                 <TextBlock Text="X" FontSize="17" FontWeight="Bold"
                                            Foreground="{StaticResource AccentBrush}"/>
                             </StackPanel>
-                            <TextBlock Text="Split Traffic Per App" FontSize="9"
-                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="Per-app split tunneling" FontSize="9"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,-3,0,0"/>
                         </StackPanel>
                     </StackPanel>
 
                     <!-- Connection Status + Compact Health Chips -->
                     <StackPanel Grid.Column="1" HorizontalAlignment="Center" VerticalAlignment="Center">
                         <Border HorizontalAlignment="Center"
-                                CornerRadius="12" Padding="12,5" Background="#18FFFFFF">
+                                CornerRadius="12"
+                                Padding="12,5"
+                                Background="#121212"
+                                BorderBrush="#20FFFFFF"
+                                BorderThickness="1">
                             <StackPanel Orientation="Horizontal">
                                 <Ellipse Width="9" Height="9" VerticalAlignment="Center" Margin="0,0,8,0"
                                          Fill="{Binding StatusColor, Converter={StaticResource StringToColor}}"/>
                                 <TextBlock Text="{Binding StatusText}"
                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                           FontSize="12" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           VerticalAlignment="Center"
+                                           MaxWidth="210"
+                                           TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                         </Border>
                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5,0,0"
@@ -114,12 +125,13 @@
                     </StackPanel>
 
                     <!-- Details Button -->
-                    <Button Grid.Column="2" Content="🔍 جزئیات" 
+                    <Button Grid.Column="2" Content="جزئیات"
                             Click="OnShowLogClick"
-                            Background="#11FFFFFF" 
+                            Background="#121212"
                             Foreground="{StaticResource TextSecondaryBrush}"
-                            BorderThickness="0" 
-                            Padding="10,6" 
+                            BorderBrush="#20FFFFFF"
+                            BorderThickness="1"
+                            Padding="11,6"
                             Margin="0,0,8,0"
                             FontSize="11"
                             Cursor="Hand"
@@ -129,8 +141,10 @@
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="Button">
-                                            <Border Background="{TemplateBinding Background}" 
-                                                    CornerRadius="6" Padding="{TemplateBinding Padding}">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="8" Padding="{TemplateBinding Padding}">
                                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </ControlTemplate>
@@ -173,7 +187,7 @@
                 <TabItem.Header>
                     <StackPanel>
                         <TextBlock Text="⚡" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="اتصال VPN" FontSize="10" TextAlignment="Center"/>
+                        <TextBlock Text="اتصال VPN" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:ConnectionTabView/>
@@ -182,7 +196,7 @@
                 <TabItem.Header>
                     <StackPanel>
                         <TextBlock Text="📱" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="برنامه‌ها" FontSize="10" TextAlignment="Center"/>
+                        <TextBlock Text="برنامه‌ها" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:AppsTabView/>
@@ -192,7 +206,7 @@
                 <TabItem.Header>
                     <StackPanel>
                         <TextBlock Text="⚙" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="تنظیمات" FontSize="10" TextAlignment="Center"/>
+                        <TextBlock Text="تنظیمات" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:SettingsTabView/>
@@ -203,57 +217,63 @@
                 <TabItem.Header>
                     <StackPanel>
                         <TextBlock Text="🧭" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="قوانین مسیر" FontSize="10" TextAlignment="Center"/>
+                        <TextBlock Text="قوانین مسیر" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
 
-                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,12,0,0">
+                <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,10,0,0">
                     <StackPanel HorizontalAlignment="Stretch" Margin="16,0">
 
-                    <Border Background="#12FFFFFF" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
-                        <TextBlock Text="استثناها مقصدها را مستقیم نگه می‌دارند؛ لزومی‌ها مقصدها را حتی بدون انتخاب برنامه از تونل عبور می‌دهند."
-                                   TextWrapping="Wrap"
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <Border Background="#121212" BorderBrush="#18FFFFFF" BorderThickness="1"
+                            CornerRadius="10" Padding="12,8" Margin="0,0,0,10">
+                        <StackPanel>
+                            <TextBlock Text="قوانین مسیر"
+                                       FontSize="13"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}"/>
+                            <TextBlock Text="مقصدهای مستقیم و مقصدهای اجباری تونل را اینجا مدیریت کنید."
+                                       TextWrapping="Wrap"
+                                       FontSize="10"
+                                       Margin="0,2,0,0"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                        </StackPanel>
                     </Border>
 
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="12"/>
+                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
                     <!-- Info Card -->
-                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8" BorderBrush="#2247A3F3">
                         <StackPanel>
-                            <TextBlock Text="🚫 لیست استثنا (Exclude List)" FontSize="16" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
-                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
-                                       Text="دامنه یا آی‌پی‌هایی که نمی‌خواهید از تونل عبور کنند را اینجا وارد کنید. حتی اگر برنامه‌های هدف بخواهند به این آدرس‌ها وصل شوند، ترافیک مستقیم (بدون VPN) ارسال می‌شود."/>
+                            <TextBlock Text="🚫 مستقیم بماند" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10"
+                                       Text="این مقصدها از تونل عبور نمی‌کنند."/>
                         </StackPanel>
                     </Border>
 
                     <!-- Tip for Excludes -->
-                    <Border Background="#1547A3F3" CornerRadius="8" Padding="12,8" Margin="0,0,0,12">
+                    <Border Background="#1247A3F3" BorderBrush="#2647A3F3" BorderThickness="1"
+                            CornerRadius="9" Padding="10,7" Margin="0,0,0,8">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
-                                <TextBlock Text="💡" FontSize="12" Margin="0,0,6,0"/>
-                                <TextBlock Text="کاربرد استثنا" FontSize="11" FontWeight="SemiBold"
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                                <TextBlock Text="💡" FontSize="11" Margin="0,0,5,0"/>
+                                <TextBlock Text="نمونه کاربرد" FontSize="10" FontWeight="SemiBold"
                                            Foreground="#47A3F3"/>
                             </StackPanel>
-                            <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="16"
-                                       Foreground="{StaticResource TextSecondaryBrush}">
-• سایت‌های ایرانی را استثنا کنید تا مستقیم وصل شوند (سرعت بهتر)
-• سرورهای بازی داخلی را استثنا کنید تا پینگ کم شود
-• آی‌پی سرور SSH/FTP داخلی را اضافه کنید
-                            </TextBlock>
+                            <TextBlock Text="سایت‌های داخلی یا سرورهای بازی را مستقیم نگه دارید."
+                                       TextWrapping="Wrap" FontSize="10" LineHeight="15"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
 
                     <!-- Add Entry -->
-                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -263,25 +283,25 @@
                                      Text="{Binding ExcludeInput, UpdateSourceTrigger=PropertyChanged}"
                                      Tag="دامنه یا آی‌پی (مثلاً google.com یا 1.2.3.4)"
                                      FlowDirection="LeftToRight"
-                                     FontSize="13" Padding="10,8"
-                                     Margin="0,0,8,0">
+                                     FontSize="12" Padding="9,6"
+                                     Margin="0,0,7,0">
                                 <TextBox.InputBindings>
                                     <KeyBinding Key="Enter" Command="{Binding AddExcludeCommand}"/>
                                 </TextBox.InputBindings>
                             </TextBox>
                             <Button Grid.Column="1" Style="{StaticResource PrimaryButton}"
-                                    Content="➕ افزودن"
+                                    Content="افزودن"
                                     Command="{Binding AddExcludeCommand}"
-                                    FontSize="12" Padding="16,8"/>
+                                    FontSize="11" Padding="12,6"/>
                         </Grid>
                     </Border>
 
                     <!-- Exclude List -->
-                    <Border Style="{StaticResource CardPanel}">
+                    <Border Style="{StaticResource CardPanel}" BorderBrush="#2247A3F3">
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" FontSize="13" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"
-                                       Text="آدرس‌های استثنا شده:"/>
+                            <TextBlock DockPanel.Dock="Top" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"
+                                       Text="آدرس‌های مستقیم"/>
                             <ListView ItemsSource="{Binding ExcludedDestinations}"
                                       Background="Transparent"
                                       BorderThickness="0"
@@ -291,8 +311,8 @@
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#11FFFFFF" CornerRadius="6"
-                                                Padding="10,6" Margin="0,2" Cursor="Arrow">
+                                        <Border Background="#11FFFFFF" CornerRadius="7"
+                                                Padding="9,5" Margin="0,2" Cursor="Arrow">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
@@ -303,10 +323,10 @@
                                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding}"
                                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                                           FontSize="13" VerticalAlignment="Center"
+                                                           FontSize="12" VerticalAlignment="Center"
                                                            FlowDirection="LeftToRight"/>
                                                 <Button Grid.Column="2" Style="{StaticResource DangerButton}"
-                                                        Content="✕" FontSize="14"
+                                                        Content="حذف" FontSize="10" Padding="7,3"
                                                         Command="{Binding DataContext.RemoveExcludeCommand,
                                                             RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
@@ -339,17 +359,17 @@
                     <StackPanel Grid.Column="2">
 
                     <!-- Include Info -->
-                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8" BorderBrush="#2233C481">
                         <StackPanel>
-                            <TextBlock Text="✅ لیست لزومی (Include List)" FontSize="16" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"/>
-                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="12"
-                                       Text="دامنه یا آی‌پی‌هایی که حتماً باید از تونل عبور کنند را اینجا وارد کنید. حتی اگر برنامه در لیست برنامه‌های تونل نباشد، این مقصدها از VPN ارسال می‌شوند."/>
+                            <TextBlock Text="✅ از تونل عبور کند" FontSize="13" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
+                            <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10"
+                                       Text="این مقصدها همیشه از تونل عبور می‌کنند."/>
                         </StackPanel>
                     </Border>
 
                     <!-- Add Include Entry -->
-                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,12">
+                    <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -359,25 +379,25 @@
                                      Text="{Binding IncludeInput, UpdateSourceTrigger=PropertyChanged}"
                                      Tag="دامنه یا آی‌پی (مثلاً example.com یا 1.2.3.4)"
                                      FlowDirection="LeftToRight"
-                                     FontSize="13" Padding="10,8"
-                                     Margin="0,0,8,0">
+                                     FontSize="12" Padding="9,6"
+                                     Margin="0,0,7,0">
                                 <TextBox.InputBindings>
                                     <KeyBinding Key="Enter" Command="{Binding AddIncludeCommand}"/>
                                 </TextBox.InputBindings>
                             </TextBox>
                             <Button Grid.Column="1" Style="{StaticResource PrimaryButton}"
-                                    Content="➕ افزودن"
+                                    Content="افزودن"
                                     Command="{Binding AddIncludeCommand}"
-                                    FontSize="12" Padding="16,8"/>
+                                    FontSize="11" Padding="12,6"/>
                         </Grid>
                     </Border>
 
                     <!-- Include List -->
-                    <Border Style="{StaticResource CardPanel}">
+                    <Border Style="{StaticResource CardPanel}" BorderBrush="#2233C481">
                         <DockPanel>
-                            <TextBlock DockPanel.Dock="Top" FontSize="13" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,8"
-                                       Text="آدرس‌های لزومی:"/>
+                            <TextBlock DockPanel.Dock="Top" FontSize="12" FontWeight="SemiBold"
+                                       Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"
+                                       Text="آدرس‌های اجباری"/>
                             <ListView ItemsSource="{Binding IncludedDestinations}"
                                       Background="Transparent"
                                       BorderThickness="0"
@@ -387,8 +407,8 @@
                                       ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                                 <ListView.ItemTemplate>
                                     <DataTemplate>
-                                        <Border Background="#11FFFFFF" CornerRadius="6"
-                                                Padding="10,6" Margin="0,2" Cursor="Arrow">
+                                        <Border Background="#11FFFFFF" CornerRadius="7"
+                                                Padding="9,5" Margin="0,2" Cursor="Arrow">
                                             <Grid>
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="Auto"/>
@@ -399,10 +419,10 @@
                                                            VerticalAlignment="Center" Margin="0,0,8,0"/>
                                                 <TextBlock Grid.Column="1" Text="{Binding}"
                                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                                           FontSize="13" VerticalAlignment="Center"
+                                                           FontSize="12" VerticalAlignment="Center"
                                                            FlowDirection="LeftToRight"/>
                                                 <Button Grid.Column="2" Style="{StaticResource DangerButton}"
-                                                        Content="✕" FontSize="14"
+                                                        Content="حذف" FontSize="10" Padding="7,3"
                                                         Command="{Binding DataContext.RemoveIncludeCommand,
                                                             RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
@@ -440,7 +460,7 @@
                 <TabItem.Header>
                     <StackPanel>
                         <TextBlock Text="📊" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="ترافیک/تاریخچه" FontSize="9.5" TextAlignment="Center"/>
+                        <TextBlock Text="ترافیک/تاریخچه" FontSize="10.5" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
 
@@ -448,7 +468,7 @@
                     <StackPanel HorizontalAlignment="Stretch" Margin="16,0">
 
                     <!-- Summary Card -->
-                    <Border Style="{StaticResource CardPanel}">
+                    <Border Style="{StaticResource CardPanel}" BorderBrush="#22E8803A">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -500,7 +520,7 @@
                     </Border>
 
                     <!-- Split Tunnel Health -->
-                    <Border Style="{StaticResource CardPanel}">
+                    <Border Style="{StaticResource CardPanel}" BorderBrush="#2233C481">
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
@@ -542,12 +562,15 @@
                     <Expander Header="📜 تاریخچه اتصالات"
                               IsExpanded="False"
                               Foreground="{StaticResource TextPrimaryBrush}"
+                              Background="#121212"
+                              BorderBrush="#18FFFFFF"
+                              Padding="10,6"
                               Margin="0,0,0,8">
                         <views:HistoryTabView/>
                     </Expander>
 
                     <!-- Per-App Traffic -->
-                    <Border Style="{StaticResource CardPanel}">
+                    <Border Style="{StaticResource CardPanel}" BorderBrush="#2247A3F3">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeader}"
                                        Text="مصرف تونل به تفکیک برنامه"/>
@@ -643,120 +666,80 @@
 
         </TabControl>
 
-            <!-- Global Connect/Disconnect Action (sticky in page, all tabs) -->
-            <Grid Grid.Row="1" Margin="8,0,8,10">
-                <Button Command="{Binding ConnectCommand}"
-                        MinWidth="210"
-                        Height="42"
-                        HorizontalAlignment="Center"
-                        Padding="20,8"
-                        Cursor="Hand"
-                        ToolTip="اتصال سریع VPN">
-                    <Button.Style>
-                        <Style TargetType="Button">
-                            <Setter Property="Background" Value="#10B981"/>
-                            <Setter Property="Foreground" Value="White"/>
-                            <Setter Property="BorderBrush" Value="#7DFFF4D0"/>
-                            <Setter Property="BorderThickness" Value="1"/>
-                            <Setter Property="FontWeight" Value="Bold"/>
-                            <Setter Property="FontSize" Value="13"/>
-                            <Setter Property="Content" Value="اتصال VPN"/>
-                            <Setter Property="Template">
-                                <Setter.Value>
-                                    <ControlTemplate TargetType="Button">
-                                        <Border Background="{TemplateBinding Background}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}"
-                                                CornerRadius="18"
-                                                Padding="{TemplateBinding Padding}">
-                                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" FlowDirection="LeftToRight">
-                                                <Ellipse Width="8" Height="8" Fill="#E8FFFFFF" Margin="0,0,8,0" VerticalAlignment="Center"/>
-                                                <TextBlock Text="⏻" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                                <ContentPresenter VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Border>
-                                    </ControlTemplate>
-                                </Setter.Value>
-                            </Setter>
-                            <Style.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter Property="Background" Value="#0EA371"/>
-                                    <Setter Property="BorderBrush" Value="#CCFFFFFF"/>
-                                </Trigger>
-                                <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static model:ConnectionState.Connected}">
-                                    <Setter Property="Content" Value="قطع VPN"/>
-                                    <Setter Property="Background" Value="#DC2626"/>
-                                    <Setter Property="BorderBrush" Value="#80FFD2D2"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="ToolTip" Value="قطع سریع اتصال VPN"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static model:ConnectionState.Connecting}">
-                                    <Setter Property="Content" Value="لغو اتصال"/>
-                                    <Setter Property="Background" Value="#D97706"/>
-                                    <Setter Property="BorderBrush" Value="#80FFE3BF"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="ToolTip" Value="لغو تلاش اتصال"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static model:ConnectionState.Disconnecting}">
-                                    <Setter Property="Content" Value="در حال قطع"/>
-                                    <Setter Property="Background" Value="#52525B"/>
-                                    <Setter Property="BorderBrush" Value="#7DFFFFFF"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="ToolTip" Value="در حال قطع اتصال VPN"/>
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static model:ConnectionState.Error}">
-                                    <Setter Property="Content" Value="اتصال مجدد"/>
-                                    <Setter Property="Background" Value="#B91C1C"/>
-                                    <Setter Property="BorderBrush" Value="#80FFD2D2"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="ToolTip" Value="اتصال مجدد VPN"/>
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </Button.Style>
-                </Button>
-            </Grid>
             </Grid>
 
             <!-- ═══ FOOTER ═══ -->
-            <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" 
-                    CornerRadius="0,0,0,12" Padding="16,8">
-                <Grid>
+            <Border Grid.Row="2"
+                    Background="#121212"
+                    BorderBrush="#18FFFFFF"
+                    BorderThickness="0,1,0,0"
+                    CornerRadius="0,0,0,12"
+                    Padding="12,6">
+                <Grid VerticalAlignment="Center" FlowDirection="RightToLeft">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="12"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <Button Grid.Column="0" Content="❓ راهنما"
-                            Click="OnShowHelpClick"
-                            Style="{StaticResource SecondaryButton}"
-                            Padding="10,5"
-                            FontSize="10"
-                            ToolTip="راهنما و عیب‌یابی"/>
-                    <TextBlock Grid.Column="1"
-                               Text="TunnelX نرم‌افزاری آزاد و رایگان برای مدیریت تونل و Split Tunneling است؛ ساخته شده توسط MaxFan."
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="10"
-                               TextWrapping="Wrap"
-                               TextTrimming="CharacterEllipsis"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Center"
-                               Margin="12,0"/>
-                    <StackPanel Grid.Column="2"
+
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                FlowDirection="RightToLeft"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="ساخته شده توسط Maxifan"
+                                   FontSize="10"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                        <Border Background="#18E8803A"
+                                CornerRadius="8"
+                                Padding="7,2"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center">
+                            <TextBlock Text="{Binding AppVersion}"
+                                       FontSize="9"
+                                       Foreground="{StaticResource AccentBrush}"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <TextBlock Text="TunnelX"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="10"
+                                   TextTrimming="CharacterEllipsis"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Center"
-                                FlowDirection="LeftToRight">
-                        <TextBlock Text="{Binding AppVersion}"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontSize="10"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0"/>
-                        <Button Content="GitHub پروژه"
+                                FlowDirection="RightToLeft">
+                        <Button Content="بروزرسانی"
+                                Command="{Binding OpenLatestReleaseCommand}"
+                                Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}"
+                                Style="{StaticResource PrimaryButton}"
+                                Padding="10,4"
+                                FontSize="10"
+                                Margin="0,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="دانلود نسخه جدید از صفحه Releases در GitHub"/>
+                        <Button Content="راهنما"
+                                Click="OnShowHelpClick"
+                                Style="{StaticResource SecondaryButton}"
+                                Padding="9,4"
+                                FontSize="10"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="راهنما و عیب‌یابی"/>
+                        <Button Content="GitHub"
                                 Command="{Binding OpenGitHubCommand}"
                                 Style="{StaticResource SecondaryButton}"
-                                Padding="10,5"
+                                Padding="9,4"
                                 FontSize="10"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
                                 ToolTip="باز کردن صفحه GitHub پروژه TunnelX"/>
                     </StackPanel>
                 </Grid>

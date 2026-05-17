@@ -17,7 +17,23 @@ public class ServerConfig
     public string OpenVpnUsername { get; set; } = "";
     public string OpenVpnPassword { get; set; } = "";
     public string OpenVpnPrivateKeyPassword { get; set; } = "";
+    public ProxyProtocol ProxyProtocol { get; set; } = ProxyProtocol.Socks5;
+    public string ProxyServerAddress { get; set; } = "";
+    public int ProxyPort { get; set; } = 1080;
+    public string ProxyUsername { get; set; } = "";
+    public string ProxyPassword { get; set; } = "";
     public bool AutoTuneMtu { get; set; } = true;
     public bool EnableDnsOptimization { get; set; } = true;
     public bool EnableGameMode { get; set; } = false;
+
+    public string BuildProxyUri()
+    {
+        var scheme = ProxyProtocol == ProxyProtocol.Http ? "http" : "socks5";
+        var port = ProxyPort > 0 ? ProxyPort : (ProxyProtocol == ProxyProtocol.Http ? 3128 : 1080);
+        var auth = string.IsNullOrWhiteSpace(ProxyUsername)
+            ? ""
+            : $"{Uri.EscapeDataString(ProxyUsername)}:{Uri.EscapeDataString(ProxyPassword ?? "")}@";
+
+        return $"{scheme}://{auth}{ProxyServerAddress.Trim()}:{port}#TunnelX-Proxy";
+    }
 }

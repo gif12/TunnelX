@@ -2,6 +2,24 @@
 
 TunnelX is free and open-source. Donations are optional.
 
+## Paid Services
+
+Private support, deployment help, custom builds, company-specific customization, or development of a similar application may be available as paid services. These services are separate from the GPL license and do not restrict the rights granted by the GPL-covered project.
+
+For paid work or customization requests, contact: `gallafan@gmail.com`
+
+## حمایت مالی و خدمات پولی
+
+<div dir="rtl" align="right">
+
+<span dir="ltr">TunnelX</span> آزاد و رایگان است و حمایت مالی کاملا اختیاری است.
+
+پشتیبانی خصوصی، راه‌اندازی، بیلد اختصاصی، سفارشی‌سازی برای شرکت‌ها، یا توسعه برنامه‌ای مشابه می‌تواند به صورت خدمات پولی جداگانه انجام شود. این خدمات جدا از مجوز <span dir="ltr">GPL</span> هستند و حقوقی را که مجوز <span dir="ltr">GPL</span> به کاربران پروژه می‌دهد محدود نمی‌کنند.
+
+برای درخواست کار پولی یا سفارشی‌سازی تماس بگیرید: <span dir="ltr">`gallafan@gmail.com`</span>
+
+</div>
+
 ## PayPal
 
 - PayPal email: `gallafan@gmail.com`

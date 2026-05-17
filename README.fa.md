@@ -26,6 +26,10 @@
 
 <span dir="ltr">OpenVPN</span> همراه <span dir="ltr">TunnelX</span> توزیع نمی‌شود. برای این حالت باید <span dir="ltr">OpenVPN Community</span> را جداگانه نصب کنید، فایل <span dir="ltr">`.ovpn`</span> را در <span dir="ltr">TunnelX</span> انتخاب کنید و در صورت نیاز نام کاربری و رمز عبور <span dir="ltr">OpenVPN</span> را داخل برنامه وارد کنید. نصب بودن <span dir="ltr">OpenVPN Connect</span> به‌تنهایی برای این حالت کافی نیست، چون آن برنامه مسیرها و <span dir="ltr">DNS</span> را با کلاینت خودش مدیریت می‌کند.
 
+## نکته‌های مسیر و دامنه
+
+قانون‌های <span dir="ltr">Include</span> و <span dir="ltr">Exclude</span> هم خود دامنه واردشده و هم زیردامنه‌های آن را پوشش می‌دهند. برای نمونه، افزودن <span dir="ltr">`githubusercontent.com`</span> پس از resolve شدن <span dir="ltr">DNS</span> شامل <span dir="ltr">`raw.githubusercontent.com`</span> هم می‌شود. اگر یک کلاینت <span dir="ltr">HTTPS</span> در مرحله بررسی <span dir="ltr">certificate revocation</span> خطا داد، ممکن است میزبان‌های <span dir="ltr">OCSP/CRL</span> آن از مسیر انتخابی قابل دسترسی نباشند؛ در این حالت خود برنامه دانلودکننده یا دامنه‌های revocation مربوطه را هم در لیست لزومی قرار دهید.
+
 ## تصاویر برنامه
 
 | داشبورد اتصال | تنظیم پروفایل و سرور |
@@ -70,17 +74,19 @@ dotnet publish AppTunnel\AppTunnel.csproj -c Release -r win-x64 --self-contained
 
 ## مجوز
 
-<span dir="ltr">TunnelX</span> تحت مجوز **<span dir="ltr">GPL-3.0-or-later</span>** منتشر شده است. اجزای شخص ثالث همراه پروژه مجوزهای خودشان را دارند. برای جزئیات بیشتر:
+<span dir="ltr">TunnelX</span> تحت مجوز **<span dir="ltr">GPL-3.0-or-later</span>** منتشر شده است. استفاده تجاری با رعایت شرایط <span dir="ltr">GPL</span> مجاز است. اجزای شخص ثالث همراه پروژه مجوزهای خودشان را دارند. برای جزئیات بیشتر:
 
 - <span dir="ltr">`LICENSE`</span>
 - <span dir="ltr">`THIRD_PARTY_NOTICES.md`</span>
 - <span dir="ltr">`docs/LEGAL.md`</span>
 
-## حمایت مالی
+## پشتیبانی، سفارشی‌سازی و حمایت مالی
 
-<span dir="ltr">TunnelX</span> رایگان است. حمایت مالی کاملا اختیاری است و فقط به نگهداری و توسعه پروژه کمک می‌کند.
+<span dir="ltr">TunnelX</span> آزاد و رایگان است. حمایت مالی کاملا اختیاری است و فقط به نگهداری و توسعه پروژه کمک می‌کند.
 
-گزینه‌های حمایت از طریق <span dir="ltr">GitHub Sponsors/Funding</span> یا فایل <span dir="ltr">`docs/DONATE.md`</span> در دسترس هستند.
+خدمات پولی می‌تواند به صورت جداگانه برای پشتیبانی خصوصی، راه‌اندازی، بیلد اختصاصی، سفارشی‌سازی برای شرکت‌ها، یا توسعه برنامه‌ای مشابه ارائه شود. این خدمات پولی حقوقی را که مجوز <span dir="ltr">GPL</span> به کاربران می‌دهد محدود نمی‌کند.
+
+گزینه‌های حمایت و راه‌های تماس از طریق <span dir="ltr">GitHub Sponsors/Funding</span> یا فایل <span dir="ltr">`docs/DONATE.md`</span> در دسترس هستند.
 
 ## نکته ایمنی و سلب مسئولیت
 

@@ -11,10 +11,14 @@ public partial class TrafficRouterService
     /// </summary>
     public void SetExcludedDestinations(IEnumerable<string> entries)
     {
-        _excludedIps.Clear();
-        _excludedEntries.Clear();
-        foreach (var entry in entries)
-            AddExcludedDestination(entry);
+        lock (_destinationListLock)
+        {
+            _excludedIps.Clear();
+            _excludedEntries.Clear();
+            _excludedDomainRules.Clear();
+            foreach (var entry in entries)
+                AddExcludedDestinationCore(entry);
+        }
     }
 
     /// <summary>
@@ -29,45 +33,41 @@ public partial class TrafficRouterService
     /// </summary>
     public void AddExcludedDestination(string entry)
     {
+        lock (_destinationListLock)
+            AddExcludedDestinationCore(entry);
+    }
+
+    private void AddExcludedDestinationCore(string entry)
+    {
         var originalEntry = entry.Trim();
         entry = NormalizeDestinationEntry(originalEntry);
         if (string.IsNullOrEmpty(entry)) return;
         if (_excludedEntries.ContainsKey(entry)) return;
 
-        var ips = new HashSet<uint>();
+        var ips = ResolveDestinationEntry(entry, "[EXCLUDE]", out var unsupportedIp);
+        if (unsupportedIp)
+        {
+            _excludedEntries[entry] = ips;
+            return;
+        }
+
         if (IPAddress.TryParse(entry, out var ip))
         {
-            var nbo = BitConverter.ToUInt32(ip.GetAddressBytes(), 0);
-            ips.Add(nbo);
-            _excludedIps[nbo] = true;
-            PurgeRouteForExcludedIp(nbo, ip);
             Logger.Info($"[EXCLUDE] Added IP {entry}");
         }
         else
         {
-            // Domain → resolve
-            try
-            {
-                var addresses = DnsResolverCache.ResolveIpv4(entry);
-                foreach (var addr in addresses)
-                {
-                    if (addr.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    {
-                        var nbo = BitConverter.ToUInt32(addr.GetAddressBytes(), 0);
-                        ips.Add(nbo);
-                        _excludedIps[nbo] = true;
-                        PurgeRouteForExcludedIp(nbo, addr);
-                    }
-                }
-                var normalizedSuffix = originalEntry.Equals(entry, StringComparison.OrdinalIgnoreCase)
-                    ? ""
-                    : $" (from '{originalEntry}')";
-                Logger.Info($"[EXCLUDE] Added domain '{entry}'{normalizedSuffix} → {ips.Count} IPs");
-            }
-            catch (Exception ex)
-            {
-                Logger.Warning($"[EXCLUDE] Could not resolve '{entry}': {ex.Message}");
-            }
+            _excludedDomainRules[entry] = true;
+            var normalizedSuffix = originalEntry.Equals(entry, StringComparison.OrdinalIgnoreCase)
+                ? ""
+                : $" (from '{originalEntry}')";
+            Logger.Info($"[EXCLUDE] Added domain rule '*.{entry}'{normalizedSuffix} → {ips.Count} current IPs");
+        }
+
+        foreach (var nbo in ips)
+        {
+            _excludedIps[nbo] = true;
+            PurgeRouteForExcludedIp(nbo, new IPAddress(BitConverter.GetBytes(nbo)));
         }
         _excludedEntries[entry] = ips;
     }
@@ -100,6 +100,7 @@ public partial class TrafficRouterService
         // We do NOT gate this on _isRunning — stale routes can be present even
         // before the tunnel starts, and we must clean them up proactively.
         ForceDeleteRouteFromWindows(ipForLog);
+        AddExcludedDirectRoute(nbo, ipForLog);
     }
 
     /// <summary>
@@ -131,16 +132,108 @@ public partial class TrafficRouterService
     public void RemoveExcludedDestination(string entry)
     {
         entry = NormalizeDestinationEntry(entry);
-        if (_excludedEntries.TryRemove(entry, out var ips))
+        lock (_destinationListLock)
         {
-            foreach (var nbo in ips)
-                _excludedIps.TryRemove(nbo, out _);
-            Logger.Info($"[EXCLUDE] Removed '{entry}'");
+            if (_excludedEntries.TryRemove(entry, out var ips))
+            {
+                foreach (var nbo in ips)
+                {
+                    if (!IsIpPresentInEntries(_excludedEntries, nbo))
+                    {
+                        _excludedIps.TryRemove(nbo, out _);
+                        RemoveExcludedDirectRoute(nbo);
+                    }
+                }
+                _excludedDomainRules.TryRemove(entry, out _);
+                Logger.Info($"[EXCLUDE] Removed '{entry}'");
+            }
         }
     }
 
     private bool IsExcludedDestination(uint dstIpNbo)
         => _excludedIps.ContainsKey(dstIpNbo);
+
+    private bool IsExcludedDomain(string host)
+        => IsDomainRuleMatch(_excludedDomainRules, host);
+
+    private void RefreshExcludedDestinations()
+    {
+        lock (_destinationListLock)
+        {
+            foreach (var entry in _excludedEntries.Keys.ToList())
+            {
+                var oldIps = _excludedEntries.TryGetValue(entry, out var existing)
+                    ? existing
+                    : new HashSet<uint>();
+                var newIps = ResolveDestinationEntry(entry, "[EXCLUDE]", out _);
+
+                _excludedEntries[entry] = newIps;
+                foreach (var nbo in oldIps.Except(newIps).ToList())
+                {
+                    if (!IsIpPresentInEntries(_excludedEntries, nbo))
+                    {
+                        _excludedIps.TryRemove(nbo, out _);
+                        RemoveExcludedDirectRoute(nbo);
+                    }
+                }
+
+                foreach (var nbo in newIps)
+                {
+                    _excludedIps[nbo] = true;
+                    PurgeRouteForExcludedIp(nbo, new IPAddress(BitConverter.GetBytes(nbo)));
+                }
+            }
+        }
+    }
+
+    private void RefreshDestinationLists(bool installIncludedRoutes)
+    {
+        RefreshExcludedDestinations();
+        RefreshIncludedDestinations(installIncludedRoutes);
+    }
+
+    private void RefreshExcludedDirectRoutes()
+    {
+        if (!_fullRouteEnabled)
+            return;
+
+        foreach (var nbo in _excludedIps.Keys)
+            AddExcludedDirectRoute(nbo, new IPAddress(BitConverter.GetBytes(nbo)));
+    }
+
+    private void AddExcludedDirectRoute(uint nbo, IPAddress ip)
+    {
+        if (!_fullRouteEnabled)
+            return;
+        if (string.IsNullOrWhiteSpace(_physicalGatewayIp) || _physicalInterfaceIndex <= 0)
+            return;
+
+        TryRunRouteCommand($"delete {ip}", out _);
+        if (TryRunRouteCommand(
+            $"add {ip} mask 255.255.255.255 {_physicalGatewayIp} IF {_physicalInterfaceIndex} METRIC 1",
+            out var stderr))
+        {
+            _excludedDirectRoutes[nbo] = true;
+            return;
+        }
+
+        Logger.Warning($"[EXCLUDE] Failed to add direct full-route bypass for {ip}: {stderr.Trim()}");
+    }
+
+    private void RemoveExcludedDirectRoute(uint nbo)
+    {
+        if (!_excludedDirectRoutes.TryRemove(nbo, out _))
+            return;
+
+        TryRunRouteCommand($"delete {new IPAddress(BitConverter.GetBytes(nbo))}", out _);
+    }
+
+    private void RemoveExcludedDirectRoutes()
+    {
+        foreach (var nbo in _excludedDirectRoutes.Keys.ToList())
+            RemoveExcludedDirectRoute(nbo);
+        _excludedDirectRoutes.Clear();
+    }
 
     #endregion
 }

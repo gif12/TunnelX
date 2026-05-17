@@ -4,7 +4,11 @@ TunnelX is published as free/open-source software by MaxFan.
 
 ## Project License
 
-The project is marked as `GPL-3.0-or-later` to stay compatible with bundled GPL components, especially sing-box. If the release packaging changes and no GPL binary is bundled, the maintainer can revisit the license choice.
+The project is marked as `GPL-3.0-or-later` to stay compatible with bundled GPL components, especially sing-box. Commercial use is allowed under the terms of the GPL. If the release packaging changes and no GPL binary is bundled, the maintainer can revisit the license choice.
+
+## Paid Services
+
+The maintainer may offer paid services separately, including private support, deployment help, custom builds, company-specific customization, or development of a similar application. These paid services are separate from the GPL license and do not restrict any rights granted by the GPL-covered source code and releases.
 
 ## Third-Party Components
 

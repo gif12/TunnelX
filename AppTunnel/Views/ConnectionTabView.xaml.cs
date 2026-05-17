@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Input;
 using AppTunnel.ViewModels;
 
 namespace AppTunnel.Views;
@@ -20,15 +21,18 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
         PasswordField.PasswordChanged += OnPasswordFieldChanged;
         PskField.PasswordChanged += OnPskFieldChanged;
         OpenVpnPasswordField.PasswordChanged += OnOpenVpnPasswordFieldChanged;
+        ProxyPasswordField.PasswordChanged += OnProxyPasswordFieldChanged;
 
         // When profile changes, update PasswordBox fields
         vm.PasswordChanged += OnViewModelPasswordChanged;
         vm.OpenVpnPasswordChanged += OnViewModelOpenVpnPasswordChanged;
+        vm.ProxyPasswordChanged += OnViewModelProxyPasswordChanged;
 
         // Load initial values
         PasswordField.Password = vm.Password;
         PskField.Password = vm.PreSharedKey;
         OpenVpnPasswordField.Password = vm.OpenVpnPassword;
+        ProxyPasswordField.Password = vm.ProxyPassword;
     }
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
@@ -36,11 +40,13 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
         PasswordField.PasswordChanged -= OnPasswordFieldChanged;
         PskField.PasswordChanged -= OnPskFieldChanged;
         OpenVpnPasswordField.PasswordChanged -= OnOpenVpnPasswordFieldChanged;
+        ProxyPasswordField.PasswordChanged -= OnProxyPasswordFieldChanged;
 
         if (DataContext is MainViewModel vm)
         {
             vm.PasswordChanged -= OnViewModelPasswordChanged;
             vm.OpenVpnPasswordChanged -= OnViewModelOpenVpnPasswordChanged;
+            vm.ProxyPasswordChanged -= OnViewModelProxyPasswordChanged;
         }
     }
 
@@ -68,6 +74,12 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
             vm.OpenVpnPassword = OpenVpnPasswordField.Password;
     }
 
+    private void OnProxyPasswordFieldChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && vm.ProxyPassword != ProxyPasswordField.Password)
+            vm.ProxyPassword = ProxyPasswordField.Password;
+    }
+
     private void OnViewModelPasswordChanged(string password, string psk)
     {
         Dispatcher.Invoke(() =>
@@ -82,9 +94,25 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
         Dispatcher.Invoke(() => OpenVpnPasswordField.Password = password);
     }
 
+    private void OnViewModelProxyPasswordChanged(string password)
+    {
+        Dispatcher.Invoke(() => ProxyPasswordField.Password = password);
+    }
+
     private void OnProfileNameChanged(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel vm)
             vm.SaveCurrentState();
+    }
+
+    private void OnProfileListPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        e.Handled = true;
+        var parentEvent = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = MouseWheelEvent,
+            Source = sender
+        };
+        RaiseEvent(parentEvent);
     }
 }

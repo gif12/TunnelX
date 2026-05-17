@@ -1,0 +1,309 @@
+<Window x:Class="AppTunnel.Views.ProfileEditorDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:conv="clr-namespace:AppTunnel.Converters"
+        xmlns:models="clr-namespace:AppTunnel.Models"
+        Title="Profile Editor"
+        Width="500"
+        Height="560"
+        MinWidth="480"
+        MinHeight="520"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        FlowDirection="RightToLeft"
+        ShowInTaskbar="False"
+        ResizeMode="NoResize">
+
+    <Window.Resources>
+        <conv:EnumToVisibilityConverter x:Key="EnumToVis"/>
+    </Window.Resources>
+
+    <Border Background="{StaticResource BackgroundBrush}"
+            CornerRadius="18"
+            BorderBrush="{StaticResource BorderBrush}"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" BlurRadius="32" Opacity="0.65" ShadowDepth="0"/>
+        </Border.Effect>
+
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Border Grid.Row="0"
+                    Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="18,18,0,0"
+                    Padding="16,12">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel>
+                        <TextBlock x:Name="DialogTitleText"
+                                   Text="ویرایش پروفایل"
+                                   FontSize="15"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Text="تنظیمات این کانفیگ بعد از ذخیره در لیست پروفایل‌ها نمایش داده می‌شود."
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,5,0,0"/>
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Content="×"
+                            Style="{StaticResource WindowControlButton}"
+                            Width="34"
+                            Height="30"
+                            FontSize="18"
+                            Click="OnCancelClick"/>
+                </Grid>
+            </Border>
+
+            <ScrollViewer Grid.Row="1"
+                          VerticalScrollBarVisibility="Auto"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel Margin="14,12">
+                    <Border Style="{StaticResource CardPanel}" Padding="12" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="اطلاعات پروفایل"/>
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="نام پروفایل"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
+                                     Tag="مثلاً کار، تلگرام، گیمینگ..."/>
+
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="نوع اتصال" Margin="0,8,0,3"/>
+                            <ComboBox Style="{StaticResource DarkComboBox}"
+                                      SelectedValue="{Binding TunnelType, Mode=TwoWay}"
+                                      SelectedValuePath="Tag">
+                                <ComboBoxItem Content="L2TP/IPsec"
+                                              Tag="{x:Static models:TunnelType.L2tpIpsec}"/>
+                                <ComboBoxItem Content="V2Ray / Xray"
+                                              Tag="{x:Static models:TunnelType.V2Ray}"/>
+                                <ComboBoxItem Content="OpenVPN"
+                                              Tag="{x:Static models:TunnelType.OpenVpn}"/>
+                                <ComboBoxItem Content="SOCKS / Proxy"
+                                              Tag="{x:Static models:TunnelType.SocksProxy}"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource CardPanel}" Padding="12">
+                        <StackPanel>
+                            <TextBlock Style="{StaticResource SectionHeader}" Text="تنظیمات اتصال"/>
+
+                            <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=L2tpIpsec}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="آدرس سرور"/>
+                                        <TextBox Style="{StaticResource ModernTextBox}"
+                                                 Text="{Binding ServerAddress, UpdateSourceTrigger=PropertyChanged}"
+                                                 FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
+                                        <TextBox Style="{StaticResource ModernTextBox}"
+                                                 Text="{Binding Username, UpdateSourceTrigger=PropertyChanged}"
+                                                 FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
+                                        <PasswordBox x:Name="L2tpPasswordField"
+                                                     Style="{StaticResource ModernPasswordBox}"
+                                                     FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Pre-Shared Key"/>
+                                        <PasswordBox x:Name="PskField"
+                                                     Style="{StaticResource ModernPasswordBox}"
+                                                     FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=V2Ray}">
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="کانفیگ V2Ray / Xray"/>
+                                <TextBox Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding V2RayConfig, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True"
+                                         MinHeight="112"
+                                         FontFamily="Consolas"
+                                         FlowDirection="LeftToRight"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Content="پیست از کلیپ‌بورد"
+                                            FontSize="11"
+                                            Padding="12,6"
+                                            Click="OnPasteV2RayClick"/>
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Content="پاک کردن"
+                                            FontSize="11"
+                                            Padding="12,6"
+                                            Margin="6,0,0,0"
+                                            Click="OnClearV2RayClick"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=OpenVpn}">
+                                <TextBlock Text="فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. اگر سرور رمز نمی‌خواهد، فیلد رمز را خالی بگذارید."
+                                           TextWrapping="Wrap"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,8"/>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="فایل OpenVPN (.ovpn)"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding OpenVpnConfigPath}"
+                                             IsReadOnly="True"
+                                             FlowDirection="LeftToRight"/>
+                                    <Button Grid.Column="2"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Content="انتخاب فایل"
+                                            FontSize="11"
+                                            Padding="12,7"
+                                            Click="OnBrowseOpenVpnClick"/>
+                                </Grid>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
+                                        <TextBox Style="{StaticResource ModernTextBox}"
+                                                 Text="{Binding OpenVpnUsername, UpdateSourceTrigger=PropertyChanged}"
+                                                 FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
+                                        <PasswordBox x:Name="OpenVpnPasswordField"
+                                                     Style="{StaticResource ModernPasswordBox}"
+                                                     FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=SocksProxy}">
+                                <TextBlock Text="برای SOCKS5 یا HTTP Proxy، اطلاعات سرور را جداگانه وارد کنید."
+                                           TextWrapping="Wrap"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,8"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="نوع پراکسی"/>
+                                        <ComboBox Style="{StaticResource DarkComboBox}"
+                                                  SelectedValue="{Binding ProxyProtocol, Mode=TwoWay}"
+                                                  SelectedValuePath="Tag">
+                                            <ComboBoxItem Content="SOCKS5"
+                                                          Tag="{x:Static models:ProxyProtocol.Socks5}"/>
+                                            <ComboBoxItem Content="HTTP Proxy"
+                                                          Tag="{x:Static models:ProxyProtocol.Http}"/>
+                                        </ComboBox>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="پورت"/>
+                                        <TextBox Style="{StaticResource ModernTextBox}"
+                                                 Text="{Binding ProxyPort, UpdateSourceTrigger=PropertyChanged}"
+                                                 FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="آدرس IP یا دامنه سرور" Margin="0,8,0,3"/>
+                                <TextBox Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding ProxyServerAddress, UpdateSourceTrigger=PropertyChanged}"
+                                         FlowDirection="LeftToRight"/>
+
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel Grid.Column="0">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
+                                        <TextBox Style="{StaticResource ModernTextBox}"
+                                                 Text="{Binding ProxyUsername, UpdateSourceTrigger=PropertyChanged}"
+                                                 FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="2">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
+                                        <PasswordBox x:Name="ProxyPasswordField"
+                                                     Style="{StaticResource ModernPasswordBox}"
+                                                     FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                </Grid>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <Border Grid.Row="2"
+                    Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="0,0,18,18"
+                    Padding="14,10">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="8"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="ValidationText"
+                               Grid.Column="0"
+                               FontSize="11"
+                               Foreground="{StaticResource WarningBrush}"
+                               TextWrapping="Wrap"
+                               VerticalAlignment="Center"/>
+                    <Button Grid.Column="2"
+                            Style="{StaticResource SecondaryButton}"
+                            Content="لغو"
+                            MinWidth="92"
+                            Padding="16,8"
+                            Click="OnCancelClick"/>
+                    <Button Grid.Column="4"
+                            Style="{StaticResource PrimaryButton}"
+                            Content="ذخیره"
+                            MinWidth="110"
+                            Padding="18,8"
+                            Click="OnSaveClick"/>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+</Window>

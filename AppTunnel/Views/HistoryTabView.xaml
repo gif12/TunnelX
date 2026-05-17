@@ -2,11 +2,11 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,12,0,0">
-        <StackPanel HorizontalAlignment="Stretch" Margin="16,0">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,6,0,0">
+        <StackPanel HorizontalAlignment="Stretch" Margin="10,0">
 
         <!-- History Header -->
-        <Border Style="{StaticResource CardPanel}">
+        <Border Style="{StaticResource CardPanel}" BorderBrush="#22E8803A">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto"/>
@@ -18,28 +18,28 @@
                 </Grid.ColumnDefinitions>
 
                 <StackPanel Grid.Row="0" Grid.Column="0">
-                    <TextBlock Text="📜 تاریخچه اتصالات" FontSize="16" FontWeight="SemiBold"
+                    <TextBlock Text="📜 تاریخچه اتصالات" FontSize="14" FontWeight="SemiBold"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Text="سوابق مصرف تونل در اتصال‌های قبلی نمایش داده می‌شود"
+                    <TextBlock Text="سوابق اتصال و مصرف تونل"
                                Foreground="{StaticResource TextSecondaryBrush}"
-                               FontSize="11" Margin="0,4,0,0"/>
+                               FontSize="10" Margin="0,2,0,0"/>
                 </StackPanel>
 
                 <Button Grid.Row="0" Grid.Column="1" Style="{StaticResource DangerButton}"
-                        Content="🗑 پاک کردن"
+                        Content="پاک کردن"
                         Command="{Binding ClearHistoryCommand}"
-                        FontSize="11" Padding="12,8"/>
+                        FontSize="10" Padding="10,5"/>
 
                 <!-- Total History Data Summary -->
-                <Border Grid.Row="1" Grid.ColumnSpan="2" 
-                        Background="#15E07820" CornerRadius="8" 
-                        Padding="14,10" Margin="0,12,0,0">
+                <Border Grid.Row="1" Grid.ColumnSpan="2"
+                        Background="#15E07820" BorderBrush="#22E8803A" BorderThickness="1" CornerRadius="9"
+                        Padding="12,8" Margin="0,10,0,0">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
                                 FlowDirection="LeftToRight">
-                        <TextBlock Text="📊 مجموع مصرف تونل: " FontSize="13"
+                        <TextBlock Text="مجموع مصرف تونل: " FontSize="11"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FlowDirection="RightToLeft"/>
-                        <TextBlock Text="{Binding TotalHistoryData}" FontSize="15"
+                        <TextBlock Text="{Binding TotalHistoryData}" FontSize="13"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource WarningBrush}"/>
                     </StackPanel>
@@ -48,13 +48,13 @@
         </Border>
 
         <!-- History List -->
-        <Border Style="{StaticResource CardPanel}">
+        <Border Style="{StaticResource CardPanel}" BorderBrush="#18FFFFFF">
             <StackPanel>
                 <ItemsControl ItemsSource="{Binding ConnectionHistory}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#11FFFFFF" CornerRadius="8"
-                                    Padding="14,12" Margin="0,4">
+                            <Border Background="#12FFFFFF" BorderBrush="#10FFFFFF" BorderThickness="1" CornerRadius="9"
+                                    Padding="12,9" Margin="0,3">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -64,20 +64,20 @@
                                     <StackPanel Grid.Column="0">
                                         <!-- Profile name and server -->
                                         <StackPanel Orientation="Horizontal">
-                                            <TextBlock Text="{Binding ProfileName}" 
-                                                       FontSize="14" FontWeight="SemiBold"
+                                            <TextBlock Text="{Binding ProfileName}"
+                                                       FontSize="13" FontWeight="SemiBold"
                                                        Foreground="{StaticResource TextPrimaryBrush}"/>
                                             <TextBlock Text=" → " 
                                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                                       FontSize="12" VerticalAlignment="Center"/>
-                                            <TextBlock Text="{Binding ServerAddress}" 
-                                                       FontSize="12"
+                                                       FontSize="11" VerticalAlignment="Center"/>
+                                            <TextBlock Text="{Binding ServerAddress}"
+                                                       FontSize="11"
                                                        Foreground="{StaticResource AccentBrush}"
                                                        FlowDirection="LeftToRight"/>
                                         </StackPanel>
 
                                         <!-- Date and time -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,6,0,0"
+                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
                                                     FlowDirection="LeftToRight">
                                             <TextBlock Text="🕐 " FontSize="11"/>
                                             <TextBlock Text="{Binding ConnectedAt, StringFormat={}{0:yyyy/MM/dd HH:mm}}"
@@ -86,7 +86,7 @@
                                         </StackPanel>
 
                                         <!-- Duration and data -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0"
                                                     FlowDirection="LeftToRight">
                                             <TextBlock Text="⏱ " FontSize="11"/>
                                             <TextBlock Text="{Binding DurationText}"
@@ -100,7 +100,7 @@
                                         </StackPanel>
 
                                         <!-- Sent/Received breakdown -->
-                                        <StackPanel Orientation="Horizontal" Margin="0,4,0,0"
+                                        <StackPanel Orientation="Horizontal" Margin="0,3,0,0"
                                                     FlowDirection="LeftToRight">
                                             <TextBlock Text="↑ " Foreground="#E07820" FontSize="10"/>
                                             <TextBlock Text="{Binding SentText}"
@@ -119,8 +119,8 @@
                 <!-- Empty state -->
                 <TextBlock Text="هنوز اتصالی ثبت نشده است."
                            Foreground="{StaticResource TextSecondaryBrush}"
-                           FontSize="14" HorizontalAlignment="Center"
-                           Margin="0,30">
+                           FontSize="12" HorizontalAlignment="Center"
+                           Margin="0,22">
                     <TextBlock.Style>
                         <Style TargetType="TextBlock">
                             <Setter Property="Visibility" Value="Collapsed"/>

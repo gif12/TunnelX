@@ -77,68 +77,244 @@
         <Border Style="{StaticResource CardPanel}"
                 Visibility="{Binding IsOpenVpnConnectionPending, Converter={StaticResource InverseBoolToVis}}">
             <StackPanel>
-                <!-- Header -->
-                <Grid Margin="0,0,0,6">
+                <Grid Margin="0,0,0,12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-                    <TextBlock Grid.Column="0" Text="📋 پروفایل اتصال" FontSize="13" FontWeight="SemiBold"
+                    <StackPanel Grid.Column="0">
+                        <TextBlock Text="کانفیگ‌ها و پروفایل‌ها"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <TextBlock Text="{Binding SaveStatusText}"
-                                   FontSize="10"
+                        <TextBlock Text="یک کانفیگ را انتخاب کنید، ویرایش کنید یا کانفیگ جدید بسازید."
+                                   FontSize="11"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   VerticalAlignment="Center"
-                                   Margin="0,0,8,0"/>
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Content="📋" FontSize="12" Padding="7,4" Width="30"
-                                ToolTip="کپی از پروفایل فعلی"
-                                Command="{Binding DuplicateProfileCommand}"
-                                Margin="0,0,4,0"/>
-                        <Button Style="{StaticResource DangerButton}"
-                                Content="🗑" FontSize="12" Padding="7,4" Width="30"
-                                ToolTip="حذف پروفایل"
-                                Command="{Binding DeleteProfileCommand}"/>
+                                   Margin="0,4,0,0"/>
                     </StackPanel>
-                </Grid>
-
-                <!-- Profile selector + New button -->
-                <Grid Margin="0,0,0,4">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="6"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-                    <ComboBox Grid.Column="0"
-                              Style="{StaticResource DarkComboBox}"
-                              ItemsSource="{Binding Profiles}"
-                              SelectedItem="{Binding SelectedProfile}">
-                        <ComboBox.ItemTemplate>
-                            <DataTemplate>
-                                <TextBlock Text="{Binding Name}" Padding="2,0"/>
-                            </DataTemplate>
-                        </ComboBox.ItemTemplate>
-                    </ComboBox>
                     <Button Grid.Column="2"
                             Style="{StaticResource PrimaryButton}"
-                            Content="➕ جدید" FontSize="11" Padding="12,7"
-                            ToolTip="ساخت پروفایل جدید"
+                            Content="افزودن کانفیگ جدید"
+                            FontSize="12"
+                            Padding="16,9"
                             Command="{Binding NewProfileCommand}"/>
                 </Grid>
 
-                <!-- Profile Name -->
-                <TextBlock Style="{StaticResource FieldLabel}" Text="نام پروفایل"/>
-                <TextBox Style="{StaticResource ModernTextBox}"
-                         Text="{Binding SelectedProfile.Name, UpdateSourceTrigger=PropertyChanged}"
-                         HorizontalContentAlignment="Right"
-                         LostFocus="OnProfileNameChanged"/>
+                <ListBox ItemsSource="{Binding Profiles}"
+                         SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
+                         Background="Transparent"
+                         BorderThickness="0"
+                         Padding="0"
+                         PreviewMouseWheel="OnProfileListPreviewMouseWheel"
+                         ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                         SelectionMode="Single">
+                    <ListBox.ItemContainerStyle>
+                        <Style TargetType="ListBoxItem">
+                            <Setter Property="Padding" Value="0"/>
+                            <Setter Property="Margin" Value="0,0,0,6"/>
+                            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                            <Setter Property="Background" Value="#121212"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Setter Property="BorderThickness" Value="1"/>
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border x:Name="ItemBorder"
+                                                Background="{TemplateBinding Background}"
+                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                CornerRadius="10"
+                                                Padding="10,8">
+                                            <ContentPresenter/>
+                                        </Border>
+                                        <ControlTemplate.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource AccentBrush}"/>
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#181818"/>
+                                            </Trigger>
+                                            <Trigger Property="IsSelected" Value="True">
+                                                <Setter TargetName="ItemBorder" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                                                <Setter TargetName="ItemBorder" Property="Background" Value="#24180F"/>
+                                            </Trigger>
+                                        </ControlTemplate.Triggers>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </ListBox.ItemContainerStyle>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="8"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Grid.Column="0">
+                                    <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="13"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <Border Background="#18E8803A"
+                                                CornerRadius="8"
+                                                Padding="7,2"
+                                                Margin="8,0,0,0">
+                                            <TextBlock Text="{Binding TunnelTypeDisplay}"
+                                                       FontSize="9"
+                                                       Foreground="{StaticResource AccentBrush}"/>
+                                        </Border>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal"
+                                                FlowDirection="LeftToRight"
+                                                Margin="0,5,0,0">
+                                        <TextBlock Text="{Binding EndpointDisplay}"
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                                   TextTrimming="CharacterEllipsis"/>
+                                        <TextBlock Text="  •  "
+                                                   FontSize="10"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        <TextBlock Text="{Binding ReadinessText}"
+                                                   Foreground="{Binding ReadinessColor, Converter={StaticResource StringToColor}}"
+                                                   FontSize="10"
+                                                   FontWeight="SemiBold"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <StackPanel Grid.Column="2"
+                                            Orientation="Horizontal"
+                                            FlowDirection="RightToLeft"
+                                            VerticalAlignment="Center">
+                                    <Button Style="{StaticResource PrimaryButton}"
+                                            Content="فعال"
+                                            FontSize="10"
+                                            Padding="10,5"
+                                            Command="{Binding DataContext.SelectProfileCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"
+                                            ToolTip="استفاده از این کانفیگ برای اتصال"/>
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Content="ویرایش"
+                                            FontSize="10"
+                                            Padding="9,5"
+                                            Margin="5,0,0,0"
+                                            Command="{Binding DataContext.EditProfileCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Content="کپی"
+                                            FontSize="10"
+                                            Padding="9,5"
+                                            Margin="5,0,0,0"
+                                            Command="{Binding DataContext.DuplicateProfileCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"/>
+                                    <Button Style="{StaticResource DangerButton}"
+                                            Content="حذف"
+                                            FontSize="10"
+                                            Padding="9,5"
+                                            Margin="5,0,0,0"
+                                            Command="{Binding DataContext.DeleteProfileCommand, RelativeSource={RelativeSource AncestorType=ListBox}}"
+                                            CommandParameter="{Binding}"/>
+                                </StackPanel>
+                            </Grid>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+
+                <Border Background="#151515"
+                        BorderBrush="#22FFFFFF"
+                        BorderThickness="1"
+                        CornerRadius="12"
+                        Padding="12,10"
+                        Margin="0,10,0,0">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                                <Ellipse Width="9" Height="9"
+                                         Fill="{Binding StatusColor, Converter={StaticResource StringToColor}}"
+                                         VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding StatusText}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Margin="7,0,0,0"
+                                           VerticalAlignment="Center"
+                                           TextTrimming="CharacterEllipsis"/>
+                            </StackPanel>
+                            <TextBlock FontSize="10"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"
+                                       TextTrimming="CharacterEllipsis">
+                                <Run Text="پروفایل فعال: "/>
+                                <Run Text="{Binding SelectedProfile.Name}" FontWeight="SemiBold"/>
+                            </TextBlock>
+                        </StackPanel>
+
+                        <Button Grid.Column="2"
+                                Command="{Binding ConnectCommand}"
+                                Content="{Binding ConnectButtonText}"
+                                MinWidth="160"
+                                Height="44"
+                                Padding="18,8"
+                                ToolTip="شروع اتصال با پروفایل انتخاب‌شده">
+                            <Button.Style>
+                                <Style TargetType="Button">
+                                    <Setter Property="Background" Value="#10B981"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="BorderBrush" Value="#8CFFFFFF"/>
+                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="FontSize" Value="13"/>
+                                    <Setter Property="FontWeight" Value="Bold"/>
+                                    <Setter Property="Cursor" Value="Hand"/>
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="Button">
+                                                <Border Background="{TemplateBinding Background}"
+                                                        BorderBrush="{TemplateBinding BorderBrush}"
+                                                        BorderThickness="{TemplateBinding BorderThickness}"
+                                                        CornerRadius="12"
+                                                        Padding="{TemplateBinding Padding}">
+                                                    <ContentPresenter HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                    <Style.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter Property="Background" Value="#0EA371"/>
+                                            <Setter Property="BorderBrush" Value="#CCFFFFFF"/>
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static models:ConnectionState.Connecting}">
+                                            <Setter Property="Background" Value="#D97706"/>
+                                            <Setter Property="BorderBrush" Value="#80FFE3BF"/>
+                                            <Setter Property="ToolTip" Value="لغو تلاش اتصال"/>
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static models:ConnectionState.Error}">
+                                            <Setter Property="Background" Value="#B91C1C"/>
+                                            <Setter Property="BorderBrush" Value="#80FFD2D2"/>
+                                            <Setter Property="ToolTip" Value="اتصال مجدد"/>
+                                        </DataTrigger>
+                                    </Style.Triggers>
+                                </Style>
+                            </Button.Style>
+                        </Button>
+                    </Grid>
+                </Border>
             </StackPanel>
         </Border>
 
         <!-- ── Server Settings Card ── -->
         <Border Style="{StaticResource CardPanel}"
-                Visibility="{Binding IsOpenVpnConnectionPending, Converter={StaticResource InverseBoolToVis}}">
+                Visibility="Collapsed">
             <StackPanel>
                 <TextBlock Style="{StaticResource SectionHeader}" Text="🌐 تنظیمات سرور"
                            Margin="0,0,0,4"/>
@@ -155,6 +331,8 @@
                                   Tag="{x:Static models:TunnelType.V2Ray}"/>
                     <ComboBoxItem Content="OpenVPN"
                                   Tag="{x:Static models:TunnelType.OpenVpn}"/>
+                    <ComboBoxItem Content="SOCKS / Proxy"
+                                  Tag="{x:Static models:TunnelType.SocksProxy}"/>
                 </ComboBox>
 
                 <!-- L2TP fields (shown only when TunnelType = L2tpIpsec) -->
@@ -358,6 +536,82 @@
                 </StackPanel>
                 <!-- End OpenVPN fields -->
 
+                <!-- SOCKS/Proxy fields (shown only when TunnelType = SocksProxy) -->
+                <StackPanel Visibility="{Binding CurrentTunnelType,
+                            Converter={StaticResource EnumToVis},
+                            ConverterParameter=SocksProxy}">
+                    <Border Background="#11FFFFFF" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <TextBlock Text="برای سرورهای SOCKS5 یا HTTP Proxy، اطلاعات را جداگانه وارد کنید. TunnelX از همین پراکسی یک TUN داخلی می‌سازد تا اسپلیت‌تانلینگ برنامه‌های انتخابی مثل سایر نوع‌های اتصال کار کند."
+                                       TextWrapping="Wrap"
+                                       FontSize="11"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                            <TextBlock Text="اگر پراکسی شما نام کاربری یا رمز ندارد، فیلدهای احراز هویت را خالی بگذارید."
+                                       TextWrapping="Wrap"
+                                       FontSize="10"
+                                       Margin="0,5,0,0"
+                                       Foreground="{StaticResource AccentBrush}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="نوع پراکسی"/>
+                            <ComboBox Style="{StaticResource DarkComboBox}"
+                                      SelectedValue="{Binding ProxyProtocol, Mode=TwoWay}"
+                                      SelectedValuePath="Tag">
+                                <ComboBoxItem Content="SOCKS5"
+                                              Tag="{x:Static models:ProxyProtocol.Socks5}"/>
+                                <ComboBoxItem Content="HTTP Proxy"
+                                              Tag="{x:Static models:ProxyProtocol.Http}"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="پورت"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding ProxyPortText, UpdateSourceTrigger=PropertyChanged}"
+                                     FlowDirection="LeftToRight"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Style="{StaticResource FieldLabel}" Text="آدرس IP یا دامنه سرور" Margin="0,6,0,0"/>
+                    <TextBox Style="{StaticResource ModernTextBox}"
+                             Text="{Binding ProxyServerAddress, UpdateSourceTrigger=PropertyChanged}"
+                             FlowDirection="LeftToRight"/>
+
+                    <Grid Margin="0,6,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="8"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+                        <StackPanel Grid.Column="0">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
+                            <TextBox Style="{StaticResource ModernTextBox}"
+                                     Text="{Binding ProxyUsername, UpdateSourceTrigger=PropertyChanged}"
+                                     FlowDirection="LeftToRight"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
+                            <PasswordBox x:Name="ProxyPasswordField"
+                                         Style="{StaticResource ModernPasswordBox}"
+                                         FlowDirection="LeftToRight"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <TextBlock Text="{Binding ConfigValidationText}"
+                               FontSize="10"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               Margin="0,6,0,0"/>
+                </StackPanel>
+                <!-- End SOCKS/Proxy fields -->
+
                 <Border Background="#11FFFFFF" CornerRadius="8" Padding="10,8" Margin="0,8,0,0">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -392,45 +646,49 @@
         </StackPanel>
         <!-- End Disconnected State -->
 
-        <!-- ══ CONNECTED STATE: Show disconnect button + info ══ -->
+        <!-- ══ CONNECTED STATE: compact status dashboard ══ -->
         <StackPanel Visibility="{Binding IsConnected, Converter={StaticResource BoolToVis}}">
 
-            <!-- Connected Badge -->
-            <Border Background="#1A6CCB5F" CornerRadius="12" Padding="16,12" 
-                    HorizontalAlignment="Center" Margin="0,8,0,0">
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <TextBlock Text="✓" FontSize="28" FontWeight="Bold"
-                               Foreground="{StaticResource SuccessBrush}"
-                               VerticalAlignment="Center" Margin="0,0,12,0"/>
-                    <StackPanel VerticalAlignment="Center">
-                        <TextBlock Text="متصل به VPN" FontSize="15" FontWeight="SemiBold"
-                                   Foreground="{StaticResource SuccessBrush}"/>
-                        <TextBlock Text="{Binding SelectedProfile.Name}" FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                </StackPanel>
-            </Border>
-
-            <!-- Connection Info - 4 cards in one row -->
-            <Grid Margin="0,10,0,0">
+            <!-- Connection summary -->
+            <Grid Margin="0,4,0,0">
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="0.95*"/>
                     <ColumnDefinition Width="6"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="0.9*"/>
                     <ColumnDefinition Width="6"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="1.45*"/>
                     <ColumnDefinition Width="6"/>
-                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="0.95*"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="0.95*"/>
                 </Grid.ColumnDefinitions>
 
+                <!-- Connected profile -->
+                <Border Grid.Column="0" Background="#1A6CCB5F" CornerRadius="10" Padding="10,8"
+                        ToolTip="وضعیت و پروفایل فعال">
+                    <StackPanel HorizontalAlignment="Center">
+                        <TextBlock Text="✓" FontSize="15" FontWeight="Bold"
+                                   Foreground="{StaticResource SuccessBrush}"
+                                   HorizontalAlignment="Center"/>
+                        <TextBlock Text="{Binding ConnectedBadgeText}" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource SuccessBrush}"
+                                   HorizontalAlignment="Center"
+                                   Margin="0,2,0,0"/>
+                        <TextBlock Text="{Binding SelectedProfile.Name}" FontSize="9"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"/>
+                    </StackPanel>
+                </Border>
+
                 <!-- Duration -->
-                <Border Grid.Column="0" Background="#11FFFFFF" CornerRadius="10" Padding="10,10"
+                <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="مدت زمان اتصال فعلی از لحظه برقراری اتصال">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="⏱" FontSize="14" HorizontalAlignment="Center"/>
-                        <TextBlock Text="{Binding ConnectionDuration}" FontSize="16"
+                        <TextBlock Text="{Binding ConnectionDuration}" FontSize="14"
                                    FontWeight="Bold" Foreground="{StaticResource AccentBrush}"
-                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0"
                                    FlowDirection="LeftToRight"/>
                         <TextBlock Text="مدت" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
@@ -438,29 +696,29 @@
                     </StackPanel>
                 </Border>
 
-                <!-- VPN IP -->
-                <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="10,10"
-                        ToolTip="آدرس IP اختصاص‌یافته توسط سرور VPN به این دستگاه">
+                <!-- Connection / Exit IP -->
+                <Border Grid.Column="4" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
+                        ToolTip="IP عمومی‌ای که مقصدهای اینترنتی شما را با آن می‌بینند">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="🌐" FontSize="14" HorizontalAlignment="Center"/>
-                        <TextBlock Text="{Binding VpnIp}" FontSize="13"
+                        <TextBlock Text="{Binding ConnectionIpText}" FontSize="13"
                                    FontWeight="SemiBold" Foreground="{StaticResource SuccessBrush}"
-                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0"
                                    FlowDirection="LeftToRight"/>
-                        <TextBlock Text="IP" FontSize="9"
+                        <TextBlock Text="{Binding ConnectionIpLabel}" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    HorizontalAlignment="Center"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Tunnel Traffic -->
-                <Border Grid.Column="4" Background="#11FFFFFF" CornerRadius="10" Padding="10,10"
+                <Border Grid.Column="6" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="مجموع ترافیک ارسال و دریافت عبوری از تونل VPN (کل تونل)">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="📊" FontSize="14" HorizontalAlignment="Center"/>
                         <TextBlock Text="{Binding TotalTraffic}" FontSize="13"
                                    FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}"
-                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0"
                                    FlowDirection="LeftToRight"/>
                         <TextBlock Text="تونل" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
@@ -469,13 +727,13 @@
                 </Border>
 
                 <!-- Direct diagnostic -->
-                <Border Grid.Column="6" Background="#11FFFFFF" CornerRadius="10" Padding="10,10"
+                <Border Grid.Column="8" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="نمایش تشخیصی ترافیک خارج از تونل. این عدد در مصرف تونل و تاریخچه ثبت نمی‌شود.">
                     <StackPanel HorizontalAlignment="Center">
                         <TextBlock Text="📡" FontSize="14" HorizontalAlignment="Center"/>
                         <TextBlock Text="{Binding DirectTraffic}" FontSize="13"
                                    FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
-                                   HorizontalAlignment="Center" Margin="0,4,0,0"
+                                   HorizontalAlignment="Center" Margin="0,2,0,0"
                                    FlowDirection="LeftToRight"/>
                         <TextBlock Text="خارج تونل" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
@@ -484,66 +742,17 @@
                 </Border>
             </Grid>
 
-            <!-- Apps + Mixed Proxy in one row -->
+            <!-- Route, manual proxy, ping -->
             <Grid Margin="0,6,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="6"/>
                     <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- Apps Routed -->
-                <Border Grid.Column="0" Background="#11FFFFFF" CornerRadius="10" Padding="12,10"
-                        ToolTip="تعداد برنامه‌هایی که ترافیکشان از طریق تونل VPN عبور می‌کند">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="📱" FontSize="16" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="برنامه‌ها در تونل" FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
-                        <Border Grid.Column="2" Background="{StaticResource PrimaryBrush}" 
-                                CornerRadius="8" Padding="10,3">
-                            <TextBlock Text="{Binding EnabledAppsCount}" FontSize="13" FontWeight="Bold"
-                                       Foreground="White"/>
-                        </Border>
-                    </Grid>
-                </Border>
-
-                <!-- Mixed Proxy -->
-                <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="12,10"
-                        ToolTip="پروکسی Mixed داخلی روی 127.0.0.1:1080 — برای برنامه‌هایی که از VPN تشخیص داده نمی‌شوند می‌توانید پروکسی را دستی تنظیم کنید">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                        </Grid.ColumnDefinitions>
-                        <TextBlock Grid.Column="0" Text="🧦" FontSize="16" VerticalAlignment="Center"/>
-                        <TextBlock Grid.Column="1" Text="Mixed" FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   VerticalAlignment="Center" Margin="8,0,0,0"/>
-                        <Border Grid.Column="2" Background="#1AE8803A" CornerRadius="8" Padding="8,3">
-                            <TextBlock Text="{Binding MixedProxyInfo}" FontSize="11" FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       FlowDirection="LeftToRight"/>
-                        </Border>
-                    </Grid>
-                </Border>
-            </Grid>
-
-            <!-- Route Mode + Ping -->
-            <Grid Margin="0,6,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
                     <ColumnDefinition Width="6"/>
                     <ColumnDefinition Width="*"/>
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Background="#11FFFFFF" CornerRadius="10" Padding="12,10">
+                <Border Grid.Column="0" Background="#11FFFFFF" CornerRadius="10" Padding="12,12" MinHeight="136">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -552,14 +761,11 @@
                         <StackPanel Grid.Column="0">
                             <TextBlock Text="🌐 عبور کل سیستم" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <TextBlock Text="{Binding RouteModeTitle}" FontSize="10"
-                                       FontWeight="SemiBold"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       Margin="0,3,0,0"/>
                             <TextBlock Text="{Binding RouteModeDescription}" FontSize="10"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
-                                       Margin="0,3,0,0"/>
+                                       LineHeight="17"
+                                       Margin="0,4,10,0"/>
                         </StackPanel>
                         <CheckBox Grid.Column="1"
                                   Style="{StaticResource ToggleSwitch}"
@@ -569,32 +775,60 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="12,10">
+                <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="12,12" MinHeight="136"
+                        ToolTip="اگر برنامه‌ای خودکار وارد تونل نشد، این آدرس را در تنظیمات Proxy همان برنامه وارد کنید.">
                     <StackPanel>
-                        <TextBlock Text="🏓 تست مسیر از تونل" FontSize="12" FontWeight="SemiBold"
+                        <TextBlock Text="🧦 پروکسی دستی" FontSize="12" FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"/>
+                        <TextBlock Text="{Binding MixedProxyInfo}" FontSize="11" FontWeight="SemiBold"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   FlowDirection="LeftToRight"
+                                   Margin="0,5,0,0"/>
+                        <TextBlock Text="این آدرس داخلی را در برنامه‌هایی وارد کنید که تنظیم Proxy جداگانه دارند یا خودکار وارد تونل نمی‌شوند."
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="17"
+                                   Margin="0,4,0,0"/>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="4" Background="#11FFFFFF" CornerRadius="10" Padding="12,12" MinHeight="136">
+                    <StackPanel>
+                        <TextBlock Text="🏓 تست مسیر" FontSize="12" FontWeight="SemiBold"
                                    Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,3"/>
+                        <TextBlock Text="یک دامنه یا IP را از داخل تونل تست کنید."
+                                   FontSize="10"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   TextWrapping="Wrap"
                                    Margin="0,0,0,6"/>
                         <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="6"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="6"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="6"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBox Grid.Column="0" Text="{Binding PingTarget, UpdateSourceTrigger=PropertyChanged}"
+                            <TextBox Grid.Row="0" Grid.Column="0" Text="{Binding PingTarget, UpdateSourceTrigger=PropertyChanged}"
                                      Style="{StaticResource ModernTextBox}"
                                      FlowDirection="LeftToRight" FontSize="11"
-                                     Padding="6,4" VerticalAlignment="Center"
+                                     Padding="8,6" VerticalAlignment="Center"
                                      ToolTip="IP یا دامنه مقصد برای تست از داخل تونل"/>
-                            <Button Grid.Column="2" Content="{Binding PingButtonText}"
+                            <Button Grid.Row="0" Grid.Column="2" Content="{Binding PingButtonText}"
                                     Command="{Binding TogglePingCommand}"
                                     Style="{StaticResource SecondaryButton}"
-                                    FontSize="11" Padding="10,5"/>
-                            <Button Grid.Column="4" Content="{Binding ConnectedServerPingButtonText}"
+                                    FontSize="10" Padding="10,6"
+                                    ToolTip="تست همین مقصد از داخل مسیر تونل"/>
+                            <Button Grid.Row="2" Grid.ColumnSpan="3" Content="{Binding ConnectedServerPingButtonText}"
                                     Command="{Binding TestConnectedServerPingCommand}"
                                     Style="{StaticResource SecondaryButton}"
-                                    FontSize="11" Padding="10,5"
+                                    FontSize="10" Padding="9,5"
+                                    HorizontalAlignment="Stretch"
                                     ToolTip="دسترسی به سرور همین اتصال را تست می‌کند"/>
                         </Grid>
                         <TextBlock Text="{Binding PingResult}" FontSize="11"
@@ -606,31 +840,101 @@
                 </Border>
             </Grid>
 
+            <Button Command="{Binding ConnectCommand}"
+                    MinWidth="220"
+                    Height="50"
+                    Padding="18,8"
+                    HorizontalAlignment="Center"
+                    Margin="0,10,0,0"
+                    ToolTip="قطع اتصال فعلی">
+                <Button.Style>
+                    <Style TargetType="Button">
+                        <Setter Property="Background" Value="#B42318"/>
+                        <Setter Property="BorderBrush" Value="#F97066"/>
+                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Foreground" Value="White"/>
+                        <Setter Property="Cursor" Value="Hand"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="Button">
+                                    <Border x:Name="DisconnectButtonBorder"
+                                            Background="{TemplateBinding Background}"
+                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                            CornerRadius="16"
+                                            Padding="{TemplateBinding Padding}">
+                                        <Border.Effect>
+                                            <DropShadowEffect Color="#F04438"
+                                                              BlurRadius="16"
+                                                              Opacity="0.24"
+                                                              ShadowDepth="0"/>
+                                        </Border.Effect>
+                                        <Grid FlowDirection="RightToLeft">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="12"/>
+                                                <ColumnDefinition Width="*"/>
+                                            </Grid.ColumnDefinitions>
+                                            <Border Grid.Column="0"
+                                                    Width="34"
+                                                    Height="34"
+                                                    CornerRadius="17"
+                                                    Background="#26FFFFFF"
+                                                    VerticalAlignment="Center">
+                                                <TextBlock Text="⏻"
+                                                           FontSize="18"
+                                                           FontWeight="Bold"
+                                                           Foreground="White"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"/>
+                                            </Border>
+                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                                                <TextBlock Text="قطع اتصال"
+                                                           FontSize="16"
+                                                           FontWeight="Bold"
+                                                           Foreground="White"
+                                                           HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="DisconnectButtonBorder" Property="Background" Value="#D92D20"/>
+                                            <Setter TargetName="DisconnectButtonBorder" Property="BorderBrush" Value="#FDA29B"/>
+                                        </Trigger>
+                                        <Trigger Property="IsPressed" Value="True">
+                                            <Setter TargetName="DisconnectButtonBorder" Property="Background" Value="#912018"/>
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </Button.Style>
+            </Button>
+
         </StackPanel>
         <!-- End Connected State -->
 
         <!-- Split Tunnel Tip (always visible) -->
         <Border Background="#1AFFC107" BorderBrush="#33FFC107" BorderThickness="1"
-                CornerRadius="10" Padding="14,12" Margin="0,10,0,0">
+                CornerRadius="10" Padding="10,8" Margin="0,8,0,0">
             <StackPanel>
-            <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="20"
+            <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="17"
+                       FlowDirection="RightToLeft"
                        Foreground="{StaticResource TextPrimaryBrush}">
-                <Run Text="💡  فقط ترافیک برنامه‌هایی از تونل VPN عبور می‌کند که از تب "/>
+                <Run Text="💡 در حالت انتخابی، فقط برنامه‌های فعال در تب "/>
                 <Run Text="«برنامه‌ها»" FontWeight="SemiBold"/>
-                <Run Text=" فعال‌سازی شده باشند. سایر برنامه‌ها مستقیماً به اینترنت متصل می‌شوند."/>
+                <Run Text=" از تونل عبور می‌کنند؛ بقیه مستقیم می‌مانند."/>
             </TextBlock>
-            <Border Background="#22FFFFFF" Height="1" Margin="0,8,0,8"/>
-            <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="20"
+            <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="17"
+                       FlowDirection="RightToLeft"
                        Foreground="{StaticResource TextSecondaryBrush}">
-                <Run Text="📌  "/>
-                <Run Text="تلگرام، واتس‌اپ و سایر برنامه‌های مایکروسافت استور"
+                <Run Text="📌 برای تلگرام، واتس‌اپ و برنامه‌های Store، "/>
+                <Run Text="Microsoft Edge WebView2"
+                     FlowDirection="LeftToRight"
                      FontWeight="SemiBold"/>
-                <Run Text=" معمولاً از موتور مرورگر داخلی ویندوز استفاده می‌کنند. برای تونل‌کردن صحیح ترافیک آن‌ها، علاوه‌بر خود برنامه، حتماً "/>
-                <Run Text="Microsoft Edge WebView2" FontWeight="SemiBold"
-                     Foreground="{StaticResource AccentBrush}"/>
-                <Run Text=" را هم از ستون "/>
-                <Run Text="«برنامه‌های نصب‌شده»" FontWeight="SemiBold"/>
-                <Run Text=" به لیست تونل اضافه کنید."/>
+                <Run Text=" را هم به لیست تونل اضافه کنید."/>
             </TextBlock>
             </StackPanel>
         </Border>

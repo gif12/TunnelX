@@ -8,17 +8,26 @@
             </ResourceDictionary.MergedDictionaries>
 
             <!-- Embedded Persian Font (Vazirmatn) with fallbacks -->
-            <FontFamily x:Key="PersianFont">pack://application:,,,/Fonts/#Vazirmatn</FontFamily>
-            <FontFamily x:Key="AppFont">pack://application:,,,/Fonts/#Vazirmatn, Segoe UI, Tahoma</FontFamily>
+            <FontFamily x:Key="PersianFont">pack://application:,,,/AppTunnel;component/Fonts/#Vazirmatn</FontFamily>
+            <FontFamily x:Key="AppFont">pack://application:,,,/AppTunnel;component/Fonts/#Vazirmatn, Vazirmatn, Vazir, Segoe UI, Tahoma</FontFamily>
 
             <!-- Global Font Settings -->
             <Style TargetType="{x:Type Window}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             </Style>
             <Style TargetType="{x:Type TextBlock}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+                <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+                <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
             </Style>
             <Style TargetType="{x:Type TextBox}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            </Style>
+            <Style TargetType="{x:Type PasswordBox}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             </Style>
             <Style TargetType="{x:Type Button}">
@@ -31,6 +40,12 @@
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             </Style>
             <Style TargetType="{x:Type CheckBox}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            </Style>
+            <Style TargetType="{x:Type ListBox}">
+                <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+            </Style>
+            <Style TargetType="{x:Type ListBoxItem}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
             </Style>
             <Style TargetType="{x:Type ToolTip}">

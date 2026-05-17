@@ -18,11 +18,15 @@ public class VpnService
 
     public async Task<bool> ConnectAsync(ServerConfig config, CancellationToken ct = default)
     {
+        if (config.TunnelType == TunnelType.SocksProxy)
+            config.V2RayConfig = config.BuildProxyUri();
+
         _activeProvider = config.TunnelType switch
         {
             TunnelType.L2tpIpsec => new L2tpTunnelProvider(),
             TunnelType.V2Ray => TunnelProviderFactory.Create(config.V2RayConfig),
             TunnelType.OpenVpn => new OpenVpnTunnelProvider(),
+            TunnelType.SocksProxy => new V2RayTunnelProvider(),
             _ => throw new NotImplementedException($"نوع تانل ناشناخته: {config.TunnelType}")
         };
 
