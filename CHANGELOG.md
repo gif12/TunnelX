@@ -6,6 +6,18 @@
 
 ### فارسی
 
+## 1.2.29 - 2026-05-17
+
+### English
+
+- Expanded the GitHub README with Russian and Simplified Chinese summaries for international users.
+- Expanded the in-app Persian Help tab with fuller guidance for profiles, connection types, routing rules, logs, updates, and troubleshooting.
+
+### فارسی
+
+- توضیح‌های روسی و چینی ساده‌شده به README گیت‌هاب اضافه شد تا کاربران بین‌المللی سریع‌تر با کاربرد برنامه آشنا شوند.
+- تب راهنمای فارسی داخل برنامه با توضیح کامل‌تر درباره پروفایل‌ها، نوع‌های اتصال، قوانین مسیر، لاگ‌ها، بروزرسانی و عیب‌یابی گسترش پیدا کرد.
+
 ## 1.2.28 - 2026-05-17
 
 ### English

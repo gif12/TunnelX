@@ -1,8 +1,24 @@
 # TunnelX
 
-[فارسی](README.fa.md) | English
+[فارسی](README.fa.md) | English | [Русский](#русский) | [简体中文](#简体中文)
 
 TunnelX is a free and open-source Windows split-tunneling client built by **MaxFan**. It routes selected apps, selected destinations, or the whole system through supported tunnel cores while keeping local and excluded destinations on the normal network path.
+
+## Русский
+
+TunnelX — бесплатный клиент split tunneling для Windows от **MaxFan**. Он позволяет направлять через VPN, V2Ray/Xray, OpenVPN или SOCKS5/HTTP Proxy только выбранные приложения, выбранные домены/IP или весь системный трафик.
+
+Основные возможности: профили L2TP/IPsec, V2Ray/Xray, SOCKS5/HTTP Proxy и OpenVPN Community; выбор приложений для туннеля; правила include/exclude для доменов и IP; режим Full Route; локальный прокси `127.0.0.1`; отображение публичного выходного IP; история трафика; защита от DNS/IPv6/leak проблем.
+
+Для обычного использования скачайте последний standalone-файл из [GitHub Releases](https://github.com/MaxiFan/TunnelX/releases/latest), запустите TunnelX от имени Administrator, создайте профиль подключения, выберите приложения для туннеля и подключитесь. Отдельная установка .NET Runtime для standalone-сборки не требуется.
+
+## 简体中文
+
+TunnelX 是由 **MaxFan** 构建的免费 Windows 分流隧道客户端。它可以只让选定的应用、指定的域名/IP，或整个系统流量通过 VPN、V2Ray/Xray、OpenVPN 或 SOCKS5/HTTP Proxy，同时让本地或排除的目标继续走普通网络。
+
+主要功能包括：L2TP/IPsec、V2Ray/Xray、SOCKS5/HTTP Proxy 和 OpenVPN Community 配置文件；按应用分流；域名/IP include 与 exclude 规则；Full Route 全局模式；本地 `127.0.0.1` 代理；公网出口 IP 显示；流量历史；DNS、IPv6 与泄漏防护诊断。
+
+普通用户可以从 [GitHub Releases](https://github.com/MaxiFan/TunnelX/releases/latest) 下载最新 standalone 版本，以 Administrator 权限运行 TunnelX，创建连接配置，选择需要进入隧道的应用，然后连接。standalone 版本不需要单独安装 .NET Runtime。
 
 ## Features
 

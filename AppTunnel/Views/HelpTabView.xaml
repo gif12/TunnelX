@@ -3,13 +3,52 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:services="clr-namespace:AppTunnel.Services">
 
+    <UserControl.Resources>
+        <Style x:Key="HelpCard" TargetType="Border" BasedOn="{StaticResource CardPanel}">
+            <Setter Property="Padding" Value="14,12"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style x:Key="HelpTitle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+        </Style>
+
+        <Style x:Key="HelpBody" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11"/>
+            <Setter Property="LineHeight" Value="18"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        </Style>
+
+        <Style x:Key="HelpChip" TargetType="Border">
+            <Setter Property="Background" Value="#0EFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#14FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Padding" Value="10,8"/>
+        </Style>
+
+        <Style x:Key="HelpExpander" TargetType="Expander">
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderBrush" Value="#14FFFFFF"/>
+            <Setter Property="BorderThickness" Value="0,1,0,0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,4,0,0"/>
+            <Setter Property="FontSize" Value="12"/>
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
-                  Padding="0,14,0,12">
-        <StackPanel Margin="16,0">
+                  Padding="0,12,0,10">
+        <StackPanel Margin="14,0">
 
-            <!-- Overview -->
-            <Border Style="{StaticResource CardPanel}">
+            <!-- Header -->
+            <Border Style="{StaticResource HelpCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
@@ -17,23 +56,22 @@
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
-                        <TextBlock Text="TunnelX"
-                                   FontSize="22"
+                        <TextBlock Text="راهنمای TunnelX"
+                                   FontSize="20"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="Split tunneling برای برنامه‌ها، مقصدها و حالت کل سیستم"
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
+                        <TextBlock Text="شروع سریع، پروفایل‌ها، بخش‌های اپ و عیب‌یابی در یک صفحه ساده."
+                                   Style="{StaticResource HelpBody}"
                                    Margin="0,4,0,0"/>
                     </StackPanel>
 
                     <Border Grid.Column="1"
-                            Background="#1AE8803A"
+                            Background="#14E8803A"
                             CornerRadius="8"
-                            Padding="10,5"
-                            VerticalAlignment="Center">
+                            Padding="9,4"
+                            VerticalAlignment="Top">
                         <TextBlock Text="{x:Static services:AppInfo.VersionText}"
-                                   FontSize="12"
+                                   FontSize="11"
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource AccentBrush}"
                                    FlowDirection="LeftToRight"/>
@@ -41,106 +79,162 @@
                 </Grid>
             </Border>
 
-            <!-- Project + Support -->
-            <Border Style="{StaticResource CardPanel}">
+            <!-- Primary Actions -->
+            <Border Style="{StaticResource HelpCard}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <StackPanel Grid.Column="0">
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="پروژه آزاد و حمایت"/>
-                        <TextBlock Text="{Binding AppCreatorText}"
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   Margin="0,0,0,4"/>
-                        <TextBlock Text="{Binding AppGitHubUrl}"
-                                   FontSize="10"
-                                   Foreground="{StaticResource AccentBrush}"
-                                   FlowDirection="LeftToRight"
-                                   TextWrapping="Wrap"/>
+                        <TextBlock Text="پروژه و بروزرسانی" Style="{StaticResource HelpTitle}"/>
+                        <TextBlock Text="{Binding UpdateStatusText}"
+                                   Style="{StaticResource HelpBody}"/>
                         <TextBlock Text="{Binding AppLicenseText, StringFormat=لایسنس: {0}}"
                                    FontSize="10"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FlowDirection="LeftToRight"
                                    Margin="0,5,0,0"/>
-                        <TextBlock Text="{Binding DonatePayPalText}"
-                                   FontSize="10"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FlowDirection="LeftToRight"
-                                   Margin="0,5,0,0"/>
-                        <TextBlock Text="{Binding CryptoDonationText}"
-                                   FontSize="10"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontFamily="Consolas"
-                                   FlowDirection="LeftToRight"
-                                   TextWrapping="Wrap"
-                                   Margin="0,5,0,0"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="2"
                                 Orientation="Vertical"
-                                VerticalAlignment="Center"
-                                MinWidth="150">
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Content="باز کردن گیت‌هاب"
-                                Command="{Binding OpenGitHubCommand}"
-                                Padding="14,8"/>
+                                MinWidth="145"
+                                VerticalAlignment="Center">
                         <Button Style="{StaticResource PrimaryButton}"
-                                Content="حمایت با پی‌پل"
-                                Command="{Binding OpenDonateCommand}"
-                                Padding="16,8"
-                                Margin="0,8,0,0"/>
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Content="کپی اطلاعات حمایت"
-                                Command="{Binding CopyDonationInfoCommand}"
-                                Padding="14,8"
-                                Margin="0,8,0,0"/>
-                    </StackPanel>
-                </Grid>
-            </Border>
-
-            <!-- Updates -->
-            <Border Style="{StaticResource CardPanel}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="12"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
-
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="بروزرسانی"/>
-                        <TextBlock Text="{Binding UpdateStatusText}"
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   TextWrapping="Wrap"
-                                   LineHeight="18"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2"
-                                Orientation="Vertical"
-                                VerticalAlignment="Center"
-                                MinWidth="150">
-                        <Button Style="{StaticResource SecondaryButton}"
                                 Content="{Binding UpdateButtonText}"
                                 Command="{Binding CheckForUpdatesCommand}"
-                                Padding="14,8"/>
-                        <Button Style="{StaticResource PrimaryButton}"
-                                Content="باز کردن صفحه انتشار"
+                                FontSize="11"
+                                Padding="12,7"/>
+                        <Button Style="{StaticResource SecondaryButton}"
+                                Content="صفحه انتشار"
                                 Command="{Binding OpenLatestReleaseCommand}"
-                                Padding="14,8"
-                                Margin="0,8,0,0"/>
+                                FontSize="11"
+                                Padding="12,7"
+                                Margin="0,6,0,0"/>
+                        <Button Style="{StaticResource SecondaryButton}"
+                                Content="GitHub"
+                                Command="{Binding OpenGitHubCommand}"
+                                FontSize="11"
+                                Padding="12,7"
+                                Margin="0,6,0,0"/>
                     </StackPanel>
                 </Grid>
             </Border>
 
-            <!-- Quick Path -->
-            <Border Style="{StaticResource CardPanel}">
+            <!-- Quick Start -->
+            <Border Style="{StaticResource HelpCard}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="شروع سریع"/>
+                    <TextBlock Text="شروع سریع" Style="{StaticResource HelpTitle}"/>
+                    <UniformGrid Columns="2" Rows="2">
+                        <Border Style="{StaticResource HelpChip}" Margin="0,0,5,5">
+                            <StackPanel>
+                                <TextBlock Text="۱. پروفایل" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="کانفیگ را بسازید و نوع اتصال را انتخاب کنید."
+                                           Style="{StaticResource HelpBody}" FontSize="10" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource HelpChip}" Margin="5,0,0,5">
+                            <StackPanel>
+                                <TextBlock Text="۲. برنامه‌ها" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="برنامه‌های داخل تونل را انتخاب یا دستی اضافه کنید."
+                                           Style="{StaticResource HelpBody}" FontSize="10" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource HelpChip}" Margin="0,5,5,0">
+                            <StackPanel>
+                                <TextBlock Text="۳. قوانین" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="مقصدهای مستقیم یا اجباری را مشخص کنید."
+                                           Style="{StaticResource HelpBody}" FontSize="10" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Border>
+                        <Border Style="{StaticResource HelpChip}" Margin="5,5,0,0">
+                            <StackPanel>
+                                <TextBlock Text="۴. اتصال" FontSize="12" FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                <TextBlock Text="وصل شوید و سلامت، IP و مصرف را بررسی کنید."
+                                           Style="{StaticResource HelpBody}" FontSize="10" Margin="0,3,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </UniformGrid>
+                </StackPanel>
+            </Border>
+
+            <!-- Profile Types -->
+            <Border Style="{StaticResource HelpCard}">
+                <StackPanel>
+                    <TextBlock Text="نوع پروفایل" Style="{StaticResource HelpTitle}"/>
+                    <TextBlock Text="فقط فیلدهای مربوط به نوع انتخاب‌شده را پر کنید. هر پروفایل برنامه‌ها و قوانین مسیر خودش را نگه می‌دارد."
+                               Style="{StaticResource HelpBody}"/>
+
+                    <Expander Header="L2TP/IPsec" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="برای اتصال VPN ویندوز. آدرس سرور، نام کاربری، رمز عبور و Pre-Shared Key لازم است. اگر وصل نشد، PSK، فایروال و تنظیمات VPN ویندوز را بررسی کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="V2Ray / Xray" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="لینک یا JSON کانفیگ را وارد کنید یا از کلیپ‌بورد پیست کنید. TunnelX معمولاً sing-box را اجرا می‌کند و برای قابلیت‌هایی مثل xhttp از Xray-core استفاده می‌کند."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="SOCKS5 / HTTP Proxy" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="برای پراکسی خارجی آماده. نوع پراکسی، آدرس، پورت و در صورت نیاز نام کاربری/رمز را وارد کنید. این با پراکسی داخلی 127.0.0.1 فرق دارد."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="OpenVPN" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="فایل ovpn را انتخاب کنید. OpenVPN Community باید جداگانه نصب باشد؛ OpenVPN Connect برای Split Tunneling مناسب نیست. اگر سرور رمز می‌خواهد، نام کاربری و رمز را در TunnelX وارد کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+                </StackPanel>
+            </Border>
+
+            <!-- App Areas -->
+            <Border Style="{StaticResource HelpCard}">
+                <StackPanel>
+                    <TextBlock Text="بخش‌های اپ" Style="{StaticResource HelpTitle}"/>
+
+                    <Expander Header="اتصال VPN" Style="{StaticResource HelpExpander}" IsExpanded="True">
+                        <TextBlock Text="پروفایل فعال، تست سرور، اتصال/قطع اتصال، IP خروجی، پینگ، مصرف و راهنمای پراکسی دستی اینجاست."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="برنامه‌ها" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="از لیست برنامه‌های پیدا شده انتخاب کنید یا فایل exe را دستی اضافه کنید. برای Store/MSIX/WebView2 برنامه را باز نگه دارید و بروزرسانی لیست را بزنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="قوانین مسیر" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="«مستقیم بماند» یعنی مقصد از تونل عبور نکند. «از تونل عبور کند» یعنی مقصد حتی بدون انتخاب برنامه وارد تونل شود. دامنه‌ها زیردامنه‌ها را هم پوشش می‌دهند."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="تنظیمات" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="پورت پراکسی محلی، MTU خودکار، DNS Optimization، Game Mode، اجرای خودکار ویندوز و اتصال خودکار اینجاست."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="ترافیک و تاریخچه" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="مدت اتصال، IP، مصرف تونل، مصرف خارج تونل، سلامت Split Tunnel، مصرف برنامه‌ها و تاریخچه اتصال‌ها را نشان می‌دهد."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="جزئیات و لاگ‌ها" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="از دکمه جزئیات، لاگ‌ها را با فیلتر خطا، هشدار، DNS یا Route ببینید. قبل از ارسال عمومی لاگ، رمزها، کلیدها، UUID و endpoint خصوصی را حذف کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+                </StackPanel>
+            </Border>
+
+            <!-- Essentials -->
+            <Border Style="{StaticResource HelpCard}">
+                <StackPanel>
+                    <TextBlock Text="نکات مهم" Style="{StaticResource HelpTitle}"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -153,217 +247,89 @@
                             <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
-                        <Border Grid.Row="0" Grid.Column="0" Background="#11FFFFFF" CornerRadius="8" Padding="12,10">
+                        <Border Grid.Row="0" Grid.Column="0" Style="{StaticResource HelpChip}">
+                            <TextBlock Text="حالت عادی: فقط برنامه‌های انتخاب‌شده و مقصدهای لزومی وارد تونل می‌شوند."
+                                       Style="{StaticResource HelpBody}" FontSize="10"/>
+                        </Border>
+                        <Border Grid.Row="0" Grid.Column="2" Style="{StaticResource HelpChip}">
+                            <TextBlock Text="Full Route: کل سیستم وارد تونل می‌شود؛ استثناها می‌توانند مستقیم بمانند."
+                                       Style="{StaticResource HelpBody}" FontSize="10"/>
+                        </Border>
+                        <Border Grid.Row="2" Grid.Column="0" Style="{StaticResource HelpChip}">
                             <StackPanel>
-                                <TextBlock Text="۱. پروفایل" FontSize="12" FontWeight="SemiBold"
+                                <TextBlock Text="پراکسی داخلی"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="نوع اتصال را انتخاب کنید: L2TP، V2Ray/Xray، SOCKS5/HTTP Proxy یا اوپن‌وی‌پی‌ان. برای اسپلیت اوپن‌وی‌پی‌ان، نسخه Community لازم است؛ فایل .ovpn را انتخاب کنید و نام کاربری/رمز را در TunnelX وارد کنید."
-                                           FontSize="10" TextWrapping="Wrap"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
+                                <TextBlock Text="برای ابزارهایی که آدرس محلی می‌خواهند:"
+                                           Style="{StaticResource HelpBody}" FontSize="10" Margin="0,3,0,0"/>
+                                <TextBlock Text="127.0.0.1:1080"
+                                           FontSize="11"
+                                           FontFamily="Consolas"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           FlowDirection="LeftToRight"
+                                           Margin="0,3,0,0"/>
                             </StackPanel>
                         </Border>
-
-                        <Border Grid.Row="0" Grid.Column="2" Background="#11FFFFFF" CornerRadius="8" Padding="12,10">
-                            <StackPanel>
-                                <TextBlock Text="۲. تست سرور" FontSize="12" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="قبل از اتصال، تست سرور را بزنید. برای TLS، handshake واقعی اندازه‌گیری می‌شود."
-                                           FontSize="10" TextWrapping="Wrap"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="2" Grid.Column="0" Background="#11FFFFFF" CornerRadius="8" Padding="12,10">
-                            <StackPanel>
-                                <TextBlock Text="۳. برنامه‌ها" FontSize="12" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="برنامه‌هایی که باید از تونل عبور کنند را در تب برنامه‌ها فعال کنید."
-                                           FontSize="10" TextWrapping="Wrap"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
-                            </StackPanel>
-                        </Border>
-
-                        <Border Grid.Row="2" Grid.Column="2" Background="#11FFFFFF" CornerRadius="8" Padding="12,10">
-                            <StackPanel>
-                                <TextBlock Text="۴. اتصال" FontSize="12" FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="بعد از اتصال، کارت سلامت ترافیک را برای Leak، DNS، IPv6 و Route بررسی کنید."
-                                           FontSize="10" TextWrapping="Wrap"
-                                           Foreground="{StaticResource TextSecondaryBrush}" Margin="0,5,0,0"/>
-                            </StackPanel>
+                        <Border Grid.Row="2" Grid.Column="2" Style="{StaticResource HelpChip}">
+                            <TextBlock Text="سلامت: Leak باید صفر باشد. DNS، IPv6 و Route را بعد از اتصال بررسی کنید."
+                                       Style="{StaticResource HelpBody}" FontSize="10"/>
                         </Border>
                     </Grid>
                 </StackPanel>
             </Border>
 
-            <!-- Connection Types -->
-            <Border Style="{StaticResource CardPanel}">
+            <!-- Troubleshooting -->
+            <Border Style="{StaticResource HelpCard}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="راهنمای نوع اتصال"/>
-                    <TextBlock Text="L2TP/IPsec"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Text="آدرس سرور، نام کاربری، رمز عبور و Pre-Shared Key را وارد کنید؛ TunnelX اتصال ویندوز را ایجاد و مسیرها را مدیریت می‌کند."
-                               FontSize="11"
-                               LineHeight="18"
-                               TextWrapping="Wrap"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Margin="0,4,0,10"/>
+                    <TextBlock Text="عیب‌یابی سریع" Style="{StaticResource HelpTitle}"/>
 
-                    <TextBlock Text="V2Ray / Xray"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Text="لینک یا کانفیگ V2Ray/Xray را در فیلد کانفیگ وارد کنید. TunnelX با sing-box/Xray تونل را بالا می‌آورد و برنامه‌های انتخابی را از آن عبور می‌دهد."
-                               FontSize="11"
-                               LineHeight="18"
-                               TextWrapping="Wrap"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Margin="0,4,0,10"/>
+                    <Expander Header="اتصال برقرار نمی‌شود" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="برنامه را با Administrator اجرا کنید. فایروال، آنتی‌ویروس، آدرس سرور، پورت، رمزها، PSK، نصب OpenVPN Community و اعتبار کانفیگ را بررسی کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
 
-                    <TextBlock Text="SOCKS5 / HTTP Proxy"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Text="اگر پراکسی خارجی آماده دارید، آدرس سرور، پورت و در صورت نیاز نام کاربری/رمز را در پروفایل پراکسی وارد کنید. این حالت با SOCKS5 داخلی روی 127.0.0.1 تفاوت دارد."
-                               FontSize="11"
-                               LineHeight="18"
-                               TextWrapping="Wrap"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Margin="0,4,0,10"/>
+                    <Expander Header="ترافیک برنامه از تونل عبور نمی‌کند" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="برنامه را در تب برنامه‌ها فعال کنید. اگر چندپردازشی است، برنامه را باز نگه دارید و لیست برنامه‌ها را دوباره بارگذاری کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
 
-                    <TextBlock Text="OpenVPN"
-                               FontSize="12"
-                               FontWeight="SemiBold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Text="TunnelX فایل اوپن‌وی‌پی‌ان را همراه خود توزیع نمی‌کند. برای اسپلیت‌تانلینگ باید نسخه Community نصب باشد، چون TunnelX باید فایل openvpn.exe را با کانفیگ سازگار با اسپلیت اجرا کند. نسخه Connect معمولاً مسیر و DNS را خودش تغییر می‌دهد و برای جدا کردن ترافیک برنامه‌ها مناسب نیست. در تب اتصال فایل .ovpn را انتخاب کنید و اگر سرور نیاز دارد، نام کاربری و رمز را در TunnelX وارد کنید."
-                               FontSize="11"
-                               LineHeight="18"
-                               TextWrapping="Wrap"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               Margin="0,4,0,0"/>
+                    <Expander Header="پراکسی کار نمی‌کند" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="برای پروفایل پراکسی، آدرس، پورت، نوع و اطلاعات ورود را بررسی کنید. برای ابزارهای محلی، آدرس 127.0.0.1 و پورت تنظیمات را وارد کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
+
+                    <Expander Header="DNS، IPv6 یا Leak غیرعادی است" Style="{StaticResource HelpExpander}">
+                        <TextBlock Text="یک بار قطع و وصل کنید تا مسیرها و قوانین DNS دوباره ساخته شوند. اگر مشکل ماند، لاگ‌های DNS و Route را بررسی کنید."
+                                   Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
+                    </Expander>
                 </StackPanel>
             </Border>
 
-            <!-- Modes -->
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="8"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0" Style="{StaticResource CardPanel}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="حالت انتخابی"/>
-                        <TextBlock Text="فقط برنامه‌های انتخاب‌شده و مقصدهای لزومی از تونل عبور می‌کنند. این حالت برای مصرف کمتر و کنترل دقیق‌تر پیشنهاد می‌شود."
-                                   FontSize="11"
-                                   LineHeight="19"
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Column="2" Style="{StaticResource CardPanel}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="عبور کل سیستم"/>
-                        <TextBlock Text="وقتی Full Route روشن باشد، کل ترافیک ویندوز از تونل عبور می‌کند. برای تست یا زمانی که همه برنامه‌ها باید VPN داشته باشند مناسب است."
-                                   FontSize="11"
-                                   LineHeight="19"
-                                   TextWrapping="Wrap"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <!-- Rules + Apps -->
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="8"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0" Style="{StaticResource CardPanel}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="برنامه‌ها"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}">
-برنامه‌های Store/MSIX و WebView2 ممکن است چند پردازش داشته باشند. اگر اپی دیده نشد، آن را باز کنید و دوباره بارگذاری برنامه‌ها را بزنید.
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Column="2" Style="{StaticResource CardPanel}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="قوانین مسیر"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}">
-استثناها مقصد را مستقیم نگه می‌دارند. لزومی‌ها مقصد را حتی بدون انتخاب برنامه از تونل عبور می‌دهند. دامنه، IP و URL قابل استفاده است.
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <!-- Local Proxy + Diagnostics -->
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="8"/>
-                    <ColumnDefinition Width="*"/>
-                </Grid.ColumnDefinitions>
-
-                <Border Grid.Column="0" Style="{StaticResource CardPanel}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="SOCKS5 داخلی"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}">
-پروکسی داخلی روی 127.0.0.1 اجرا می‌شود و برای ابزارهایی است که آدرس پراکسی محلی می‌خواهند. پورت را قبل از اتصال انتخاب کنید؛ پورت‌های سیستم، رزرو و پورت‌های رایج توسعه محدود شده‌اند.
-                        </TextBlock>
-                        <Border Background="#11FFFFFF" CornerRadius="6" Padding="8" Margin="0,8,0,0">
-                            <TextBlock Text="127.0.0.1:1080"
-                                       FontSize="11"
-                                       FontFamily="Consolas"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       FlowDirection="LeftToRight"/>
-                        </Border>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Column="2" Style="{StaticResource CardPanel}">
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionHeader}" Text="کارت سلامت"/>
-                        <TextBlock TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}">
-Leak باید صفر باشد. DNS نشان می‌دهد درخواست‌های DNS هدایت شده‌اند. IPv6 blocked یعنی مسیرهای IPv6 ناخواسته بسته شده‌اند. Route تعداد مسیرهای فعال و خطاها را نشان می‌دهد.
-                        </TextBlock>
-                    </StackPanel>
-                </Border>
-            </Grid>
-
-            <!-- Troubleshooting -->
-            <Border Style="{StaticResource CardPanel}">
+            <!-- Support -->
+            <Border Style="{StaticResource HelpCard}">
                 <StackPanel>
-                    <TextBlock Style="{StaticResource SectionHeader}" Text="عیب‌یابی سریع"/>
-
-                    <Expander Header="اتصال برقرار نمی‌شود" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,4,0,0">
-                        <TextBlock Text="دسترسی Administrator، فایروال، پورت SOCKS5، اطلاعات پراکسی و صحت کانفیگ را بررسی کنید. در کانفیگ‌های xhttp، هسته باید Xray باشد."
-                                   TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
-                    </Expander>
-
-                    <Expander Header="ترافیک برنامه از تونل عبور نمی‌کند" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0">
-                        <TextBlock Text="برنامه را در تب برنامه‌ها فعال کنید. برای اپ‌های Store، برنامه را باز نگه دارید و لیست برنامه‌ها را دوباره بارگذاری کنید."
-                                   TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
-                    </Expander>
-
-                    <Expander Header="سایت داخلی باید مستقیم باز شود" Foreground="{StaticResource TextPrimaryBrush}" Margin="0,8,0,0">
-                        <TextBlock Text="دامنه یا IP را به استثناها اضافه کنید. برای عبور اجباری یک مقصد از VPN، آن را به لزومی‌ها اضافه کنید."
-                                   TextWrapping="Wrap" FontSize="11" LineHeight="19"
-                                   Foreground="{StaticResource TextSecondaryBrush}" Margin="0,8,0,0"/>
-                    </Expander>
+                    <TextBlock Text="حمایت و تماس" Style="{StaticResource HelpTitle}"/>
+                    <TextBlock Text="{Binding AppCreatorText}" Style="{StaticResource HelpBody}"/>
+                    <TextBlock Text="{Binding AppGitHubUrl}"
+                               FontSize="10"
+                               Foreground="{StaticResource AccentBrush}"
+                               FlowDirection="LeftToRight"
+                               TextWrapping="Wrap"
+                               Margin="0,5,0,0"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
+                        <Button Style="{StaticResource SecondaryButton}"
+                                Content="حمایت با پی‌پل"
+                                Command="{Binding OpenDonateCommand}"
+                                FontSize="11"
+                                Padding="12,7"/>
+                        <Button Style="{StaticResource SecondaryButton}"
+                                Content="کپی اطلاعات حمایت"
+                                Command="{Binding CopyDonationInfoCommand}"
+                                FontSize="11"
+                                Padding="12,7"
+                                Margin="8,0,0,0"/>
+                    </StackPanel>
                 </StackPanel>
             </Border>
 
