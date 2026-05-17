@@ -141,32 +141,13 @@ public partial class MainViewModel
             StatusText = _vpnService.Status.Message;
             VpnIp = _vpnService.Status.VpnLocalIp;
             VpnAdapterName = ResolveInterfaceName(_vpnService.Status.VpnInterfaceIndex);
+            _currentVpnInterfaceIndex = _vpnService.Status.VpnInterfaceIndex;
+            _currentVpnGatewayIp = _vpnService.Status.VpnGatewayIp;
             _connectionStartTime = DateTime.Now;
             LastActiveProfileId = _selectedProfile?.Id;
             RaiseHealthStatusChanged();
 
-            // Start traffic routing for enabled apps
-            var enabledApps = TunnelApps.Where(a => a.IsEnabled).ToList();
-            _trafficRouter.ClearTargetApps();
-            foreach (var app in enabledApps)
-            {
-                app.BytesSent = 0;
-                app.BytesReceived = 0;
-                _trafficRouter.AddTargetApp(app.ExecutableName);
-            }
-
-            // Load user's exclude list (domains/IPs to bypass tunnel)
-            _trafficRouter.SetExcludedDestinations(ExcludedDestinations);
-            _trafficRouter.SetIncludedDestinations(IncludedDestinations);
-            _trafficRouter.Socks5Port = MixedProxyPort;
-            _trafficRouter.EnableDnsOptimization = IsDnsOptimizationEnabled;
-            _trafficRouter.EnableGameMode = IsGameModeEnabled;
-
-            _trafficRouter.Start(
-                _vpnService.Status.VpnInterfaceIndex,
-                _vpnService.Status.VpnLocalIp,
-                _vpnService.Status.VpnServerIp,
-                _vpnService.Status.VpnGatewayIp); // actual proxy/VPN server host, resolved by TrafficRouter
+            StartTrafficRouterForCurrentStatus(resetAppCounters: true);
 
             _vpnHealthCheckCounter = 0;
             _timer.Start();
@@ -207,10 +188,39 @@ public partial class MainViewModel
 
         VpnIp = "";
         VpnAdapterName = "";
+        _currentVpnInterfaceIndex = -1;
+        _currentVpnGatewayIp = "";
         _isFullRouteEnabled = false;
         OnPropertyChanged(nameof(IsFullRouteEnabled));
         OnPropertyChanged(nameof(FullRouteStatusText));
         RaiseHealthStatusChanged();
+    }
+
+    private void StartTrafficRouterForCurrentStatus(bool resetAppCounters)
+    {
+        var enabledApps = TunnelApps.Where(a => a.IsEnabled).ToList();
+        _trafficRouter.ClearTargetApps();
+        foreach (var app in enabledApps)
+        {
+            if (resetAppCounters)
+            {
+                app.BytesSent = 0;
+                app.BytesReceived = 0;
+            }
+            _trafficRouter.AddTargetApp(app.ExecutableName);
+        }
+
+        _trafficRouter.SetExcludedDestinations(ExcludedDestinations);
+        _trafficRouter.SetIncludedDestinations(IncludedDestinations);
+        _trafficRouter.Socks5Port = MixedProxyPort;
+        _trafficRouter.EnableDnsOptimization = IsDnsOptimizationEnabled;
+        _trafficRouter.EnableGameMode = IsGameModeEnabled;
+
+        _trafficRouter.Start(
+            _vpnService.Status.VpnInterfaceIndex,
+            _vpnService.Status.VpnLocalIp,
+            _vpnService.Status.VpnServerIp,
+            _vpnService.Status.VpnGatewayIp);
     }
 
     private async Task DisconnectAsync()
@@ -233,6 +243,8 @@ public partial class MainViewModel
         StatusText = "قطع شد";
         VpnIp = "";
         VpnAdapterName = "";
+        _currentVpnInterfaceIndex = -1;
+        _currentVpnGatewayIp = "";
         _isFullRouteEnabled = false;
         OnPropertyChanged(nameof(IsFullRouteEnabled));
         OnPropertyChanged(nameof(FullRouteStatusText));
@@ -283,6 +295,8 @@ public partial class MainViewModel
         StatusText = "اتصال VPN به‌طور غیرمنتظره قطع شد";
         VpnIp = "";
         VpnAdapterName = "";
+        _currentVpnInterfaceIndex = -1;
+        _currentVpnGatewayIp = "";
         _isFullRouteEnabled = false;
         OnPropertyChanged(nameof(IsFullRouteEnabled));
         OnPropertyChanged(nameof(FullRouteStatusText));
@@ -314,10 +328,19 @@ public partial class MainViewModel
     }
 
     private int _vpnHealthCheckCounter;
+    private bool _isRefreshingOpenVpnRouter;
+    private int _currentVpnInterfaceIndex = -1;
+    private string _currentVpnGatewayIp = "";
 
     private void UpdateTimerTick()
     {
         if (!IsConnected) return;
+
+        if (CurrentTunnelType == TunnelType.OpenVpn && OpenVpnRuntimeEndpointChanged())
+        {
+            _ = RefreshOpenVpnRouterAsync();
+            return;
+        }
 
         // Check VPN interface health every 5 seconds
         if (++_vpnHealthCheckCounter >= 5)
@@ -356,6 +379,82 @@ public partial class MainViewModel
         var (directSent, directReceived) = _trafficRouter.GetDirectTraffic();
         DirectTraffic = FormatBytes(directSent + directReceived);
         RaiseHealthStatusChanged();
+    }
+
+    private bool OpenVpnRuntimeEndpointChanged()
+    {
+        _vpnService.IsInterfaceUp(); // lets the OpenVPN provider publish post-reconnect IP/gateway changes.
+        var status = _vpnService.Status;
+        if (string.IsNullOrWhiteSpace(status.VpnLocalIp) ||
+            string.IsNullOrWhiteSpace(status.VpnGatewayIp) ||
+            status.VpnInterfaceIndex <= 0)
+            return false;
+
+        return !string.Equals(status.VpnLocalIp, VpnIp, StringComparison.OrdinalIgnoreCase) ||
+               status.VpnInterfaceIndex != _currentVpnInterfaceIndex ||
+               !string.Equals(status.VpnGatewayIp, _currentVpnGatewayIp, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task RefreshOpenVpnRouterAsync()
+    {
+        if (_isRefreshingOpenVpnRouter) return;
+        if (!IsConnected || CurrentTunnelType != TunnelType.OpenVpn) return;
+
+        try
+        {
+            _isRefreshingOpenVpnRouter = true;
+            var status = _vpnService.Status;
+            if (string.IsNullOrWhiteSpace(status.VpnLocalIp) ||
+                string.IsNullOrWhiteSpace(status.VpnGatewayIp) ||
+                status.VpnInterfaceIndex <= 0)
+                return;
+
+            if (string.Equals(status.VpnLocalIp, VpnIp, StringComparison.OrdinalIgnoreCase) &&
+                status.VpnInterfaceIndex == _currentVpnInterfaceIndex &&
+                string.Equals(status.VpnGatewayIp, _currentVpnGatewayIp, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var wasFullRoute = IsFullRouteEnabled;
+            Logger.Warning($"[OpenVPN] Runtime endpoint changed; restarting TrafficRouter. OldIP={VpnIp} NewIP={status.VpnLocalIp} Gateway={status.VpnGatewayIp} IF={status.VpnInterfaceIndex}");
+            StatusText = "OpenVPN دوباره متصل شد؛ مسیرهای TunnelX در حال بروزرسانی است...";
+
+            _timer.Stop();
+            _pingCts?.Cancel();
+            IsPinging = false;
+
+            await _trafficRouter.StopAsync();
+
+            VpnIp = status.VpnLocalIp;
+            VpnAdapterName = ResolveInterfaceName(status.VpnInterfaceIndex);
+            _currentVpnInterfaceIndex = status.VpnInterfaceIndex;
+            _currentVpnGatewayIp = status.VpnGatewayIp;
+            _isFullRouteEnabled = false;
+            OnPropertyChanged(nameof(IsFullRouteEnabled));
+            OnPropertyChanged(nameof(FullRouteStatusText));
+
+            StartTrafficRouterForCurrentStatus(resetAppCounters: false);
+            if (wasFullRoute)
+            {
+                _isFullRouteEnabled = _trafficRouter.SetFullRouteEnabled(true);
+                OnPropertyChanged(nameof(IsFullRouteEnabled));
+                OnPropertyChanged(nameof(FullRouteStatusText));
+            }
+
+            _vpnHealthCheckCounter = 0;
+            StatusText = "OpenVPN دوباره متصل شد و مسیرها بروزرسانی شدند";
+            RaiseHealthStatusChanged();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("[OpenVPN] TrafficRouter refresh after reconnect failed", ex);
+            await HandleVpnDroppedAsync();
+        }
+        finally
+        {
+            _isRefreshingOpenVpnRouter = false;
+            if (IsConnected)
+                _timer.Start();
+        }
     }
 
     private void OnTrafficUpdated(string exeName, long sent, long received)

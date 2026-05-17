@@ -184,6 +184,8 @@ public class OpenVpnTunnelProvider : ITunnelProvider
 
     public bool IsInterfaceUp()
     {
+        TryUpdateConnectedStatusFromCapturedState();
+
         if (_vpnInterfaceIndex < 0) return false;
         try
         {
@@ -196,6 +198,41 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         }
         catch { }
         return false;
+    }
+
+    private bool TryUpdateConnectedStatusFromCapturedState()
+    {
+        if (Status.State != ConnectionState.Connected)
+            return false;
+        if (string.IsNullOrWhiteSpace(_assignedLocalIp) ||
+            string.IsNullOrWhiteSpace(_routeGatewayIp) ||
+            string.IsNullOrWhiteSpace(_connectedRemoteIp) ||
+            _connectedRemotePort <= 0)
+            return false;
+
+        var interfaceIndex = FindOpenVpnInterfaceIndex(_assignedLocalIp);
+        if (interfaceIndex <= 0)
+            return false;
+
+        var changed =
+            Status.VpnInterfaceIndex != interfaceIndex ||
+            !string.Equals(Status.VpnLocalIp, _assignedLocalIp, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(Status.VpnGatewayIp, _routeGatewayIp, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(Status.VpnServerIp, _connectedRemoteIp, StringComparison.OrdinalIgnoreCase) ||
+            Status.VpnServerPort != _connectedRemotePort;
+
+        if (!changed)
+            return true;
+
+        _vpnInterfaceIndex = interfaceIndex;
+        Status.VpnInterfaceIndex = interfaceIndex;
+        Status.VpnLocalIp = _assignedLocalIp;
+        Status.VpnGatewayIp = _routeGatewayIp;
+        Status.VpnServerIp = _connectedRemoteIp;
+        Status.VpnServerPort = _connectedRemotePort;
+        Status.Message = "OpenVPN متصل شد (Split Tunnel)";
+        Logger.Warning($"[OpenVPN] Runtime endpoint changed. LocalIP={Status.VpnLocalIp} Gateway={Status.VpnGatewayIp} Remote={Status.VpnServerIp}:{Status.VpnServerPort} IF={Status.VpnInterfaceIndex}");
+        return true;
     }
 
     private async Task KillProcessAsync()
@@ -505,6 +542,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         {
             _routeGatewayIp = gateway;
             Logger.Info($"[OpenVPN] Captured route-gateway {gateway}");
+            TryUpdateConnectedStatusFromCapturedState();
         }
     }
 
@@ -544,6 +582,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         _connectedRemoteIp = host;
         _connectedRemotePort = port;
         Logger.Info($"[OpenVPN] Captured connected remote {host}:{port}");
+        TryUpdateConnectedStatusFromCapturedState();
     }
 
     private void TryCaptureAssignedLocalIp(string line)
@@ -564,6 +603,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         {
             _assignedLocalIp = localIp;
             Logger.Info($"[OpenVPN] Captured assigned local IP {localIp}");
+            TryUpdateConnectedStatusFromCapturedState();
         }
     }
 

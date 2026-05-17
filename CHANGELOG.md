@@ -2,7 +2,17 @@
 
 ## Unreleased
 
+### English
+
+- Fixed OpenVPN internal reconnect handling by detecting runtime tunnel IP, gateway, interface, or remote endpoint changes and restarting TunnelX packet routing with the new values.
+
+### فارسی
+
+- مشکل reconnect داخلی OpenVPN اصلاح شد؛ اگر هنگام اتصال طولانی IP تونل، gateway، interface یا سرور مقصد عوض شود، TunnelX مسیر‌دهی ترافیک را با مقادیر جدید دوباره راه‌اندازی می‌کند.
+
 ## 1.2.26 - 2026-05-17
+
+### English
 
 - Added OpenVPN Community support as an external tunnel provider for split tunneling.
 - Added `.ovpn` file selection, OpenVPN username/password fields, install detection, and clearer Persian guidance in the connection and help screens.
@@ -10,6 +20,15 @@
 - Fixed OpenVPN split routing by capturing the real connected remote, assigned tunnel IP, and route gateway before starting packet routing.
 - Added OpenVPN stale-process cleanup for TunnelX-started OpenVPN processes and prevented stale TAP adapters from being treated as a fresh connection.
 - Improved server testing and post-connect ping behavior for OpenVPN profiles.
+
+### فارسی
+
+- پشتیبانی از OpenVPN Community به‌عنوان ارائه‌دهنده خارجی تونل برای Split Tunneling اضافه شد.
+- انتخاب فایل `.ovpn`، فیلدهای نام کاربری و رمز عبور OpenVPN، تشخیص نصب بودن OpenVPN Community و راهنمای فارسی واضح‌تر در صفحه اتصال و راهنما اضافه شد.
+- آماده‌سازی کانفیگ OpenVPN سازگار با Split Tunnel اضافه شد؛ شامل نادیده گرفتن route/DNSهای push شده، ذخیره فایل credential بدون UTF-8 BOM، فیلتر کردن remoteهای نامعتبر و retry سریع‌تر.
+- مسیر‌دهی Split Tunnel در OpenVPN با ثبت remote واقعی متصل‌شده، IP اختصاص داده‌شده به تونل و route gateway قبل از شروع packet routing اصلاح شد.
+- پاک‌سازی پردازش‌های قدیمی OpenVPN که توسط TunnelX اجرا شده‌اند اضافه شد و از شناسایی آداپترهای TAP خراب یا قدیمی به‌عنوان اتصال جدید جلوگیری شد.
+- تست سرور و پینگ بعد از اتصال برای پروفایل‌های OpenVPN بهبود پیدا کرد.
 
 ## 1.2.25 - 2026-05-16
 
