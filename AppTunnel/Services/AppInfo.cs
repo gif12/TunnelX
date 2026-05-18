@@ -6,6 +6,7 @@ public static class AppInfo
     public const string CreatorName = "MaxFan";
     public const string GitHubUrl = "https://github.com/MaxiFan/TunnelX";
     public const string LatestReleaseUrl = GitHubUrl + "/releases/latest";
+    public const string TelegramContactUrl = "https://t.me/maxifaan";
     public const string LicenseName = "GPL-3.0-or-later";
     public const string PayPalEmail = "gallafan@gmail.com";
     public const string PayPalDonateUrl = "https://www.paypal.com/donate/?business=gallafan%40gmail.com&currency_code=USD";

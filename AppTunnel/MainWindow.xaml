@@ -275,8 +275,8 @@
             <TabItem Style="{StaticResource ModernTabItem}" ToolTip="وضعیت اتصال VPN و کنترل اتصال">
                 <TabItem.Header>
                     <StackPanel>
-                        <TextBlock Text="⚡" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="اتصال VPN" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
+                        <TextBlock Text="⚡" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock Text="اتصال VPN" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:ConnectionTabView/>
@@ -284,8 +284,8 @@
             <TabItem Style="{StaticResource ModernTabItem}" ToolTip="انتخاب برنامه‌هایی که باید از تونل عبور کنند">
                 <TabItem.Header>
                     <StackPanel>
-                        <TextBlock Text="📱" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="برنامه‌ها" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
+                        <TextBlock Text="📱" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock Text="برنامه‌ها" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:AppsTabView/>
@@ -294,8 +294,8 @@
             <TabItem Style="{StaticResource ModernTabItem}" ToolTip="تنظیمات عمومی تونل و DNS">
                 <TabItem.Header>
                     <StackPanel>
-                        <TextBlock Text="⚙" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="تنظیمات" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
+                        <TextBlock Text="⚙" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock Text="تنظیمات" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:SettingsTabView/>
@@ -305,8 +305,8 @@
             <TabItem Style="{StaticResource ModernTabItem}" ToolTip="قوانین Include و Exclude مسیرها">
                 <TabItem.Header>
                     <StackPanel>
-                        <TextBlock Text="🧭" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="قوانین مسیر" FontSize="11" FontWeight="Medium" TextAlignment="Center"/>
+                        <TextBlock Text="🧭" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock Text="قوانین مسیر" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
 
@@ -548,8 +548,8 @@
             <TabItem Style="{StaticResource ModernTabItem}" ToolTip="نمایش ترافیک، تاریخچه و آمار اتصال">
                 <TabItem.Header>
                     <StackPanel>
-                        <TextBlock Text="📊" FontSize="13" HorizontalAlignment="Center"/>
-                        <TextBlock Text="ترافیک/تاریخچه" FontSize="10.5" FontWeight="Medium" TextAlignment="Center"/>
+                        <TextBlock Text="📊" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock Text="ترافیک/تاریخچه" FontSize="9.5" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
                 </TabItem.Header>
 
@@ -753,6 +753,17 @@
                 </ScrollViewer>
             </TabItem>
 
+            <!-- ███ TAB 6: HELP ███ -->
+            <TabItem Style="{StaticResource ModernTabItem}" ToolTip="راهنما و عیب‌یابی">
+                <TabItem.Header>
+                    <StackPanel>
+                        <TextBlock Text="❔" FontSize="12" HorizontalAlignment="Center"/>
+                        <TextBlock Text="راهنما" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
+                    </StackPanel>
+                </TabItem.Header>
+                <views:HelpTabView/>
+            </TabItem>
+
         </TabControl>
 
             </Grid>
@@ -801,6 +812,18 @@
                                    Margin="8,0,0,0"/>
                     </StackPanel>
 
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding GitHubInstallCountText}"
+                               Visibility="{Binding HasGitHubInstallCount, Converter={StaticResource BoolToVis}}"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               FlowDirection="{Binding AppFlowDirection}"
+                               TextTrimming="CharacterEllipsis"
+                               Margin="12,0"/>
+
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
                                 HorizontalAlignment="{Binding AppEndHorizontalAlignment}"
@@ -822,22 +845,6 @@
                                 Margin="8,0,0,0"
                                 VerticalAlignment="Center"
                                 ToolTip="حمایت از پروژه"/>
-                        <Button Content="راهنما"
-                                Click="OnShowHelpClick"
-                                Style="{StaticResource SecondaryButton}"
-                                Padding="9,4"
-                                FontSize="10"
-                                Margin="8,0,0,0"
-                                VerticalAlignment="Center"
-                                ToolTip="راهنما و عیب‌یابی"/>
-                        <Button Content="GitHub"
-                                Command="{Binding OpenGitHubCommand}"
-                                Style="{StaticResource SecondaryButton}"
-                                Padding="9,4"
-                                FontSize="10"
-                                Margin="8,0,0,0"
-                                VerticalAlignment="Center"
-                                ToolTip="باز کردن صفحه GitHub پروژه TunnelX"/>
                     </StackPanel>
                 </Grid>
             </Border>

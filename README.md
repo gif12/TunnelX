@@ -146,6 +146,8 @@ For direct contact, support requests, private customization, or paid development
 
 Paid services may be available separately for private support, deployment help, custom builds, company-specific customization, or development of a similar application. These paid services do not limit the rights granted by the GPL license.
 
+Fixed advertising placements may be available inside TunnelX. Advertising is handled directly with the maintainer, is not served through third-party ad networks or intermediary websites, and is intended to stay simple, static, and safe for users.
+
 Use the GitHub funding button or see `docs/DONATE.md` for donation options.
 
 ## Safety Notice

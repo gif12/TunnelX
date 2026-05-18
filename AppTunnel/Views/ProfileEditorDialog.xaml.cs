@@ -79,6 +79,13 @@ public partial class ProfileEditorDialog : Window
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
     {
+        _profile.Name = (_profile.Name ?? "").Trim();
+        if (string.IsNullOrWhiteSpace(_profile.Name))
+        {
+            ShowProfileNameError();
+            return;
+        }
+
         _profile.Password = L2tpPasswordField.Password;
         _profile.PreSharedKey = PskField.Password;
         _profile.OpenVpnPassword = OpenVpnPasswordField.Password;
@@ -123,6 +130,30 @@ public partial class ProfileEditorDialog : Window
 
         message = "";
         return true;
+    }
+
+    private void OnProfileNameTextChanged(object sender, System.Windows.Controls.TextChangedEventArgs e)
+    {
+        if (!string.IsNullOrWhiteSpace(ProfileNameField.Text))
+            ClearProfileNameError();
+    }
+
+    private void ShowProfileNameError()
+    {
+        var warningBrush = TryFindResource("WarningBrush") as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.Orange;
+        ProfileNameField.BorderBrush = warningBrush;
+        ProfileNameField.BorderThickness = new Thickness(2);
+        ProfileNameValidationText.Text = LocalizationService.Instance.T("نام پروفایل را وارد کنید");
+        ProfileNameValidationText.Visibility = Visibility.Visible;
+        ValidationText.Text = "";
+        ProfileNameField.Focus();
+    }
+
+    private void ClearProfileNameError()
+    {
+        ProfileNameField.ClearValue(BorderBrushProperty);
+        ProfileNameField.ClearValue(BorderThicknessProperty);
+        ProfileNameValidationText.Visibility = Visibility.Collapsed;
     }
 
     private void OnCancelClick(object sender, RoutedEventArgs e)

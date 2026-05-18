@@ -73,6 +73,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         OpenOpenVpnCommunityDownloadCommand = new RelayCommand(_ => OpenExternalLink(OpenVpnCommunityDownloadUrl));
         OpenGitHubCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.GitHubUrl));
         OpenDonateCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.PayPalDonateUrl));
+        OpenAdRequestCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.TelegramContactUrl));
         CopyDonationInfoCommand = new RelayCommand(_ => CopyDonationInfoToClipboard());
         CheckForUpdatesCommand = new RelayCommand(_ => _ = CheckForUpdatesAsync(false), _ => !IsCheckingForUpdates);
         OpenLatestReleaseCommand = new RelayCommand(_ => OpenExternalLink(LatestReleaseUrl), _ => !string.IsNullOrWhiteSpace(LatestReleaseUrl));
@@ -380,6 +381,11 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string AppGitHubUrl => AppInfo.GitHubUrl;
     public string AppLicenseText => AppInfo.LicenseName;
     public string AppLicenseDisplayText => LocalizationService.Instance.Format("لایسنس: {0}", AppInfo.LicenseName);
+    public string AdPlaceholderTitleText => LocalizationService.Instance.T("محل تبلیغات شما");
+    public string AdRequestButtonText => LocalizationService.Instance.T("درخواست تبلیغ");
+    public string AdAudienceText => _githubInstallCount.HasValue
+        ? LocalizationService.Instance.Format("تبلیغ شما می‌تواند در معرض دید کاربران TunnelX با بیش از {0} نصب از GitHub باشد.", GitHubInstallCountDisplay)
+        : "";
     public string DonatePayPalText => LocalizationService.Instance.IsRightToLeft
         ? $"پی‌پل: {AppInfo.PayPalEmail}"
         : $"PayPal: {AppInfo.PayPalEmail}";
@@ -437,6 +443,20 @@ public partial class MainViewModel : INotifyPropertyChanged
             CommandManager.InvalidateRequerySuggested();
         }
     }
+
+    private long? _githubInstallCount;
+    private int _githubInstallCountRequestId;
+
+    public bool HasGitHubInstallCount => _githubInstallCount.HasValue;
+
+    public string GitHubInstallCountText => _githubInstallCount.HasValue
+        ? LocalizationService.Instance.Format(
+            "تعداد نصب این برنامه از گیت هاب: {0}",
+            GitHubInstallCountDisplay)
+        : "";
+
+    private string GitHubInstallCountDisplay =>
+        (_githubInstallCount ?? 0).ToString("N0", System.Globalization.CultureInfo.InvariantCulture);
 
     public string UpdateButtonText => IsCheckingForUpdates
         ? LocalizationService.Instance.T("در حال بررسی...")
@@ -819,6 +839,14 @@ public partial class MainViewModel : INotifyPropertyChanged
         ? LocalizationService.Instance.T("متصل به پراکسی")
         : LocalizationService.Instance.T("متصل به VPN");
 
+    public string ConnectedProfileName => string.IsNullOrWhiteSpace(SelectedProfileName)
+        ? LocalizationService.Instance.T("پروفایل فعال")
+        : SelectedProfileName;
+
+    public string SelectedProfileSummaryText => LocalizationService.Instance.Format(
+        "پروفایل فعال: {0}",
+        ConnectedProfileName);
+
     private string ActiveCoreName => CurrentTunnelType switch
     {
         TunnelType.L2tpIpsec => "L2TP",
@@ -1036,6 +1064,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     public ICommand OpenOpenVpnCommunityDownloadCommand { get; }
     public ICommand OpenGitHubCommand { get; }
     public ICommand OpenDonateCommand { get; }
+    public ICommand OpenAdRequestCommand { get; }
     public ICommand CopyDonationInfoCommand { get; }
     public ICommand CheckForUpdatesCommand { get; }
     public ICommand OpenLatestReleaseCommand { get; }
@@ -1132,6 +1161,61 @@ public partial class MainViewModel : INotifyPropertyChanged
         {
             IsCheckingForUpdates = false;
         }
+    }
+
+    private async Task RefreshGitHubInstallCountAsync(int proxyPort)
+    {
+        var requestId = ++_githubInstallCountRequestId;
+
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+            var count = await GitHubReleaseChecker.GetAppDownloadCountAsync(cts.Token, proxyPort);
+            if (requestId != _githubInstallCountRequestId || !IsConnected)
+                return;
+
+            if (count.HasValue)
+            {
+                SetGitHubInstallCount(count.Value, persist: true);
+                Logger.Info($"[GITHUB-STATS] App downloads={count.Value}");
+            }
+            else
+            {
+                Logger.Warning("[GITHUB-STATS] App download count unavailable");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            Logger.Warning("[GITHUB-STATS] App download count timed out");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[GITHUB-STATS] App download count failed: {ex.Message}");
+        }
+    }
+
+    private void SetGitHubInstallCount(long? count, bool persist = false)
+    {
+        if (_githubInstallCount == count)
+        {
+            if (persist && _appSettings.GitHubAppDownloadCount != count)
+            {
+                _appSettings.GitHubAppDownloadCount = count;
+                _profileService.SaveAppSettings(_appSettings);
+            }
+            return;
+        }
+
+        _githubInstallCount = count;
+        if (persist)
+        {
+            _appSettings.GitHubAppDownloadCount = count;
+            _profileService.SaveAppSettings(_appSettings);
+        }
+
+        OnPropertyChanged(nameof(HasGitHubInstallCount));
+        OnPropertyChanged(nameof(GitHubInstallCountText));
+        OnPropertyChanged(nameof(AdAudienceText));
     }
 
     private void PasteConfigFromClipboard()
@@ -1347,6 +1431,8 @@ public partial class MainViewModel : INotifyPropertyChanged
 
         _selectedProfile.Name = remark;
         OnPropertyChanged(nameof(SelectedProfileName));
+        OnPropertyChanged(nameof(ConnectedProfileName));
+        OnPropertyChanged(nameof(SelectedProfileSummaryText));
     }
 
     private static string ExtractConfigRemark(string config)
@@ -1395,8 +1481,12 @@ public partial class MainViewModel : INotifyPropertyChanged
         LocalizationService.Instance.Initialize(_appSettings.Language);
         _startWithWindows = _appSettings.StartWithWindows;
         _autoConnectOnStartup = _appSettings.AutoConnectOnStartup;
+        _githubInstallCount = _appSettings.GitHubAppDownloadCount;
         OnPropertyChanged(nameof(StartWithWindows));
         OnPropertyChanged(nameof(AutoConnectOnStartup));
+        OnPropertyChanged(nameof(HasGitHubInstallCount));
+        OnPropertyChanged(nameof(GitHubInstallCountText));
+        OnPropertyChanged(nameof(AdAudienceText));
         OnPropertyChanged(nameof(LanguageToggleText));
         OnPropertyChanged(nameof(AppIsRightToLeft));
         OnPropertyChanged(nameof(AppFlowDirection));
@@ -1429,8 +1519,12 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(DonatePayPalText));
         OnPropertyChanged(nameof(CryptoDonationText));
         OnPropertyChanged(nameof(AppCreatorText));
+        OnPropertyChanged(nameof(AdPlaceholderTitleText));
+        OnPropertyChanged(nameof(AdRequestButtonText));
+        OnPropertyChanged(nameof(AdAudienceText));
         OnPropertyChanged(nameof(UpdateButtonText));
         OnPropertyChanged(nameof(UpdateStatusText));
+        OnPropertyChanged(nameof(GitHubInstallCountText));
         OnPropertyChanged(nameof(ConnectButtonText));
         OnPropertyChanged(nameof(ConnectButtonToolTip));
         OnPropertyChanged(nameof(StatusText));
@@ -1452,6 +1546,8 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HealthIpv6Text));
         OnPropertyChanged(nameof(HealthRoutesText));
         OnPropertyChanged(nameof(ConnectedBadgeText));
+        OnPropertyChanged(nameof(ConnectedProfileName));
+        OnPropertyChanged(nameof(SelectedProfileSummaryText));
         OnPropertyChanged(nameof(PingButtonText));
         OnPropertyChanged(nameof(ConnectedServerPingButtonText));
         OnPropertyChanged(nameof(ServerPingButtonText));

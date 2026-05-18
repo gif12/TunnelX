@@ -91,6 +91,7 @@ public class ProfileService
         public bool AutoConnectOnStartup { get; set; } = false;
         public string? LastActiveProfileId { get; set; } = null;
         public string Language { get; set; } = LocalizationService.AutoLanguage;
+        public long? GitHubAppDownloadCount { get; set; } = null;
     }
 
     /// <summary>

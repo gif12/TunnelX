@@ -24,6 +24,8 @@ public partial class MainViewModel
             _selectedProfile = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(SelectedProfileName));
+            OnPropertyChanged(nameof(ConnectedProfileName));
+            OnPropertyChanged(nameof(SelectedProfileSummaryText));
             RaiseProfileCardChanged();
             if (value != null)
                 LoadProfileIntoUi(value);
@@ -86,6 +88,8 @@ public partial class MainViewModel
         _selectedProfile = Profiles[0];
         OnPropertyChanged(nameof(SelectedProfile));
         OnPropertyChanged(nameof(SelectedProfileName));
+        OnPropertyChanged(nameof(ConnectedProfileName));
+        OnPropertyChanged(nameof(SelectedProfileSummaryText));
         LoadProfileIntoUi(Profiles[0]);
     }
 
@@ -253,7 +257,7 @@ public partial class MainViewModel
         SaveCurrentProfileState();
         var profile = new ConnectionProfile
         {
-            Name = LocalizationService.Instance.Format("پروفایل {0}", Profiles.Count + 1),
+            Name = "",
             MixedProxyPort = MixedProxyPort,
             AutoTuneMtu = AutoTuneMtu,
             EnableDnsOptimization = IsDnsOptimizationEnabled,
@@ -379,6 +383,8 @@ public partial class MainViewModel
     private void RaiseProfileCardChanged()
     {
         OnPropertyChanged(nameof(ProfileCountText));
+        OnPropertyChanged(nameof(ConnectedProfileName));
+        OnPropertyChanged(nameof(SelectedProfileSummaryText));
         OnPropertyChanged(nameof(ActiveProfileTypeText));
         OnPropertyChanged(nameof(ActiveProfileEndpointText));
         OnPropertyChanged(nameof(ProfileSaveHintText));

@@ -73,10 +73,20 @@
                     <Border Style="{StaticResource CardPanel}" Padding="12" Margin="0,0,0,8">
                         <StackPanel>
                             <TextBlock Style="{StaticResource SectionHeader}" Text="اطلاعات پروفایل"/>
-                            <TextBlock Style="{StaticResource FieldLabel}" Text="نام پروفایل"/>
-                            <TextBox Style="{StaticResource ModernTextBox}"
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="نام پروفایل *"/>
+                            <TextBox x:Name="ProfileNameField"
+                                     Style="{StaticResource ModernTextBox}"
                                      Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="مثلاً کار، تلگرام، گیمینگ..."/>
+                                     Tag="مثلاً کار، تلگرام، گیمینگ..."
+                                     TextChanged="OnProfileNameTextChanged"/>
+                            <TextBlock x:Name="ProfileNameValidationText"
+                                       Text="نام پروفایل را وارد کنید"
+                                       Visibility="Collapsed"
+                                       FontSize="10"
+                                       FontWeight="SemiBold"
+                                       Foreground="{StaticResource WarningBrush}"
+                                       Margin="0,4,0,0"
+                                       TextWrapping="Wrap"/>
 
                             <TextBlock Style="{StaticResource FieldLabel}" Text="نوع اتصال" Margin="0,8,0,3"/>
                             <ComboBox Style="{StaticResource DarkComboBox}"

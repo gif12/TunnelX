@@ -95,10 +95,12 @@ jobs:
           }
 
           $artifactName = "TunnelX-$tag-standalone-compressed.exe"
+          $frameworkArtifactName = "TunnelX-$tag-framework-dependent-win-x64.zip"
 
           "version=$version" >> $env:GITHUB_OUTPUT
           "tag=$tag" >> $env:GITHUB_OUTPUT
           "artifact_name=$artifactName" >> $env:GITHUB_OUTPUT
+          "framework_artifact_name=$frameworkArtifactName" >> $env:GITHUB_OUTPUT
 
       - name: Update version and changelog
         id: release_notes
@@ -213,6 +215,63 @@ jobs:
           "checksum=$checksum" >> $env:GITHUB_OUTPUT
           "sha256=$hash" >> $env:GITHUB_OUTPUT
 
+      - name: Publish framework-dependent package
+        run: >
+          dotnet publish AppTunnel\AppTunnel.csproj
+          -c Release
+          -r win-x64
+          --self-contained false
+          -p:DebugType=None
+          -p:DebugSymbols=false
+          -o publish\TunnelX-framework-dependent
+
+      - name: Package framework-dependent asset
+        id: framework_package
+        shell: pwsh
+        run: |
+          $publishDir = "publish/TunnelX-framework-dependent"
+          $assetName = "${{ steps.meta.outputs.framework_artifact_name }}"
+          $asset = "publish/$assetName"
+          $checksum = "$asset.sha256"
+          $readme = Join-Path $publishDir "README.txt"
+
+          if (-not (Test-Path (Join-Path $publishDir "TunnelX.exe"))) {
+            throw "Framework-dependent executable was not found in $publishDir"
+          }
+
+          $readmeLines = @(
+            "TunnelX framework-dependent package",
+            "===================================",
+            "",
+            "This package is smaller than the standalone download because it does not include the .NET runtime.",
+            "",
+            "Use this ZIP only if Microsoft .NET 8 Desktop Runtime (x64) is already installed on this Windows PC.",
+            "If .NET 8 Desktop Runtime is not installed, download the standalone TunnelX EXE instead.",
+            "",
+            "Download .NET 8 Desktop Runtime:",
+            "https://dotnet.microsoft.com/en-us/download/dotnet/8.0",
+            "",
+            "Run:",
+            "1. Extract the ZIP to a folder.",
+            "2. Run TunnelX.exe as Administrator.",
+            "",
+            "Recommended for most users:",
+            "TunnelX standalone compressed EXE."
+          )
+          ($readmeLines -join "`r`n") | Set-Content -Encoding UTF8 -LiteralPath $readme
+
+          if (Test-Path $asset) {
+            Remove-Item -LiteralPath $asset -Force
+          }
+          Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $asset -Force
+
+          $hash = (Get-FileHash -Algorithm SHA256 -LiteralPath $asset).Hash.ToLowerInvariant()
+          "$hash  $assetName" | Set-Content -Encoding ASCII -LiteralPath $checksum
+
+          "asset=$asset" >> $env:GITHUB_OUTPUT
+          "checksum=$checksum" >> $env:GITHUB_OUTPUT
+          "sha256=$hash" >> $env:GITHUB_OUTPUT
+
       - name: Upload workflow artifact
         uses: actions/upload-artifact@v6
         with:
@@ -220,6 +279,8 @@ jobs:
           path: |
             ${{ steps.package.outputs.asset }}
             ${{ steps.package.outputs.checksum }}
+            ${{ steps.framework_package.outputs.asset }}
+            ${{ steps.framework_package.outputs.checksum }}
           if-no-files-found: error
 
       - name: Create GitHub release
@@ -231,9 +292,17 @@ jobs:
           $title = "TunnelX $tag"
           $runUrl = "https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
           $sha256 = "${{ steps.package.outputs.sha256 }}".ToUpperInvariant()
+          $frameworkSha256 = "${{ steps.framework_package.outputs.sha256 }}".ToUpperInvariant()
           $artifactName = "${{ steps.meta.outputs.artifact_name }}"
+          $frameworkArtifactName = "${{ steps.meta.outputs.framework_artifact_name }}"
 
           $notes = Get-Content -Raw -LiteralPath "${{ steps.release_notes.outputs.notes_file }}"
+          $downloadLines = @(
+            "## Downloads",
+            "",
+            "- Recommended for most users: ``$artifactName``. This is the standalone self-contained EXE and does not require a separate .NET installation.",
+            "- Smaller package for users who already have Microsoft .NET 8 Desktop Runtime (x64): ``$frameworkArtifactName``. Extract the ZIP and run ``TunnelX.exe`` as Administrator. The ZIP includes ``README.txt`` with the same requirement."
+          )
           $provenanceLines = @(
             "<!-- release-provenance:start -->",
             "## Build provenance",
@@ -243,9 +312,10 @@ jobs:
             "- Run: $runUrl",
             "- Commit: ``${{ steps.release_commit.outputs.sha }}``",
             "- SHA256: ``$sha256  $artifactName``",
+            "- SHA256: ``$frameworkSha256  $frameworkArtifactName``",
             "<!-- release-provenance:end -->"
           )
-          $notes = "$($notes.Trim())`n`n$($provenanceLines -join "`n")"
+          $notes = "$($notes.Trim())`n`n$($downloadLines -join "`n")`n`n$($provenanceLines -join "`n")"
 
           $notesFile = Join-Path $env:RUNNER_TEMP "final-release-notes.md"
           $notes | Set-Content -Encoding UTF8 -LiteralPath $notesFile
@@ -254,6 +324,8 @@ jobs:
             "release", "create", $tag,
             "${{ steps.package.outputs.asset }}",
             "${{ steps.package.outputs.checksum }}",
+            "${{ steps.framework_package.outputs.asset }}",
+            "${{ steps.framework_package.outputs.checksum }}",
             "--title", $title,
             "--notes-file", $notesFile,
             "--latest"

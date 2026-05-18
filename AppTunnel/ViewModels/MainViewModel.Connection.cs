@@ -161,6 +161,8 @@ public partial class MainViewModel
             _currentVpnGatewayIp = _vpnService.Status.VpnGatewayIp;
             _connectionStartTime = DateTime.Now;
             LastActiveProfileId = _selectedProfile?.Id;
+            OnPropertyChanged(nameof(ConnectedProfileName));
+            OnPropertyChanged(nameof(SelectedProfileSummaryText));
             RaiseHealthStatusChanged();
 
             StartTrafficRouterForCurrentStatus(resetAppCounters: true);
@@ -172,6 +174,7 @@ public partial class MainViewModel
                 ? _vpnService.Status.SingBoxMixedPort
                 : _trafficRouter.Socks5Port;
             _ = RefreshExitIpAsync(exitIpProxyPort);
+            _ = RefreshGitHubInstallCountAsync(exitIpProxyPort);
 
         }
         else
@@ -463,6 +466,7 @@ public partial class MainViewModel
                 ? _vpnService.Status.SingBoxMixedPort
                 : _trafficRouter.Socks5Port;
             _ = RefreshExitIpAsync(exitIpProxyPort);
+            _ = RefreshGitHubInstallCountAsync(exitIpProxyPort);
             if (wasFullRoute)
             {
                 _isFullRouteEnabled = _trafficRouter.SetFullRouteEnabled(true);

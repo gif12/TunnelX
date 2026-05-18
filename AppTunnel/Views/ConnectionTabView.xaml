@@ -252,12 +252,11 @@
                                            TextTrimming="CharacterEllipsis"/>
                             </StackPanel>
                             <TextBlock FontSize="10"
+                                       Text="{Binding SelectedProfileSummaryText}"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Margin="0,4,0,0"
-                                       TextTrimming="CharacterEllipsis">
-                                <Run Text="پروفایل فعال: "/>
-                                <Run Text="{Binding SelectedProfile.Name}" FontWeight="SemiBold"/>
-                            </TextBlock>
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"/>
                         </StackPanel>
 
                         <Button Grid.Column="2"
@@ -671,10 +670,13 @@
                                    Foreground="{StaticResource SuccessBrush}"
                                    HorizontalAlignment="Center"
                                    Margin="0,2,0,0"/>
-                        <TextBlock Text="{Binding SelectedProfile.Name}" FontSize="9"
+                        <TextBlock Text="{Binding ConnectedProfileName}" FontSize="10"
+                                   FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    HorizontalAlignment="Center"
-                                   TextTrimming="CharacterEllipsis"/>
+                                   TextAlignment="Center"
+                                   TextTrimming="CharacterEllipsis"
+                                   MaxWidth="120"/>
                     </StackPanel>
                 </Border>
 
@@ -908,6 +910,48 @@
                     </Style>
                 </Button.Style>
             </Button>
+
+            <Border Background="#24E8803A"
+                    BorderBrush="#66E8803A"
+                    BorderThickness="1"
+                    CornerRadius="20"
+                    Padding="24,18"
+                    Margin="0,16,0,0"
+                    MinWidth="560"
+                    MaxWidth="760"
+                    HorizontalAlignment="Stretch">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            FlowDirection="{Binding AppFlowDirection}">
+                        <TextBlock Text="{Binding AdPlaceholderTitleText}"
+                                   FontSize="20"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"/>
+                        <TextBlock Text="{Binding AdAudienceText}"
+                                   Visibility="{Binding HasGitHubInstallCount, Converter={StaticResource BoolToVis}}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="560"
+                                   Margin="0,6,0,0"/>
+                    <Button
+                            Content="{Binding AdRequestButtonText}"
+                            Command="{Binding OpenAdRequestCommand}"
+                            Style="{StaticResource PrimaryButton}"
+                            Padding="18,10"
+                            FontSize="13"
+                            MinWidth="130"
+                            HorizontalAlignment="Center"
+                            Margin="0,12,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip="{Binding AdRequestButtonText}"/>
+                </StackPanel>
+            </Border>
 
         </StackPanel>
         <!-- End Connected State -->
