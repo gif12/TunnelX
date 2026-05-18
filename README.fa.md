@@ -81,11 +81,11 @@
 
 | داشبورد اتصال | تنظیم پروفایل و سرور |
 | --- | --- |
-| <img src="docs/ScreenShots/Screenshot%202026-05-12%20115349.png" alt="داشبورد اتصال TunnelX"> | <img src="docs/ScreenShots/Screenshot%202026-05-12%20115544.png" alt="تنظیم پروفایل و سرور TunnelX"> |
+| <img src="docs/ScreenShots/fa/connection-dashboard.png" alt="داشبورد اتصال TunnelX"> | <img src="docs/ScreenShots/fa/apps.png" alt="انتخاب برنامه‌ها برای تونل در TunnelX"> |
 
-| انتخاب برنامه‌ها برای تونل | تنظیمات تونل |
+| قوانین مسیر | راهنما و عیب‌یابی |
 | --- | --- |
-| <img src="docs/ScreenShots/Screenshot%202026-05-12%20115646.png" alt="انتخاب برنامه‌ها برای تونل در TunnelX"> | <img src="docs/ScreenShots/Screenshot%202026-05-12%20115718.png" alt="تنظیمات تونل در TunnelX"> |
+| <img src="docs/ScreenShots/fa/routing-rules.png" alt="قوانین مسیر در TunnelX"> | <img src="docs/ScreenShots/fa/help.png" alt="راهنما و عیب‌یابی در TunnelX"> |
 
 ## دانلود
 

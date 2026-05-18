@@ -69,7 +69,7 @@ public partial class MainViewModel
         var dialog = new OpenFileDialog
         {
             Filter = "Applications (*.exe)|*.exe",
-            Title = "انتخاب برنامه"
+            Title = LocalizationService.Instance.T("انتخاب برنامه")
         };
 
         if (dialog.ShowDialog() == true)

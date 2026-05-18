@@ -33,8 +33,8 @@ public partial class MainViewModel
 
     public string SelectedProfileName => _selectedProfile?.Name ?? "";
     public string ProfileCountText => Profiles.Count == 1
-        ? "۱ پروفایل ذخیره‌شده"
-        : $"{Profiles.Count} پروفایل ذخیره‌شده";
+        ? LocalizationService.Instance.T("۱ پروفایل ذخیره‌شده")
+        : LocalizationService.Instance.Format("{0} پروفایل ذخیره‌شده", Profiles.Count);
 
     public string ActiveProfileTypeText => CurrentTunnelType switch
     {
@@ -42,26 +42,26 @@ public partial class MainViewModel
         TunnelType.V2Ray => TunnelProviderFactory.RequiresXray(SelectedV2RayConfig) ? "V2Ray / Xray" : "V2Ray / sing-box",
         TunnelType.OpenVpn => "OpenVPN",
         TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy",
-        _ => "نوع اتصال نامشخص"
+        _ => LocalizationService.Instance.T("نوع اتصال نامشخص")
     };
 
     public string ActiveProfileEndpointText => CurrentTunnelType switch
     {
-        TunnelType.L2tpIpsec => string.IsNullOrWhiteSpace(ServerAddress) ? "آدرس سرور هنوز وارد نشده" : ServerAddress.Trim(),
+        TunnelType.L2tpIpsec => string.IsNullOrWhiteSpace(ServerAddress) ? LocalizationService.Instance.T("آدرس سرور هنوز وارد نشده") : ServerAddress.Trim(),
         TunnelType.V2Ray => TryExtractProxyEndpoint(SelectedV2RayConfig.Trim(), out var server, out var port, out _)
             ? $"{server}:{port}"
-            : "کانفیگ V2Ray/Xray آماده نمایش نیست",
+            : LocalizationService.Instance.T("کانفیگ V2Ray/Xray آماده نمایش نیست"),
         TunnelType.OpenVpn => string.IsNullOrWhiteSpace(SelectedOpenVpnConfigPath)
-            ? "فایل OpenVPN انتخاب نشده"
+            ? LocalizationService.Instance.T("فایل OpenVPN انتخاب نشده")
             : Path.GetFileName(SelectedOpenVpnConfigPath),
         TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress)
-            ? "آدرس پراکسی هنوز وارد نشده"
+            ? LocalizationService.Instance.T("آدرس پراکسی هنوز وارد نشده")
             : $"{ProxyServerAddress.Trim()}:{ProxyPort}",
         _ => ""
     };
 
     public string ProfileSaveHintText => string.IsNullOrWhiteSpace(SaveStatusText)
-        ? "تغییرات این پروفایل به‌صورت خودکار ذخیره می‌شود"
+        ? LocalizationService.Instance.T("تغییرات این پروفایل به‌صورت خودکار ذخیره می‌شود")
         : SaveStatusText;
 
     /// <summary>
@@ -77,7 +77,7 @@ public partial class MainViewModel
         Profiles.Clear();
 
         if (profiles.Count == 0)
-            profiles.Add(new ConnectionProfile { Name = "پیش‌فرض" });
+            profiles.Add(new ConnectionProfile { Name = LocalizationService.Instance.T("پیش‌فرض") });
 
         foreach (var p in profiles.OrderByDescending(p => p.LastUsedAt))
             Profiles.Add(p);
@@ -253,7 +253,7 @@ public partial class MainViewModel
         SaveCurrentProfileState();
         var profile = new ConnectionProfile
         {
-            Name = $"پروفایل {Profiles.Count + 1}",
+            Name = LocalizationService.Instance.Format("پروفایل {0}", Profiles.Count + 1),
             MixedProxyPort = MixedProxyPort,
             AutoTuneMtu = AutoTuneMtu,
             EnableDnsOptimization = IsDnsOptimizationEnabled,
@@ -276,7 +276,7 @@ public partial class MainViewModel
         SaveCurrentProfileState();
 
         var clone = CloneProfile(source);
-        clone.Name = $"{source.Name} (کپی)";
+        clone.Name = LocalizationService.Instance.Format("{0} (کپی)", source.Name);
 
         if (ProfileEditorDialog.Show(clone, "کپی پروفایل", System.Windows.Application.Current.MainWindow) != true)
             return;
@@ -318,7 +318,7 @@ public partial class MainViewModel
     {
         var toRemove = parameter as ConnectionProfile ?? _selectedProfile;
         if (toRemove == null || Profiles.Count <= 1) return;
-        if (!Helpers.DialogService.Confirm($"پروفایل «{toRemove.Name}» حذف شود؟", "حذف پروفایل"))
+        if (!Helpers.DialogService.Confirm(LocalizationService.Instance.Format("پروفایل «{0}» حذف شود؟", toRemove.Name), "حذف پروفایل"))
             return;
 
         var idx = Profiles.IndexOf(toRemove);
@@ -415,7 +415,7 @@ public partial class MainViewModel
 
         var entry = new ConnectionHistoryEntry
         {
-            ProfileName = _selectedProfile?.Name ?? "پیش‌فرض",
+            ProfileName = _selectedProfile?.Name ?? LocalizationService.Instance.T("پیش‌فرض"),
             ServerAddress = CurrentTunnelType == TunnelType.SocksProxy
                 ? $"{ProxyServerAddress}:{ProxyPort}"
                 : ServerAddress,

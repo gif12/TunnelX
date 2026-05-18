@@ -27,7 +27,7 @@ public class VpnService
             TunnelType.V2Ray => TunnelProviderFactory.Create(config.V2RayConfig),
             TunnelType.OpenVpn => new OpenVpnTunnelProvider(),
             TunnelType.SocksProxy => new V2RayTunnelProvider(),
-            _ => throw new NotImplementedException($"نوع تانل ناشناخته: {config.TunnelType}")
+            _ => throw new NotImplementedException(LocalizationService.Instance.Format("نوع تانل ناشناخته: {0}", config.TunnelType))
         };
 
         // Wire up the tunnel-failure watchdog for V2Ray connections.

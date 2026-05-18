@@ -6,13 +6,14 @@
         xmlns:vm="clr-namespace:AppTunnel.ViewModels"
         xmlns:model="clr-namespace:AppTunnel.Models"
         Title="TunnelX — Split Traffic Per App"
-        Width="620" Height="760"
-        MinWidth="580" MinHeight="680"
+        Width="620" Height="740"
+        MinWidth="560" MinHeight="620"
+        ResizeMode="NoResize"
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        FlowDirection="RightToLeft"
+        FlowDirection="{Binding AppFlowDirection}"
         MouseLeftButtonDown="OnTitleBarMouseDown">
 
     <Window.Resources>
@@ -43,7 +44,7 @@
             </Grid.ColumnDefinitions>
 
             <!-- ═══ MAIN CONTENT ═══ -->
-            <Grid Grid.Column="0" FlowDirection="RightToLeft">
+            <Grid Grid.Column="0" FlowDirection="{Binding AppFlowDirection}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="*"/>
@@ -51,7 +52,8 @@
             </Grid.RowDefinitions>
 
             <!-- ═══ CUSTOM TITLE BAR ═══ -->
-            <Border Grid.Row="0" Background="{StaticResource SurfaceBrush}"
+            <Border x:Name="MainTitleBar"
+                    Grid.Row="0" Background="{StaticResource SurfaceBrush}"
                     BorderBrush="#12FFFFFF"
                     BorderThickness="0,0,0,1"
                     CornerRadius="12,0,0,0" Padding="14,8">
@@ -61,27 +63,53 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Logo & Title -->
                     <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
-                        <!-- Tx Icon SVG -->
                         <Viewbox Width="30" Height="30" Margin="0,0,10,0">
-                            <Canvas Width="48" Height="48">
-                                <Rectangle Width="48" Height="48" RadiusX="8" RadiusY="8" Fill="{StaticResource PrimaryBrush}"/>
-                                <TextBlock Text="Tx" FontSize="24" FontWeight="Bold" 
-                                           Foreground="White" Canvas.Left="6" Canvas.Top="8"
-                                           FontFamily="Segoe UI"/>
-                            </Canvas>
+                            <Grid Width="48" Height="48">
+                                <Border CornerRadius="7"
+                                        Background="{StaticResource PrimaryBrush}">
+                                    <Border.Effect>
+                                        <DropShadowEffect Color="#C2410C"
+                                                          BlurRadius="8"
+                                                          Opacity="0.22"
+                                                          ShadowDepth="0"/>
+                                    </Border.Effect>
+                                </Border>
+                                <TextBlock Text="Tx"
+                                           FontSize="24"
+                                           FontWeight="Bold"
+                                           Foreground="White"
+                                           FontFamily="Segoe UI"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"
+                                           Margin="0,-1,0,0"
+                                           TextOptions.TextFormattingMode="Display"
+                                           TextOptions.TextRenderingMode="ClearType"/>
+                            </Grid>
                         </Viewbox>
                         <StackPanel VerticalAlignment="Bottom" Margin="0,0,0,1">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="Tunnel" FontSize="17" FontWeight="Bold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"/>
-                                <TextBlock Text="X" FontSize="17" FontWeight="Bold"
-                                           Foreground="{StaticResource AccentBrush}"/>
-                            </StackPanel>
-                            <TextBlock Text="Per-app split tunneling" FontSize="9"
+                            <Grid HorizontalAlignment="Left">
+                                <TextBlock Text="{Binding AppTitleText}"
+                                           FontSize="17"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           FlowDirection="{Binding AppTitleFlowDirection}"
+                                           TextOptions.TextFormattingMode="Display"
+                                           TextOptions.TextRenderingMode="ClearType"/>
+                                <TextBlock Text="{Binding AppTitleAccentText}"
+                                           FontSize="17"
+                                           FontWeight="Bold"
+                                           Foreground="{StaticResource AccentBrush}"
+                                           FlowDirection="{Binding AppTitleFlowDirection}"
+                                           HorizontalAlignment="{Binding AppTitleAccentAlignment}"
+                                           TextOptions.TextFormattingMode="Display"
+                                           TextOptions.TextRenderingMode="ClearType"/>
+                            </Grid>
+                            <TextBlock Text="تفکیک ترافیک برنامه ها" FontSize="9"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        Margin="0,-3,0,0"/>
                         </StackPanel>
@@ -124,8 +152,69 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <!-- Update Button: visible only when a newer release exists -->
+                    <Button Grid.Column="2"
+                            Content="بروزرسانی"
+                            Command="{Binding OpenLatestReleaseCommand}"
+                            Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}"
+                            Background="{StaticResource PrimaryBrush}"
+                            Foreground="White"
+                            BorderBrush="Transparent"
+                            BorderThickness="0"
+                            Padding="10,6"
+                            Margin="0,0,8,0"
+                            FontSize="11"
+                            FontWeight="SemiBold"
+                            Cursor="Hand"
+                            VerticalAlignment="Center"
+                            RenderTransformOrigin="0.5,0.5"
+                            ToolTip="دانلود نسخه جدید از صفحه Releases در GitHub">
+                        <Button.RenderTransform>
+                            <ScaleTransform ScaleX="1" ScaleY="1"/>
+                        </Button.RenderTransform>
+                        <Button.Style>
+                            <Style TargetType="Button">
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="Button">
+                                            <Border Background="{TemplateBinding Background}"
+                                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                                    CornerRadius="9"
+                                                    Padding="{TemplateBinding Padding}">
+                                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                            </Border>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding IsUpdateAvailable}" Value="True">
+                                        <DataTrigger.EnterActions>
+                                            <BeginStoryboard>
+                                                <Storyboard RepeatBehavior="Forever" AutoReverse="True">
+                                                    <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                                                     To="0.72"
+                                                                     Duration="0:0:0.9"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleX)"
+                                                                     To="1.04"
+                                                                     Duration="0:0:0.9"/>
+                                                    <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(ScaleTransform.ScaleY)"
+                                                                     To="1.04"
+                                                                     Duration="0:0:0.9"/>
+                                                </Storyboard>
+                                            </BeginStoryboard>
+                                        </DataTrigger.EnterActions>
+                                    </DataTrigger>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter Property="Opacity" Value="0.92"/>
+                                    </Trigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Button.Style>
+                    </Button>
+
                     <!-- Details Button -->
-                    <Button Grid.Column="2" Content="جزئیات"
+                    <Button Grid.Column="3" Content="جزئیات"
                             Click="OnShowLogClick"
                             Background="#121212"
                             Foreground="{StaticResource TextSecondaryBrush}"
@@ -160,7 +249,7 @@
                     </Button>
 
                     <!-- Window Controls: Minimize → Close (standard Windows order) -->
-                    <StackPanel Grid.Column="3" Orientation="Horizontal">
+                    <StackPanel Grid.Column="4" Orientation="Horizontal">
                         <Button Content="—" Click="OnMinimizeClick" 
                                 ToolTip="کوچک کردن به System Tray"
                                 Style="{StaticResource WindowControlButton}" 
@@ -669,13 +758,14 @@
             </Grid>
 
             <!-- ═══ FOOTER ═══ -->
-            <Border Grid.Row="2"
+            <Border x:Name="MainFooterBar"
+                    Grid.Row="2"
                     Background="#121212"
                     BorderBrush="#18FFFFFF"
                     BorderThickness="0,1,0,0"
                     CornerRadius="0,0,0,12"
                     Padding="12,6">
-                <Grid VerticalAlignment="Center" FlowDirection="RightToLeft">
+                <Grid VerticalAlignment="Center" FlowDirection="{Binding AppFlowDirection}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
@@ -685,8 +775,8 @@
 
                     <StackPanel Grid.Column="0"
                                 Orientation="Horizontal"
-                                FlowDirection="RightToLeft"
-                                HorizontalAlignment="Right"
+                                FlowDirection="{Binding AppFlowDirection}"
+                                HorizontalAlignment="{Binding AppStartHorizontalAlignment}"
                                 VerticalAlignment="Center">
                         <TextBlock Text="ساخته شده توسط Maxifan"
                                    FontSize="10"
@@ -713,18 +803,25 @@
 
                     <StackPanel Grid.Column="3"
                                 Orientation="Horizontal"
-                                HorizontalAlignment="Left"
+                                HorizontalAlignment="{Binding AppEndHorizontalAlignment}"
                                 VerticalAlignment="Center"
-                                FlowDirection="RightToLeft">
-                        <Button Content="بروزرسانی"
-                                Command="{Binding OpenLatestReleaseCommand}"
-                                Visibility="{Binding IsUpdateAvailable, Converter={StaticResource BoolToVis}}"
-                                Style="{StaticResource PrimaryButton}"
-                                Padding="10,4"
+                                FlowDirection="{Binding AppFlowDirection}">
+                        <Button Content="{Binding LanguageToggleText}"
+                                Command="{Binding ToggleLanguageCommand}"
+                                Style="{StaticResource SecondaryButton}"
+                                Padding="9,4"
                                 FontSize="10"
                                 Margin="0,0,0,0"
                                 VerticalAlignment="Center"
-                                ToolTip="دانلود نسخه جدید از صفحه Releases در GitHub"/>
+                                ToolTip="تغییر زبان"/>
+                        <Button Content="حمایت"
+                                Click="OnDonateClick"
+                                Style="{StaticResource SecondaryButton}"
+                                Padding="9,4"
+                                FontSize="10"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="حمایت از پروژه"/>
                         <Button Content="راهنما"
                                 Click="OnShowHelpClick"
                                 Style="{StaticResource SecondaryButton}"
@@ -749,8 +846,12 @@
 
             <!-- ═══ LOG PANEL (RIGHT SIDE) ═══ -->
             <Border x:Name="LogPanel" Grid.Column="1" Visibility="Collapsed"
+                    Width="0"
+                    Opacity="0"
+                    ClipToBounds="True"
                     Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource CardBrush}" BorderThickness="1,0,0,0">
+                    BorderBrush="{StaticResource CardBrush}" BorderThickness="1,0,0,0"
+                    FlowDirection="{Binding AppFlowDirection}">
                 <Grid Width="350">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -759,14 +860,16 @@
 
                     <!-- Log Header -->
                     <Border Grid.Row="0" Padding="12,10" Background="#11FFFFFF">
-                        <Grid>
+                        <Grid FlowDirection="{Binding AppFlowDirection}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
                             <TextBlock Grid.Column="0" Text="🔍 جزئیات عملکرد" FontSize="13" FontWeight="SemiBold"
-                                       Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis"/>
                             <ComboBox x:Name="LogFilterCombo"
                                       Grid.Column="1"
                                       SelectedIndex="0"
@@ -780,7 +883,9 @@
                                 <ComboBoxItem Content="DNS" Tag="Dns"/>
                                 <ComboBoxItem Content="Route" Tag="Route"/>
                             </ComboBox>
-                            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                            <StackPanel Grid.Column="2"
+                                        Orientation="Horizontal"
+                                        FlowDirection="{Binding AppFlowDirection}">
                                 <Button Content="🗑" ToolTip="پاک کردن" Click="OnLogClearClick"
                                         Style="{StaticResource SecondaryButton}"
                                         Padding="8,4" FontSize="12" Margin="0,0,4,0"/>
@@ -805,6 +910,7 @@
                              IsReadOnly="True"
                              TextWrapping="Wrap"
                              FlowDirection="LeftToRight"
+                             TextAlignment="Left"
                              VerticalScrollBarVisibility="Auto"/>
                 </Grid>
             </Border>
@@ -835,21 +941,39 @@
             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                 <!-- Logo -->
                 <Viewbox Width="60" Height="60" HorizontalAlignment="Center" Margin="0,0,0,20">
-                    <Canvas Width="48" Height="48">
-                        <Rectangle Width="48" Height="48" RadiusX="8" RadiusY="8"
-                                   Fill="{StaticResource PrimaryBrush}"/>
-                        <TextBlock Text="Tx" FontSize="24" FontWeight="Bold"
-                                   Foreground="White" Canvas.Left="6" Canvas.Top="8"
-                                   FontFamily="Segoe UI"/>
-                    </Canvas>
+                    <Grid Width="48" Height="48">
+                        <Border CornerRadius="7"
+                                Background="{StaticResource PrimaryBrush}"/>
+                        <TextBlock Text="Tx"
+                                   FontSize="24"
+                                   FontWeight="Bold"
+                                   Foreground="White"
+                                   FontFamily="Segoe UI"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center"
+                                   Margin="0,-1,0,0"
+                                   TextOptions.TextFormattingMode="Display"
+                                   TextOptions.TextRenderingMode="ClearType"/>
+                    </Grid>
                 </Viewbox>
                 <!-- App name -->
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,6">
-                    <TextBlock Text="Tunnel" FontSize="24" FontWeight="Bold"
-                               Foreground="{StaticResource TextPrimaryBrush}"/>
-                    <TextBlock Text="X" FontSize="24" FontWeight="Bold"
-                               Foreground="{StaticResource AccentBrush}"/>
-                </StackPanel>
+                <Grid HorizontalAlignment="Center" Margin="0,0,0,6">
+                    <TextBlock Text="{Binding AppTitleText}"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               FlowDirection="{Binding AppTitleFlowDirection}"
+                               TextOptions.TextFormattingMode="Display"
+                               TextOptions.TextRenderingMode="ClearType"/>
+                    <TextBlock Text="{Binding AppTitleAccentText}"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AccentBrush}"
+                               FlowDirection="{Binding AppTitleFlowDirection}"
+                               HorizontalAlignment="{Binding AppTitleAccentAlignment}"
+                               TextOptions.TextFormattingMode="Display"
+                               TextOptions.TextRenderingMode="ClearType"/>
+                </Grid>
                 <TextBlock Text="Split Traffic Per App" FontSize="11"
                            HorizontalAlignment="Center"
                            Foreground="{StaticResource TextSecondaryBrush}"

@@ -11,7 +11,9 @@
         <conv:EnumToVisibilityConverter x:Key="EnumToVis"/>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+    <ScrollViewer FlowDirection="{Binding AppFlowDirection}"
+                  VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
     <StackPanel HorizontalAlignment="Stretch" Margin="16,8,16,4">
 
         <!-- ══ DISCONNECTED STATE: Show connection form ══ -->
@@ -153,7 +155,7 @@
                                 </Grid.ColumnDefinitions>
 
                                 <StackPanel Grid.Column="0">
-                                    <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                                    <StackPanel Orientation="Horizontal" FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                         <TextBlock Text="{Binding Name}"
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
@@ -187,7 +189,7 @@
 
                                 <StackPanel Grid.Column="2"
                                             Orientation="Horizontal"
-                                            FlowDirection="RightToLeft"
+                                            FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                             VerticalAlignment="Center">
                                     <Button Style="{StaticResource PrimaryButton}"
                                             Content="فعال"
@@ -237,7 +239,7 @@
                         </Grid.ColumnDefinitions>
 
                         <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" FlowDirection="RightToLeft">
+                            <StackPanel Orientation="Horizontal" FlowDirection="{Binding AppFlowDirection}">
                                 <Ellipse Width="9" Height="9"
                                          Fill="{Binding StatusColor, Converter={StaticResource StringToColor}}"
                                          VerticalAlignment="Center"/>
@@ -264,13 +266,13 @@
                                 MinWidth="160"
                                 Height="44"
                                 Padding="18,8"
-                                ToolTip="شروع اتصال با پروفایل انتخاب‌شده">
+                                ToolTip="{Binding ConnectButtonToolTip}">
                             <Button.Style>
                                 <Style TargetType="Button">
                                     <Setter Property="Background" Value="#10B981"/>
                                     <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="BorderBrush" Value="#8CFFFFFF"/>
-                                    <Setter Property="BorderThickness" Value="1"/>
+                                    <Setter Property="BorderBrush" Value="Transparent"/>
+                                    <Setter Property="BorderThickness" Value="0"/>
                                     <Setter Property="FontSize" Value="13"/>
                                     <Setter Property="FontWeight" Value="Bold"/>
                                     <Setter Property="Cursor" Value="Hand"/>
@@ -290,18 +292,13 @@
                                     </Setter>
                                     <Style.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter Property="Background" Value="#0EA371"/>
-                                            <Setter Property="BorderBrush" Value="#CCFFFFFF"/>
+                                            <Setter Property="Background" Value="#059669"/>
                                         </Trigger>
                                         <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static models:ConnectionState.Connecting}">
-                                            <Setter Property="Background" Value="#D97706"/>
-                                            <Setter Property="BorderBrush" Value="#80FFE3BF"/>
-                                            <Setter Property="ToolTip" Value="لغو تلاش اتصال"/>
+                                            <Setter Property="Background" Value="#F97316"/>
                                         </DataTrigger>
                                         <DataTrigger Binding="{Binding ConnectionState}" Value="{x:Static models:ConnectionState.Error}">
-                                            <Setter Property="Background" Value="#B91C1C"/>
-                                            <Setter Property="BorderBrush" Value="#80FFD2D2"/>
-                                            <Setter Property="ToolTip" Value="اتصال مجدد"/>
+                                            <Setter Property="Background" Value="#DC2626"/>
                                         </DataTrigger>
                                     </Style.Triggers>
                                 </Style>
@@ -497,7 +494,7 @@
                                        Foreground="{Binding OpenVpnPrerequisiteColor, Converter={StaticResource StringToColor}}"
                                        FontSize="10"
                                        TextWrapping="Wrap"
-                                       FlowDirection="RightToLeft"/>
+                                       FlowDirection="{Binding AppFlowDirection}"/>
                             <Button Grid.Column="2"
                                     Style="{StaticResource SecondaryButton}"
                                     Content="دانلود OpenVPN"
@@ -849,9 +846,9 @@
                     ToolTip="قطع اتصال فعلی">
                 <Button.Style>
                     <Style TargetType="Button">
-                        <Setter Property="Background" Value="#B42318"/>
-                        <Setter Property="BorderBrush" Value="#F97066"/>
-                        <Setter Property="BorderThickness" Value="1"/>
+                        <Setter Property="Background" Value="#DC2626"/>
+                        <Setter Property="BorderBrush" Value="Transparent"/>
+                        <Setter Property="BorderThickness" Value="0"/>
                         <Setter Property="Foreground" Value="White"/>
                         <Setter Property="Cursor" Value="Hand"/>
                         <Setter Property="Template">
@@ -864,12 +861,12 @@
                                             CornerRadius="16"
                                             Padding="{TemplateBinding Padding}">
                                         <Border.Effect>
-                                            <DropShadowEffect Color="#F04438"
-                                                              BlurRadius="16"
-                                                              Opacity="0.24"
+                                            <DropShadowEffect Color="#B91C1C"
+                                                              BlurRadius="18"
+                                                              Opacity="0.28"
                                                               ShadowDepth="0"/>
                                         </Border.Effect>
-                                        <Grid FlowDirection="RightToLeft">
+                                        <Grid FlowDirection="{Binding AppFlowDirection}">
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="Auto"/>
                                                 <ColumnDefinition Width="12"/>
@@ -899,11 +896,10 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="DisconnectButtonBorder" Property="Background" Value="#D92D20"/>
-                                            <Setter TargetName="DisconnectButtonBorder" Property="BorderBrush" Value="#FDA29B"/>
+                                            <Setter TargetName="DisconnectButtonBorder" Property="Background" Value="#B91C1C"/>
                                         </Trigger>
                                         <Trigger Property="IsPressed" Value="True">
-                                            <Setter TargetName="DisconnectButtonBorder" Property="Background" Value="#912018"/>
+                                            <Setter TargetName="DisconnectButtonBorder" Property="Background" Value="#991B1B"/>
                                         </Trigger>
                                     </ControlTemplate.Triggers>
                                 </ControlTemplate>
@@ -921,14 +917,14 @@
                 CornerRadius="10" Padding="10,8" Margin="0,8,0,0">
             <StackPanel>
             <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="17"
-                       FlowDirection="RightToLeft"
+                       FlowDirection="{Binding AppFlowDirection}"
                        Foreground="{StaticResource TextPrimaryBrush}">
                 <Run Text="💡 در حالت انتخابی، فقط برنامه‌های فعال در تب "/>
                 <Run Text="«برنامه‌ها»" FontWeight="SemiBold"/>
                 <Run Text=" از تونل عبور می‌کنند؛ بقیه مستقیم می‌مانند."/>
             </TextBlock>
             <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="17"
-                       FlowDirection="RightToLeft"
+                       FlowDirection="{Binding AppFlowDirection}"
                        Foreground="{StaticResource TextSecondaryBrush}">
                 <Run Text="📌 برای تلگرام، واتس‌اپ و برنامه‌های Store، "/>
                 <Run Text="Microsoft Edge WebView2"

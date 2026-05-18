@@ -4,7 +4,17 @@
 
 ### English
 
+- Added bilingual Persian/English UI switching with automatic system-language detection, persisted language selection, RTL/LTR layout handling, and localized dialogs, tray text, runtime status messages, help content, and profile/app/routing views.
+- Refined the desktop UI with adaptive window sizing, disabled maximize/system-menu fullscreen paths, smoother log-panel animation, polished dialogs, refreshed TunnelX branding, updated app icon, compact app-list rows, footer donation modal, and header update notification.
+- Improved V2Ray/Xray reliability by dynamically reserving free local ports for Xray SOCKS and sing-box mixed proxy inbounds instead of relying on fixed `2080/2081` ports.
+- Improved connection UX with more reliable exit-IP detection retries, consistent text-field behavior, better log window direction/localization, and localized README screenshots for Persian and English documentation.
+
 ### فارسی
+
+- تغییر زبان فارسی/انگلیسی به برنامه اضافه شد؛ شامل تشخیص زبان سیستم، ذخیره زبان انتخاب‌شده، رعایت RTL/LTR، و ترجمه دیالوگ‌ها، متن tray، وضعیت‌های runtime، راهنما، پروفایل‌ها، برنامه‌ها و قوانین مسیر.
+- رابط کاربری دسکتاپ بهبود یافت؛ شامل اندازه‌گیری تطبیقی پنجره، جلوگیری از maximize/fullscreen و منوی Alt+Space، انیمیشن نرم پنل لاگ، دیالوگ‌های تمیزتر، برندینگ و آیکون جدید TunnelX، ردیف‌های فشرده‌تر برنامه‌ها، مودال حمایت مالی و دکمه اعلان بروزرسانی در هدر.
+- پایداری V2Ray/Xray بهتر شد؛ پورت‌های داخلی Xray SOCKS و sing-box mixed proxy دیگر ثابت نیستند و به‌صورت آزاد از سیستم رزرو می‌شوند تا خطای اشغال بودن `2080/2081` تکرار نشود.
+- تجربه اتصال بهتر شد؛ شامل تلاش دوباره برای دریافت IP خروجی، رفتار یکدست فیلدهای متنی، جهت و ترجمه بهتر پنجره لاگ، و استفاده از اسکرین‌شات‌های فارسی/انگلیسی در READMEهای مربوطه.
 
 ## 1.2.29 - 2026-05-17
 

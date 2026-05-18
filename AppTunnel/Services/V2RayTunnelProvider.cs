@@ -20,7 +20,7 @@ public class V2RayTunnelProvider : ITunnelProvider
     private const string TunAddress       = "172.18.0.1/30";
     private const string VpnLocalIp       = "172.18.0.1";  // actual TUN interface address
     private const int    DefaultTunMtu    = 1500;
-    private const int    MixedProxyPort   = 2080;  // sing-box SOCKS5/HTTP inbound for accurate ping
+    private const int    DefaultMixedProxyPort   = 2080;  // preferred sing-box SOCKS5/HTTP inbound for accurate ping
 
     private readonly string _singBoxExe;
     private readonly string _workDir;
@@ -124,7 +124,7 @@ public class V2RayTunnelProvider : ITunnelProvider
         _tunnelFailedFired       = 0;
 
         Status.State   = ConnectionState.Connecting;
-        Status.Message = "در حال آماده‌سازی V2Ray...";
+        Status.Message = LocalizationService.Instance.T("در حال آماده‌سازی V2Ray...");
         Logger.Info("V2RayTunnelProvider: starting");
 
         try
@@ -138,7 +138,7 @@ public class V2RayTunnelProvider : ITunnelProvider
             if (!File.Exists(_singBoxExe))
             {
                 Status.State   = ConnectionState.Error;
-                Status.Message = $"فایل sing-box.exe پیدا نشد: {_singBoxExe}";
+                Status.Message = LocalizationService.Instance.Format("فایل sing-box.exe پیدا نشد: {0}", _singBoxExe);
                 Logger.Error(Status.Message);
                 return false;
             }
@@ -146,6 +146,9 @@ public class V2RayTunnelProvider : ITunnelProvider
             // Build and write config
             int tunMtu = DefaultTunMtu;
             string singBoxJson;
+            using var mixedProxyPortReservation = LocalPortReservation.ReservePreferredOrRandom(DefaultMixedProxyPort);
+            var mixedProxyPort = mixedProxyPortReservation.Port;
+            Logger.Info($"[PORT] sing-box mixed proxy=127.0.0.1:{mixedProxyPort}");
             try
             {
                 if (config.AutoTuneMtu)
@@ -163,18 +166,20 @@ public class V2RayTunnelProvider : ITunnelProvider
                     Logger.Info($"[MTU] Auto-tune disabled; using MTU={tunMtu}");
                 }
 
-                singBoxJson = BuildSingBoxConfig(config.V2RayConfig, tunMtu, config.EnableDnsOptimization);
+                singBoxJson = BuildSingBoxConfig(config.V2RayConfig, tunMtu, config.EnableDnsOptimization, mixedProxyPort);
             }
             catch (Exception ex)
             {
+                mixedProxyPortReservation.Dispose();
                 Status.State   = ConnectionState.Error;
-                Status.Message = $"خطا در پارس کانفیگ: {ex.Message}";
+                Status.Message = LocalizationService.Instance.Format("خطا در پارس کانفیگ: {0}", ex.Message);
                 Logger.Error("V2Ray config parse error", ex);
                 return false;
             }
 
             await File.WriteAllTextAsync(_configPath, singBoxJson, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), ct);
             Logger.Info($"V2Ray config written to {_configPath}");
+            mixedProxyPortReservation.Dispose();
 
             // Start sing-box process
             _process = new Process
@@ -257,7 +262,7 @@ public class V2RayTunnelProvider : ITunnelProvider
             _process.BeginOutputReadLine();
 
             Logger.Info($"sing-box started (PID {_process.Id})");
-            Status.Message = "در حال انتظار برای interface TunnelX-V2Ray...";
+            Status.Message = LocalizationService.Instance.T("در حال انتظار برای interface TunnelX-V2Ray...");
 
             // Wait up to 10 seconds for the TUN interface to appear
             int interfaceIndex = -1;
@@ -268,7 +273,7 @@ public class V2RayTunnelProvider : ITunnelProvider
                 if (_process.HasExited)
                 {
                     Status.State   = ConnectionState.Error;
-                    Status.Message = $"sing-box زودتر خارج شد (exit code {_process.ExitCode}) — کانفیگ را بررسی کنید";
+                    Status.Message = LocalizationService.Instance.Format("sing-box زودتر خارج شد (exit code {0}) — کانفیگ را بررسی کنید", _process.ExitCode);
                     Logger.Error(Status.Message);
                     await KillProcessAsync();
                     return false;
@@ -282,7 +287,7 @@ public class V2RayTunnelProvider : ITunnelProvider
             if (interfaceIndex <= 0)
             {
                 Status.State   = ConnectionState.Error;
-                Status.Message = "interface TunnelX-V2Ray ظاهر نشد (timeout 10s)";
+                Status.Message = LocalizationService.Instance.T("interface TunnelX-V2Ray ظاهر نشد (timeout 10s)");
                 Logger.Error(Status.Message);
                 await KillProcessAsync();
                 return false;
@@ -299,7 +304,7 @@ public class V2RayTunnelProvider : ITunnelProvider
             Status.VpnServerIp       = statusServerHost;
             Status.VpnServerPort     = statusServerPort;
             Status.VpnInterfaceIndex = interfaceIndex;
-            Status.SingBoxMixedPort  = MixedProxyPort;
+            Status.SingBoxMixedPort  = mixedProxyPort;
             Status.Message           = config.TunnelType == TunnelType.SocksProxy ? "Proxy connected" : "V2Ray connected";
             Logger.Info($"{(config.TunnelType == TunnelType.SocksProxy ? "Proxy" : "V2Ray")} tunnel up — interface index {interfaceIndex}, server={Status.VpnServerIp}:{Status.VpnServerPort}");
 
@@ -308,14 +313,14 @@ public class V2RayTunnelProvider : ITunnelProvider
         catch (OperationCanceledException)
         {
             Status.State   = ConnectionState.Disconnected;
-            Status.Message = "اتصال لغو شد";
+            Status.Message = LocalizationService.Instance.T("اتصال لغو شد");
             await KillProcessAsync();
             return false;
         }
         catch (Exception ex)
         {
             Status.State   = ConnectionState.Error;
-            Status.Message = $"خطا: {ex.Message}";
+            Status.Message = LocalizationService.Instance.Format("خطا: {0}", ex.Message);
             Logger.Error("V2RayTunnelProvider.ConnectAsync failed", ex);
             await KillProcessAsync();
             return false;
@@ -329,7 +334,7 @@ public class V2RayTunnelProvider : ITunnelProvider
     public async Task DisconnectAsync()
     {
         Status.State   = ConnectionState.Disconnecting;
-        Status.Message = "در حال قطع اتصال V2Ray...";
+        Status.Message = LocalizationService.Instance.T("در حال قطع اتصال V2Ray...");
 
         // Stop watchdog from firing during/after deliberate disconnect.
         _tunnelFailedFired = 1;
@@ -348,7 +353,7 @@ public class V2RayTunnelProvider : ITunnelProvider
         Status.VpnServerPort     = 0;
         Status.VpnInterfaceIndex = -1;
         Status.SingBoxMixedPort  = 0;
-        Status.Message           = "قطع شد";
+        Status.Message           = LocalizationService.Instance.T("قطع شد");
     }
 
     // =========================================================================
@@ -375,7 +380,7 @@ public class V2RayTunnelProvider : ITunnelProvider
     // Config builder
     // =========================================================================
 
-    private string BuildSingBoxConfig(string userConfig, int tunMtu, bool enableDnsOptimization)
+    private string BuildSingBoxConfig(string userConfig, int tunMtu, bool enableDnsOptimization, int mixedProxyPort)
     {
         userConfig = userConfig.Trim();
 
@@ -476,7 +481,7 @@ public class V2RayTunnelProvider : ITunnelProvider
                     ["type"]         = "mixed",
                     ["tag"]          = "mixed-in",
                     ["listen"]       = "127.0.0.1",
-                    ["listen_port"]  = MixedProxyPort
+                    ["listen_port"]  = mixedProxyPort
                 }
             },
             // direct outbound is required so sing-box can reach the proxy

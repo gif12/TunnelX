@@ -2,6 +2,7 @@ using System.Text.Json.Serialization;
 using System.ComponentModel;
 using System.IO;
 using System.Runtime.CompilerServices;
+using AppTunnel.Services;
 
 namespace AppTunnel.Models;
 
@@ -50,6 +51,16 @@ public class ConnectionProfile : INotifyPropertyChanged
     private bool _autoTuneMtu = true;
     private bool _enableDnsOptimization = true;
     private bool _enableGameMode = false;
+
+    public ConnectionProfile()
+    {
+        LocalizationService.Instance.LanguageChanged += (_, _) =>
+        {
+            OnPropertyChanged(nameof(TunnelTypeDisplay));
+            OnPropertyChanged(nameof(EndpointDisplay));
+            OnPropertyChanged(nameof(ReadinessText));
+        };
+    }
 
     public string Id
     {
@@ -217,16 +228,16 @@ public class ConnectionProfile : INotifyPropertyChanged
         TunnelType.V2Ray => "V2Ray / Xray",
         TunnelType.OpenVpn => "OpenVPN",
         TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy",
-        _ => "نامشخص"
+        _ => LocalizationService.Instance.T("نامشخص")
     };
 
     [JsonIgnore]
     public string EndpointDisplay => TunnelType switch
     {
-        TunnelType.L2tpIpsec => string.IsNullOrWhiteSpace(ServerAddress) ? "آدرس سرور وارد نشده" : ServerAddress,
-        TunnelType.V2Ray => string.IsNullOrWhiteSpace(V2RayConfig) ? "کانفیگ وارد نشده" : "کانفیگ آماده",
-        TunnelType.OpenVpn => string.IsNullOrWhiteSpace(OpenVpnConfigPath) ? "فایل .ovpn انتخاب نشده" : Path.GetFileName(OpenVpnConfigPath),
-        TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress) ? "آدرس پراکسی وارد نشده" : $"{ProxyServerAddress}:{ProxyPort}",
+        TunnelType.L2tpIpsec => string.IsNullOrWhiteSpace(ServerAddress) ? LocalizationService.Instance.T("آدرس سرور وارد نشده") : ServerAddress,
+        TunnelType.V2Ray => string.IsNullOrWhiteSpace(V2RayConfig) ? LocalizationService.Instance.T("کانفیگ وارد نشده") : LocalizationService.Instance.T("کانفیگ آماده"),
+        TunnelType.OpenVpn => string.IsNullOrWhiteSpace(OpenVpnConfigPath) ? LocalizationService.Instance.T("فایل .ovpn انتخاب نشده") : Path.GetFileName(OpenVpnConfigPath),
+        TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress) ? LocalizationService.Instance.T("آدرس پراکسی وارد نشده") : $"{ProxyServerAddress}:{ProxyPort}",
         _ => ""
     };
 
@@ -241,7 +252,7 @@ public class ConnectionProfile : INotifyPropertyChanged
     };
 
     [JsonIgnore]
-    public string ReadinessText => IsReady ? "آماده اتصال" : "نیاز به تکمیل";
+    public string ReadinessText => IsReady ? LocalizationService.Instance.T("آماده اتصال") : LocalizationService.Instance.T("نیاز به تکمیل");
 
     [JsonIgnore]
     public string ReadinessColor => IsReady ? "#6CCB5F" : "#E0A020";

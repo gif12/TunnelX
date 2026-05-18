@@ -1,0 +1,143 @@
+<Window x:Class="AppTunnel.Views.DonationDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="clr-namespace:AppTunnel.Services"
+        Title="حمایت از پروژه"
+        Width="430"
+        Height="520"
+        MinWidth="390"
+        MinHeight="440"
+        WindowStartupLocation="CenterOwner"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}">
+
+    <Border Background="{StaticResource BackgroundBrush}"
+            CornerRadius="16"
+            BorderBrush="#34E8803A"
+            BorderThickness="1">
+        <Border.Effect>
+            <DropShadowEffect Color="Black" BlurRadius="28" Opacity="0.65" ShadowDepth="0"/>
+        </Border.Effect>
+
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+
+            <Grid Grid.Row="0" Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0">
+                    <TextBlock Text="حمایت از پروژه"
+                               FontSize="17"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                    <TextBlock Text="اگر TunnelX برایتان مفید بوده، می‌توانید با PayPal یا کریپتو از توسعه آن حمایت کنید."
+                               FontSize="11"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               TextWrapping="Wrap"
+                               LineHeight="18"
+                               Margin="0,4,12,0"/>
+                </StackPanel>
+
+                <Button Grid.Column="1"
+                        Content="✕"
+                        Style="{StaticResource WindowControlButton}"
+                        Width="32"
+                        Height="28"
+                        FontSize="13"
+                        FlowDirection="LeftToRight"
+                        Click="OnCloseClick"/>
+            </Grid>
+
+            <Button Grid.Row="1"
+                    Content="پرداخت با PayPal"
+                    Style="{StaticResource PrimaryButton}"
+                    HorizontalAlignment="Stretch"
+                    Padding="14,9"
+                    Margin="0,0,0,12"
+                    Click="OnPayPalClick"/>
+
+            <Border Grid.Row="2"
+                    Background="#0EFFFFFF"
+                    BorderBrush="#16FFFFFF"
+                    BorderThickness="1"
+                    CornerRadius="12"
+                    Padding="10">
+                <DockPanel LastChildFill="True">
+                    <TextBlock DockPanel.Dock="Top"
+                               Text="پرداخت با کریپتو"
+                               FontSize="12"
+                               FontWeight="SemiBold"
+                               Foreground="{StaticResource TextPrimaryBrush}"
+                               Margin="0,0,0,8"/>
+
+                    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <ItemsControl x:Name="CryptoItemsControl">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="#10121212"
+                                            BorderBrush="#12FFFFFF"
+                                            BorderThickness="1"
+                                            CornerRadius="10"
+                                            Padding="9,8"
+                                            Margin="0,0,0,7">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="8"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel Grid.Column="0">
+                                                <TextBlock Text="{Binding Label}"
+                                                           FontSize="11"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                                                <TextBlock Text="{Binding Address}"
+                                                           FontSize="10"
+                                                           FontFamily="Consolas"
+                                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                                           TextWrapping="Wrap"
+                                                           FlowDirection="LeftToRight"
+                                                           TextAlignment="Left"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                            <Button Grid.Column="2"
+                                                    Content="کپی"
+                                                    Tag="{Binding}"
+                                                    Style="{StaticResource SecondaryButton}"
+                                                    Padding="9,4"
+                                                    FontSize="10"
+                                                    MinWidth="44"
+                                                    VerticalAlignment="Center"
+                                                    Click="OnCopyCryptoClick"/>
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </ScrollViewer>
+                </DockPanel>
+            </Border>
+
+            <TextBlock x:Name="CopyStatusText"
+                       Grid.Row="3"
+                       Text=""
+                       FontSize="11"
+                       Foreground="{StaticResource AccentBrush}"
+                       HorizontalAlignment="Center"
+                       Margin="0,10,0,0"/>
+        </Grid>
+    </Border>
+</Window>

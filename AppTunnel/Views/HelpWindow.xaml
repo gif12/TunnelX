@@ -10,7 +10,7 @@
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        FlowDirection="RightToLeft"
+        FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}"
         MouseLeftButtonDown="OnTitleBarMouseDown">
 
     <Border Background="{StaticResource BackgroundBrush}"

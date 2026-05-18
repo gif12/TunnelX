@@ -2,6 +2,63 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
+    <UserControl.Resources>
+        <Style x:Key="CompactToggleSwitch" TargetType="CheckBox">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="18"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="CheckBox">
+                        <Grid Width="32" Height="18">
+                            <Border x:Name="track"
+                                    Width="32"
+                                    Height="18"
+                                    CornerRadius="9"
+                                    Background="#555"
+                                    Cursor="Hand"/>
+                            <Border x:Name="thumb"
+                                    Width="14"
+                                    Height="14"
+                                    CornerRadius="7"
+                                    Background="White"
+                                    HorizontalAlignment="Left"
+                                    Margin="2,0,0,0"
+                                    VerticalAlignment="Center"/>
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="track" Property="Background" Value="{StaticResource SuccessBrush}"/>
+                                <Setter TargetName="thumb" Property="HorizontalAlignment" Value="Right"/>
+                                <Setter TargetName="thumb" Property="Margin" Value="0,0,2,0"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="CompactIconButton" TargetType="Button" BasedOn="{StaticResource SecondaryButton}">
+            <Setter Property="MinWidth" Value="24"/>
+            <Setter Property="Width" Value="24"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="12"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="AppRowCard" TargetType="Border">
+            <Setter Property="Background" Value="#0EFFFFFF"/>
+            <Setter Property="BorderBrush" Value="#10FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="8,6"/>
+            <Setter Property="Margin" Value="0,0,0,6"/>
+            <Setter Property="MinHeight" Value="50"/>
+            <Setter Property="FlowDirection" Value="LeftToRight"/>
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="12,8,12,4">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="*"/>
@@ -50,56 +107,86 @@
                           SelectedItem="{Binding SelectedApp}"
                           Background="Transparent"
                           BorderThickness="0"
-                          FlowDirection="LeftToRight"
+                          FlowDirection="{Binding AppFlowDirection}"
                           Cursor="Arrow"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListView.ItemTemplate>
                         <DataTemplate>
-                            <Border Background="#12FFFFFF" BorderBrush="#12FFFFFF" BorderThickness="1" CornerRadius="9"
-                                    Padding="9,7" Margin="0,2" Cursor="Arrow">
+                            <Border Style="{StaticResource AppRowCard}" Cursor="Arrow">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <!-- App Icon -->
                                     <Image Grid.Column="0" Source="{Binding Icon}"
-                                           Width="26" Height="26" Margin="0,0,9,0"/>
+                                           Width="28" Height="28"
+                                           VerticalAlignment="Center"/>
 
                                     <!-- App Name & Exe -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding DisplayName}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                   FontSize="10.8"
+                                                   FontWeight="Normal"
+                                                   TextOptions.TextFormattingMode="Display"
+                                                   TextOptions.TextRenderingMode="ClearType"
+                                                   TextOptions.TextHintingMode="Fixed"
+                                                   TextWrapping="Wrap"
+                                                   FlowDirection="LeftToRight"
+                                                   TextAlignment="Left"/>
                                         <TextBlock Text="{Binding ExecutableName}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                   FontSize="9" FlowDirection="LeftToRight"/>
+                                                   FontSize="8.5"
+                                                   Margin="0,2,0,0"
+                                                   FlowDirection="LeftToRight"
+                                                   TextAlignment="Left"/>
                                     </StackPanel>
 
-                                    <!-- Traffic -->
-                                    <TextBlock Grid.Column="2" Text="{Binding TrafficDisplay}"
-                                               Foreground="{StaticResource AccentBrush}"
-                                               FontSize="10" VerticalAlignment="Center"
-                                               Margin="8,0" FlowDirection="LeftToRight"/>
+                                    <!-- Compact actions -->
+                                    <Grid Grid.Column="4"
+                                          Width="76"
+                                          VerticalAlignment="Center"
+                                          FlowDirection="LeftToRight">
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto"/>
+                                            <RowDefinition Height="Auto"/>
+                                        </Grid.RowDefinitions>
+                                        <StackPanel Grid.Row="0"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right">
+                                            <CheckBox Style="{StaticResource CompactToggleSwitch}"
+                                                      IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                      Command="{Binding DataContext.ToggleAppCommand,
+                                                          RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                      CommandParameter="{Binding}"
+                                                      VerticalAlignment="Center"
+                                                      Margin="0,0,4,0"/>
 
-                                    <!-- Toggle -->
-                                    <CheckBox Grid.Column="3" Style="{StaticResource ToggleSwitch}"
-                                              IsChecked="{Binding IsEnabled, Mode=OneWay}"
-                                              Command="{Binding DataContext.ToggleAppCommand,
-                                                  RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                              CommandParameter="{Binding}"
-                                              VerticalAlignment="Center" Margin="4,0"/>
-
-                                    <!-- Remove -->
-                                    <Button Grid.Column="4" Style="{StaticResource DangerButton}"
-                                            Content="حذف" FontSize="10" Padding="7,3"
-                                            Command="{Binding DataContext.RemoveAppCommand,
-                                                RelativeSource={RelativeSource AncestorType=UserControl}}"
-                                            CommandParameter="{Binding}"/>
+                                            <Button Style="{StaticResource CompactIconButton}"
+                                                    Content="×"
+                                                    ToolTip="حذف"
+                                                    Foreground="#FF8A80"
+                                                    Command="{Binding DataContext.RemoveAppCommand,
+                                                        RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </StackPanel>
+                                        <Border Grid.Row="1"
+                                                Background="#15121212"
+                                                CornerRadius="6"
+                                                Padding="4,1"
+                                                Margin="0,4,0,0"
+                                                HorizontalAlignment="Right">
+                                            <TextBlock Text="{Binding TrafficDisplay}"
+                                                       Foreground="{StaticResource AccentBrush}"
+                                                       FontSize="8.5"
+                                                       FlowDirection="LeftToRight"/>
+                                        </Border>
+                                    </Grid>
                                 </Grid>
                             </Border>
                         </DataTemplate>
@@ -161,46 +248,58 @@
                 <ListView ItemsSource="{Binding FilteredAvailableApps}"
                           Background="Transparent"
                           BorderThickness="0"
-                          FlowDirection="LeftToRight"
+                          FlowDirection="{Binding AppFlowDirection}"
                           ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                     <ListView.ItemTemplate>
                         <DataTemplate>
                             <Border x:Name="itemBorder"
-                                    Background="#0CFFFFFF" BorderBrush="#10FFFFFF" BorderThickness="1" CornerRadius="9"
-                                    Padding="8,6" Margin="0,2" Cursor="Hand"
+                                    Style="{StaticResource AppRowCard}"
+                                    Cursor="Hand"
                                     MouseLeftButtonUp="OnAvailableAppClick">
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
                                     <Image Grid.Column="0" Source="{Binding Icon}"
-                                           Width="24" Height="24" Margin="0,0,8,0"/>
+                                           Width="26" Height="26"
+                                           VerticalAlignment="Center"/>
 
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding DisplayName}"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontSize="12" TextTrimming="CharacterEllipsis"/>
+                                                   FontSize="10.8"
+                                                   FontWeight="Normal"
+                                                   TextOptions.TextFormattingMode="Display"
+                                                   TextOptions.TextRenderingMode="ClearType"
+                                                   TextOptions.TextHintingMode="Fixed"
+                                                   TextWrapping="Wrap"
+                                                   FlowDirection="LeftToRight"
+                                                   TextAlignment="Left"/>
                                         <TextBlock Text="{Binding ExecutableName}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                   FontSize="9" FlowDirection="LeftToRight"/>
+                                                   FontSize="8.5"
+                                                   Margin="0,2,0,0"
+                                                   FlowDirection="LeftToRight"
+                                                   TextAlignment="Left"/>
                                     </StackPanel>
 
-                                    <Border Grid.Column="2" x:Name="addBadge"
-                                            Background="#1AE8803A" CornerRadius="7"
-                                            Padding="6,2" Margin="6,0,0,0">
-                                        <TextBlock Text="افزودن" FontSize="9"
-                                                   Foreground="{StaticResource PrimaryBrush}"
-                                                   VerticalAlignment="Center"/>
-                                    </Border>
+                                    <Button Grid.Column="4"
+                                            x:Name="addBadge"
+                                            Style="{StaticResource CompactIconButton}"
+                                            Content="+"
+                                            ToolTip="افزودن"
+                                            Foreground="{StaticResource PrimaryBrush}"
+                                            Click="OnAvailableAppAddClick"/>
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
                                 <Trigger SourceName="itemBorder" Property="IsMouseOver" Value="True">
                                     <Setter TargetName="itemBorder" Property="Background" Value="#18FFFFFF"/>
-                                    <Setter TargetName="addBadge" Property="Background" Value="#40E07820"/>
                                 </Trigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>

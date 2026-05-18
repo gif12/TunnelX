@@ -63,6 +63,11 @@ public partial class App : Application
         // registered and before any DllImport call is made.
         EnsureNativeLibsExtracted();
 
+        // Load the language before the main window is created so the first
+        // rendered frame follows the saved setting or the system UI language.
+        LocalizationService.Instance.Initialize(new ProfileService().LoadAppSettings().Language);
+        TextInputBehavior.Register();
+
         // Register a resolver so that DllImport("WinDivert.dll") and
         // DllImport("wintun.dll") load from AppDataDir rather than relying on
         // the default search order (which would only find them next to the exe).

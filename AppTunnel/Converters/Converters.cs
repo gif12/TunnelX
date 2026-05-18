@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Data;
 using System.Windows.Media;
+using AppTunnel.Services;
 using Color = System.Windows.Media.Color;
 using ColorConverter = System.Windows.Media.ColorConverter;
 using FlowDirection = System.Windows.FlowDirection;
@@ -85,9 +86,7 @@ public class EnumToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
-/// تشخیص خودکار جهت متن بر اساس محتوا
-/// اگر متن شامل حروف فارسی یا عربی باشد: RightToLeft
-/// اگر متن شامل حروف انگلیسی باشد: LeftToRight
+/// Detects text direction from content and falls back to the current app language.
 /// </summary>
 public class TextToFlowDirectionConverter : IValueConverter
 {
@@ -95,24 +94,20 @@ public class TextToFlowDirectionConverter : IValueConverter
     {
         if (value is string text && !string.IsNullOrWhiteSpace(text))
         {
-            // بررسی اولین کاراکتر معنادار
             foreach (char c in text)
             {
                 if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsDigit(c))
                     continue;
 
-                // محدوده Unicode برای فارسی و عربی: 0x0600-0x06FF
                 if (c >= 0x0600 && c <= 0x06FF)
                     return FlowDirection.RightToLeft;
 
-                // محدوده Unicode برای حروف لاتین: A-Z, a-z
                 if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
                     return FlowDirection.LeftToRight;
             }
         }
 
-        // پیش‌فرض: راست به چپ (برای اپلیکیشن فارسی)
-        return FlowDirection.RightToLeft;
+        return LocalizationService.Instance.FlowDirection;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

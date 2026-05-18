@@ -42,7 +42,8 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
+    <ScrollViewer FlowDirection="{Binding AppFlowDirection}"
+                  VerticalScrollBarVisibility="Auto"
                   HorizontalScrollBarVisibility="Disabled"
                   Padding="0,12,0,10">
         <StackPanel Margin="14,0">
@@ -92,7 +93,7 @@
                         <TextBlock Text="پروژه و بروزرسانی" Style="{StaticResource HelpTitle}"/>
                         <TextBlock Text="{Binding UpdateStatusText}"
                                    Style="{StaticResource HelpBody}"/>
-                        <TextBlock Text="{Binding AppLicenseText, StringFormat=لایسنس: {0}}"
+                        <TextBlock Text="{Binding AppLicenseDisplayText}"
                                    FontSize="10"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FlowDirection="LeftToRight"

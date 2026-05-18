@@ -1,6 +1,7 @@
 using System.IO;
 using System.Windows;
 using AppTunnel.Models;
+using AppTunnel.Services;
 
 namespace AppTunnel.Views;
 
@@ -12,8 +13,9 @@ public partial class ProfileEditorDialog : Window
     {
         _profile = profile;
         InitializeComponent();
+        Loaded += (_, _) => LocalizationService.Instance.ApplyTo(this);
         DataContext = profile;
-        DialogTitleText.Text = title;
+        DialogTitleText.Text = LocalizationService.Instance.T(title);
         Loaded += OnLoaded;
     }
 
@@ -38,8 +40,8 @@ public partial class ProfileEditorDialog : Window
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "انتخاب فایل OpenVPN",
-            Filter = "OpenVPN config (*.ovpn)|*.ovpn|All files (*.*)|*.*",
+            Title = LocalizationService.Instance.T("انتخاب فایل OpenVPN"),
+            Filter = LocalizationService.Instance.T("OpenVPN config (*.ovpn)|*.ovpn|All files (*.*)|*.*"),
             CheckFileExists = true,
             Multiselect = false
         };
@@ -53,7 +55,7 @@ public partial class ProfileEditorDialog : Window
         }
         catch (Exception ex)
         {
-            ValidationText.Text = $"خواندن فایل OpenVPN ناموفق بود: {ex.Message}";
+            ValidationText.Text = LocalizationService.Instance.Format("خواندن فایل OpenVPN ناموفق بود: {0}", ex.Message);
         }
     }
 
@@ -66,7 +68,7 @@ public partial class ProfileEditorDialog : Window
         }
         catch (Exception ex)
         {
-            ValidationText.Text = $"خواندن کلیپ‌بورد ناموفق بود: {ex.Message}";
+            ValidationText.Text = LocalizationService.Instance.Format("خواندن کلیپ‌بورد ناموفق بود: {0}", ex.Message);
         }
     }
 
@@ -96,26 +98,26 @@ public partial class ProfileEditorDialog : Window
     {
         if (string.IsNullOrWhiteSpace(_profile.Name))
         {
-            message = "نام پروفایل را وارد کنید";
+            message = LocalizationService.Instance.T("نام پروفایل را وارد کنید");
             return false;
         }
 
         switch (_profile.TunnelType)
         {
             case TunnelType.L2tpIpsec when string.IsNullOrWhiteSpace(_profile.ServerAddress):
-                message = "آدرس سرور L2TP را وارد کنید";
+                message = LocalizationService.Instance.T("آدرس سرور L2TP را وارد کنید");
                 return false;
             case TunnelType.V2Ray when string.IsNullOrWhiteSpace(_profile.V2RayConfig):
-                message = "کانفیگ V2Ray/Xray را وارد کنید";
+                message = LocalizationService.Instance.T("کانفیگ V2Ray/Xray را وارد کنید");
                 return false;
             case TunnelType.OpenVpn when string.IsNullOrWhiteSpace(_profile.OpenVpnConfig):
-                message = "فایل OpenVPN (.ovpn) را انتخاب کنید";
+                message = LocalizationService.Instance.T("فایل OpenVPN (.ovpn) را انتخاب کنید");
                 return false;
             case TunnelType.SocksProxy when string.IsNullOrWhiteSpace(_profile.ProxyServerAddress):
-                message = "آدرس سرور پراکسی را وارد کنید";
+                message = LocalizationService.Instance.T("آدرس سرور پراکسی را وارد کنید");
                 return false;
             case TunnelType.SocksProxy when _profile.ProxyPort <= 0 || _profile.ProxyPort > 65535:
-                message = "پورت پراکسی باید بین 1 تا 65535 باشد";
+                message = LocalizationService.Instance.T("پورت پراکسی باید بین 1 تا 65535 باشد");
                 return false;
         }
 

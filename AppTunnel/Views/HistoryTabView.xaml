@@ -2,7 +2,9 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto" Padding="0,6,0,0">
+    <ScrollViewer FlowDirection="{Binding AppFlowDirection}"
+                  VerticalScrollBarVisibility="Auto"
+                  Padding="0,6,0,0">
         <StackPanel HorizontalAlignment="Stretch" Margin="10,0">
 
         <!-- History Header -->
@@ -35,10 +37,9 @@
                         Background="#15E07820" BorderBrush="#22E8803A" BorderThickness="1" CornerRadius="9"
                         Padding="12,8" Margin="0,10,0,0">
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Center"
-                                FlowDirection="LeftToRight">
+                                FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="مجموع مصرف تونل: " FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FlowDirection="RightToLeft"/>
+                                   Foreground="{StaticResource TextSecondaryBrush}"/>
                         <TextBlock Text="{Binding TotalHistoryData}" FontSize="13"
                                    FontWeight="Bold"
                                    Foreground="{StaticResource WarningBrush}"/>

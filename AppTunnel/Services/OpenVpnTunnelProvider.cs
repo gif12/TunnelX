@@ -38,7 +38,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         _assignedLocalIp = "";
         while (_recentOpenVpnOutput.TryDequeue(out _)) { }
         Status.State = ConnectionState.Connecting;
-        Status.Message = "در حال اجرای OpenVPN در حالت Split...";
+        Status.Message = LocalizationService.Instance.T("در حال اجرای OpenVPN در حالت Split...");
         Logger.Info("[OpenVPN] ConnectAsync started");
 
         try
@@ -48,8 +48,8 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             {
                 Status.State = ConnectionState.Error;
                 Status.Message = IsOpenVpnConnectInstalled()
-                    ? "فقط OpenVPN Connect پیدا شد. برای Split Tunneling باید OpenVPN Community (openvpn.exe) هم نصب باشد."
-                    : "OpenVPN Community پیدا نشد. برای Split Tunneling باید openvpn.exe نصب باشد.";
+                    ? LocalizationService.Instance.T("فقط OpenVPN Connect پیدا شد. برای Split Tunneling باید OpenVPN Community (openvpn.exe) هم نصب باشد.")
+                    : LocalizationService.Instance.T("OpenVPN Community پیدا نشد. برای Split Tunneling باید openvpn.exe نصب باشد.");
                 Logger.Error("[OpenVPN] Executable not found. Searched:");
                 foreach (var p in GetCandidatePaths())
                     Logger.Error($"  '{p}' → {(File.Exists(p) ? "FOUND" : "not found")}");
@@ -60,7 +60,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             if (string.IsNullOrWhiteSpace(config.OpenVpnConfig))
             {
                 Status.State = ConnectionState.Error;
-                Status.Message = "کانفیگ OpenVPN (.ovpn) وارد نشده است.";
+                Status.Message = LocalizationService.Instance.T("کانفیگ OpenVPN (.ovpn) وارد نشده است.");
                 return false;
             }
 
@@ -92,7 +92,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             _ = Task.Run(() => PumpOpenVpnOutputAsync(_process.StandardError, ct));
             Logger.Info($"[OpenVPN] Process started PID={_process.Id}");
 
-            Status.Message = "OpenVPN در حال اتصال است؛ مسیرهای پیش‌فرض آن برای Split Tunnel نادیده گرفته می‌شوند...";
+            Status.Message = LocalizationService.Instance.T("OpenVPN در حال اتصال است؛ مسیرهای پیش‌فرض آن برای Split Tunnel نادیده گرفته می‌شوند...");
             Logger.Info("[OpenVPN] Waiting up to 180s for VPN adapter to come Up...");
 
             var deadline = DateTime.UtcNow.AddSeconds(180);
@@ -115,11 +115,11 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 if (_process.HasExited)
                 {
                     Status.State = ConnectionState.Error;
-                    Status.Message = $"OpenVPN زودتر از اتصال بسته شد (exit={_process.ExitCode})";
+                    Status.Message = LocalizationService.Instance.Format("OpenVPN زودتر از اتصال بسته شد (exit={0})", _process.ExitCode);
                     return false;
                 }
 
-                Status.Message = $"منتظر بالا آمدن آداپتر OpenVPN... ({remaining}s)";
+                Status.Message = LocalizationService.Instance.Format("منتظر بالا آمدن آداپتر OpenVPN... ({0}s)", remaining);
                 await Task.Delay(500, ct);
             }
 
@@ -130,7 +130,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
                     Logger.Error($"  name='{nic.Name}' desc='{nic.Description}' status={nic.OperationalStatus}");
                 Status.State = ConnectionState.Error;
-                Status.Message = "آداپتور OpenVPN بالا نیامد. لاگ OpenVPN را بررسی کنید؛ ممکن است ریموت اول پاسخ ندهد یا احراز هویت/شبکه مشکل داشته باشد.";
+                Status.Message = LocalizationService.Instance.T("آداپتور OpenVPN بالا نیامد. لاگ OpenVPN را بررسی کنید؛ ممکن است ریموت اول پاسخ ندهد یا احراز هویت/شبکه مشکل داشته باشد.");
                 await KillProcessAsync();
                 return false;
             }
@@ -144,7 +144,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 : ResolveRemoteForRouting(remoteHost);
             Status.VpnServerPort = _connectedRemotePort;
             Status.VpnGatewayIp = _routeGatewayIp;
-            Status.Message = "OpenVPN متصل شد (Split Tunnel)";
+            Status.Message = LocalizationService.Instance.T("OpenVPN متصل شد (Split Tunnel)");
             Logger.Info($"[OpenVPN] Connected. LocalIP={Status.VpnLocalIp} Gateway={Status.VpnGatewayIp} Remote={Status.VpnServerIp}:{Status.VpnServerPort}");
 
             return true;
@@ -152,14 +152,14 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         catch (OperationCanceledException)
         {
             Status.State = ConnectionState.Disconnected;
-            Status.Message = "اتصال لغو شد";
+            Status.Message = LocalizationService.Instance.T("اتصال لغو شد");
             await KillProcessAsync();
             return false;
         }
         catch (Exception ex)
         {
             Status.State = ConnectionState.Error;
-            Status.Message = $"خطا: {ex.Message}";
+            Status.Message = LocalizationService.Instance.Format("خطا: {0}", ex.Message);
             Logger.Error("OpenVpnTunnelProvider.ConnectAsync failed", ex);
             await KillProcessAsync();
             return false;
@@ -169,7 +169,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     public async Task DisconnectAsync()
     {
         Status.State = ConnectionState.Disconnecting;
-        Status.Message = "در حال قطع اتصال OpenVPN...";
+        Status.Message = LocalizationService.Instance.T("در حال قطع اتصال OpenVPN...");
         await KillProcessAsync();
         _vpnInterfaceIndex = -1;
         Status.State = ConnectionState.Disconnected;
@@ -179,7 +179,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         Status.VpnServerPort = 0;
         Status.VpnGatewayIp = string.Empty;
         Status.VpnInterfaceIndex = -1;
-        Status.Message = "قطع شد";
+        Status.Message = LocalizationService.Instance.T("قطع شد");
     }
 
     public bool IsInterfaceUp()
@@ -230,7 +230,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         Status.VpnGatewayIp = _routeGatewayIp;
         Status.VpnServerIp = _connectedRemoteIp;
         Status.VpnServerPort = _connectedRemotePort;
-        Status.Message = "OpenVPN متصل شد (Split Tunnel)";
+        Status.Message = LocalizationService.Instance.T("OpenVPN متصل شد (Split Tunnel)");
         Logger.Warning($"[OpenVPN] Runtime endpoint changed. LocalIP={Status.VpnLocalIp} Gateway={Status.VpnGatewayIp} Remote={Status.VpnServerIp}:{Status.VpnServerPort} IF={Status.VpnInterfaceIndex}");
         return true;
     }

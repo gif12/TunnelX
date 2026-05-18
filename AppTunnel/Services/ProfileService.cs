@@ -90,6 +90,7 @@ public class ProfileService
         public bool StartWithWindows { get; set; } = false;
         public bool AutoConnectOnStartup { get; set; } = false;
         public string? LastActiveProfileId { get; set; } = null;
+        public string Language { get; set; } = LocalizationService.AutoLanguage;
     }
 
     /// <summary>

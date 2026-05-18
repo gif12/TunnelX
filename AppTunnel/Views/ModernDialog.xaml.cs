@@ -1,4 +1,5 @@
 using System.Windows;
+using AppTunnel.Services;
 using Application = System.Windows.Application;
 
 namespace AppTunnel.Views;
@@ -14,6 +15,7 @@ public partial class ModernDialog : Window
     public ModernDialog()
     {
         InitializeComponent();
+        Loaded += (_, _) => LocalizationService.Instance.ApplyTo(this);
     }
 
     /// <summary>
@@ -24,11 +26,11 @@ public partial class ModernDialog : Window
         var dialog = new ModernDialog
         {
             Owner = owner ?? Application.Current.MainWindow,
-            TitleText = { Text = title },
-            MessageText = { Text = message },
+            TitleText = { Text = LocalizationService.Instance.T(title) },
+            MessageText = { Text = LocalizationService.Instance.T(message) },
             IconText = { Text = "⚠️" },
-            PrimaryButton = { Content = "بله" },
-            SecondaryButton = { Content = "خیر" }
+            PrimaryButton = { Content = LocalizationService.Instance.T("بله") },
+            SecondaryButton = { Content = LocalizationService.Instance.T("خیر") }
         };
         
         dialog.ShowDialog();
@@ -43,10 +45,10 @@ public partial class ModernDialog : Window
         var dialog = new ModernDialog
         {
             Owner = owner ?? Application.Current.MainWindow,
-            TitleText = { Text = title },
-            MessageText = { Text = message },
+            TitleText = { Text = LocalizationService.Instance.T(title) },
+            MessageText = { Text = LocalizationService.Instance.T(message) },
             IconText = { Text = "ℹ️" },
-            PrimaryButton = { Content = "متوجه شدم", Visibility = Visibility.Visible },
+            PrimaryButton = { Content = LocalizationService.Instance.T("متوجه شدم"), Visibility = Visibility.Visible },
             SecondaryButton = { Visibility = Visibility.Collapsed }
         };
         
@@ -61,10 +63,10 @@ public partial class ModernDialog : Window
         var dialog = new ModernDialog
         {
             Owner = owner ?? Application.Current.MainWindow,
-            TitleText = { Text = title },
-            MessageText = { Text = message },
+            TitleText = { Text = LocalizationService.Instance.T(title) },
+            MessageText = { Text = LocalizationService.Instance.T(message) },
             IconText = { Text = "✅" },
-            PrimaryButton = { Content = "عالی", Visibility = Visibility.Visible },
+            PrimaryButton = { Content = LocalizationService.Instance.T("عالی"), Visibility = Visibility.Visible },
             SecondaryButton = { Visibility = Visibility.Collapsed }
         };
         
@@ -79,10 +81,10 @@ public partial class ModernDialog : Window
         var dialog = new ModernDialog
         {
             Owner = owner ?? Application.Current.MainWindow,
-            TitleText = { Text = title },
-            MessageText = { Text = message },
+            TitleText = { Text = LocalizationService.Instance.T(title) },
+            MessageText = { Text = LocalizationService.Instance.T(message) },
             IconText = { Text = "❌" },
-            PrimaryButton = { Content = "متوجه شدم", Visibility = Visibility.Visible },
+            PrimaryButton = { Content = LocalizationService.Instance.T("متوجه شدم"), Visibility = Visibility.Visible },
             SecondaryButton = { Visibility = Visibility.Collapsed }
         };
         
@@ -97,10 +99,10 @@ public partial class ModernDialog : Window
         var dialog = new ModernDialog
         {
             Owner = owner ?? Application.Current.MainWindow,
-            TitleText = { Text = title },
-            MessageText = { Text = message },
+            TitleText = { Text = LocalizationService.Instance.T(title) },
+            MessageText = { Text = LocalizationService.Instance.T(message) },
             IconText = { Text = "⚠️" },
-            PrimaryButton = { Content = "متوجه شدم", Visibility = Visibility.Visible },
+            PrimaryButton = { Content = LocalizationService.Instance.T("متوجه شدم"), Visibility = Visibility.Visible },
             SecondaryButton = { Visibility = Visibility.Collapsed }
         };
         

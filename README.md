@@ -91,11 +91,11 @@ Logs can contain process names, hostnames, IP addresses, ports, and connection s
 
 | Connection dashboard | Profile and server setup |
 | --- | --- |
-| ![TunnelX connection dashboard](docs/ScreenShots/Screenshot%202026-05-12%20115349.png) | ![TunnelX profile and server setup](docs/ScreenShots/Screenshot%202026-05-12%20115544.png) |
+| ![TunnelX connection dashboard](docs/ScreenShots/en/connection-dashboard.png) | ![TunnelX app split tunneling](docs/ScreenShots/en/apps.png) |
 
-| App split tunneling | Tunnel settings |
+| Routing rules | Help and troubleshooting |
 | --- | --- |
-| ![TunnelX app split tunneling](docs/ScreenShots/Screenshot%202026-05-12%20115646.png) | ![TunnelX tunnel settings](docs/ScreenShots/Screenshot%202026-05-12%20115718.png) |
+| ![TunnelX routing rules](docs/ScreenShots/en/routing-rules.png) | ![TunnelX help and troubleshooting](docs/ScreenShots/en/help.png) |
 
 ## Download
 

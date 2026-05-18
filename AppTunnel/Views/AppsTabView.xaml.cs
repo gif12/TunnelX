@@ -28,4 +28,14 @@ public partial class AppsTabView : System.Windows.Controls.UserControl
             e.Handled = true;
         }
     }
+
+    private void OnAvailableAppAddClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement element && element.DataContext is AppItemViewModel app
+            && DataContext is MainViewModel vm)
+        {
+            vm.AddAppToTunnel(app);
+            e.Handled = true;
+        }
+    }
 }

@@ -1,5 +1,6 @@
 using System.Windows;
 using AppTunnel.Views;
+using AppTunnel.Services;
 using Application = System.Windows.Application;
 
 namespace AppTunnel.Helpers;
@@ -19,7 +20,7 @@ public static class DialogService
     /// <returns>true اگر کاربر "بله" را انتخاب کند</returns>
     public static bool Confirm(string message, string title = "تاییدیه", Window? owner = null)
     {
-        return ModernDialog.ShowConfirm(message, title, owner);
+        return ModernDialog.ShowConfirm(LocalizationService.Instance.T(message), LocalizationService.Instance.T(title), owner);
     }
 
     /// <summary>
@@ -27,7 +28,7 @@ public static class DialogService
     /// </summary>
     public static void Info(string message, string title = "اطلاعات", Window? owner = null)
     {
-        ModernDialog.ShowInfo(message, title, owner);
+        ModernDialog.ShowInfo(LocalizationService.Instance.T(message), LocalizationService.Instance.T(title), owner);
     }
 
     /// <summary>
@@ -35,7 +36,7 @@ public static class DialogService
     /// </summary>
     public static void Success(string message, string title = "موفقیت", Window? owner = null)
     {
-        ModernDialog.ShowSuccess(message, title, owner);
+        ModernDialog.ShowSuccess(LocalizationService.Instance.T(message), LocalizationService.Instance.T(title), owner);
     }
 
     /// <summary>
@@ -43,7 +44,7 @@ public static class DialogService
     /// </summary>
     public static void Error(string message, string title = "خطا", Window? owner = null)
     {
-        ModernDialog.ShowError(message, title, owner);
+        ModernDialog.ShowError(LocalizationService.Instance.T(message), LocalizationService.Instance.T(title), owner);
     }
 
     /// <summary>
@@ -51,7 +52,7 @@ public static class DialogService
     /// </summary>
     public static void Warning(string message, string title = "هشدار", Window? owner = null)
     {
-        ModernDialog.ShowWarning(message, title, owner);
+        ModernDialog.ShowWarning(LocalizationService.Instance.T(message), LocalizationService.Instance.T(title), owner);
     }
 
     /// <summary>
@@ -59,7 +60,7 @@ public static class DialogService
     /// </summary>
     public static void ShowCopied(string itemName = "متن")
     {
-        ShowToast($"{itemName} کپی شد", "✅");
+        ShowToast(LocalizationService.Instance.Format("{0} کپی شد", itemName), "✅");
     }
 
     /// <summary>
@@ -69,7 +70,7 @@ public static class DialogService
     {
         if (Application.Current.MainWindow is MainWindow mainWindow)
         {
-            mainWindow.ShowToast(message, icon);
+            mainWindow.ShowToast(LocalizationService.Instance.T(message), icon);
         }
     }
 }

@@ -14,8 +14,8 @@ public class XrayTunnelProvider : ITunnelProvider
     private const string TunAddress = "172.18.0.1/30";
     private const string VpnLocalIp = "172.18.0.1";
     private const int DefaultTunMtu = 1500;
-    private const int MixedProxyPort = 2080;
-    private const int XraySocksPort = 2081;
+    private const int DefaultMixedProxyPort = 2080;
+    private const int DefaultXraySocksPort = 2081;
 
     private readonly string _workDir;
     private readonly string _xrayConfigPath;
@@ -53,7 +53,7 @@ public class XrayTunnelProvider : ITunnelProvider
     public async Task<bool> ConnectAsync(ServerConfig config, CancellationToken ct)
     {
         Status.State = ConnectionState.Connecting;
-        Status.Message = "در حال آماده سازی Xray...";
+        Status.Message = LocalizationService.Instance.T("در حال آماده سازی Xray...");
 
         try
         {
@@ -62,9 +62,9 @@ public class XrayTunnelProvider : ITunnelProvider
             await EnsureEmbeddedExeExtractedAsync("sing-box.exe", _singBoxExe, ct);
 
             if (!File.Exists(_xrayExe))
-                return Fail($"فایل xray.exe پیدا نشد: {_xrayExe}");
+                return Fail(LocalizationService.Instance.Format("فایل xray.exe پیدا نشد: {0}", _xrayExe));
             if (!File.Exists(_singBoxExe))
-                return Fail($"فایل sing-box.exe پیدا نشد: {_singBoxExe}");
+                return Fail(LocalizationService.Instance.Format("فایل sing-box.exe پیدا نشد: {0}", _singBoxExe));
 
             var outbound = BuildXrayOutbound(config.V2RayConfig);
             if (config.EnableDnsOptimization)
@@ -85,11 +85,22 @@ public class XrayTunnelProvider : ITunnelProvider
                 Logger.Info($"[MTU] Auto-tune disabled; using MTU={tunMtu}");
             }
 
-            var xrayJson = BuildXraySocksConfig(outbound);
-            var singBoxJson = BuildTunBridgeConfig(tunMtu);
+            using var xraySocksPortReservation = LocalPortReservation.ReservePreferredOrRandom(DefaultXraySocksPort);
+            using var mixedProxyPortReservation = LocalPortReservation.ReservePreferredOrRandom(
+                DefaultMixedProxyPort,
+                xraySocksPortReservation.Port);
+            var xraySocksPort = xraySocksPortReservation.Port;
+            var mixedProxyPort = mixedProxyPortReservation.Port;
+            Logger.Info($"[PORT] Xray SOCKS=127.0.0.1:{xraySocksPort}, mixed proxy=127.0.0.1:{mixedProxyPort}");
+
+            var xrayJson = BuildXraySocksConfig(outbound, xraySocksPort);
+            var singBoxJson = BuildTunBridgeConfig(tunMtu, mixedProxyPort, xraySocksPort);
 
             await File.WriteAllTextAsync(_xrayConfigPath, xrayJson, new UTF8Encoding(false), ct);
             await File.WriteAllTextAsync(_singBoxConfigPath, singBoxJson, new UTF8Encoding(false), ct);
+
+            xraySocksPortReservation.Dispose();
+            mixedProxyPortReservation.Dispose();
 
             _xrayProcess = StartProcess(
                 _xrayExe,
@@ -106,13 +117,13 @@ public class XrayTunnelProvider : ITunnelProvider
                 "[sing-box bridge stderr]");
 
             Logger.Info($"sing-box TUN bridge started (PID {_singBoxProcess.Id})");
-            Status.Message = "در حال انتظار برای interface TunnelX-V2Ray...";
+            Status.Message = LocalizationService.Instance.T("در حال انتظار برای interface TunnelX-V2Ray...");
 
             var interfaceIndex = await WaitForTunInterfaceAsync(ct);
             if (interfaceIndex <= 0)
             {
                 await KillProcessAsync();
-                return Fail("interface TunnelX-V2Ray ظاهر نشد (timeout 10s)");
+                return Fail(LocalizationService.Instance.T("interface TunnelX-V2Ray ظاهر نشد (timeout 10s)"));
             }
 
             _vpnInterfaceIndex = interfaceIndex;
@@ -123,7 +134,7 @@ public class XrayTunnelProvider : ITunnelProvider
             Status.VpnServerIp = Status.VpnServerHost;
             Status.VpnServerPort = ExtractServerPort(config.V2RayConfig);
             Status.VpnInterfaceIndex = interfaceIndex;
-            Status.SingBoxMixedPort = MixedProxyPort;
+            Status.SingBoxMixedPort = mixedProxyPort;
             Status.Message = "Xray connected";
 
             Logger.Info($"Xray tunnel up via sing-box TUN bridge — interface index {interfaceIndex}, server={Status.VpnServerIp}");
@@ -132,7 +143,7 @@ public class XrayTunnelProvider : ITunnelProvider
         catch (OperationCanceledException)
         {
             Status.State = ConnectionState.Disconnected;
-            Status.Message = "اتصال لغو شد";
+            Status.Message = LocalizationService.Instance.T("اتصال لغو شد");
             await KillProcessAsync();
             return false;
         }
@@ -140,7 +151,7 @@ public class XrayTunnelProvider : ITunnelProvider
         {
             Logger.Error("XrayTunnelProvider.ConnectAsync failed", ex);
             Status.State = ConnectionState.Error;
-            Status.Message = $"خطا: {ex.Message}";
+            Status.Message = LocalizationService.Instance.Format("خطا: {0}", ex.Message);
             await KillProcessAsync();
             return false;
         }
@@ -149,7 +160,7 @@ public class XrayTunnelProvider : ITunnelProvider
     public async Task DisconnectAsync()
     {
         Status.State = ConnectionState.Disconnecting;
-        Status.Message = "در حال قطع اتصال Xray...";
+        Status.Message = LocalizationService.Instance.T("در حال قطع اتصال Xray...");
 
         await KillProcessAsync();
 
@@ -165,7 +176,7 @@ public class XrayTunnelProvider : ITunnelProvider
         Status.VpnServerPort = 0;
         Status.VpnInterfaceIndex = -1;
         Status.SingBoxMixedPort = 0;
-        Status.Message = "قطع شد";
+        Status.Message = LocalizationService.Instance.T("قطع شد");
     }
 
     public bool IsInterfaceUp()
@@ -219,7 +230,7 @@ public class XrayTunnelProvider : ITunnelProvider
         throw new InvalidOperationException("xhttp فعلا فقط برای vless:// یا JSON دارای outbound xhttp پشتیبانی می‌شود");
     }
 
-    private static string BuildXraySocksConfig(JsonObject outbound)
+    private static string BuildXraySocksConfig(JsonObject outbound, int xraySocksPort)
     {
         var doc = new JsonObject
         {
@@ -229,7 +240,7 @@ public class XrayTunnelProvider : ITunnelProvider
                 new JsonObject
                 {
                     ["listen"] = "127.0.0.1",
-                    ["port"] = XraySocksPort,
+                    ["port"] = xraySocksPort,
                     ["protocol"] = "socks",
                     ["settings"] = new JsonObject
                     {
@@ -265,7 +276,7 @@ public class XrayTunnelProvider : ITunnelProvider
         }
     }
 
-    private static string BuildTunBridgeConfig(int tunMtu)
+    private static string BuildTunBridgeConfig(int tunMtu, int mixedProxyPort, int xraySocksPort)
     {
         var doc = new JsonObject
         {
@@ -288,7 +299,7 @@ public class XrayTunnelProvider : ITunnelProvider
                     ["type"] = "mixed",
                     ["tag"] = "mixed-in",
                     ["listen"] = "127.0.0.1",
-                    ["listen_port"] = MixedProxyPort
+                    ["listen_port"] = mixedProxyPort
                 }
             },
             ["outbounds"] = new JsonArray
@@ -298,7 +309,7 @@ public class XrayTunnelProvider : ITunnelProvider
                     ["type"] = "socks",
                     ["tag"] = "xray-socks",
                     ["server"] = "127.0.0.1",
-                    ["server_port"] = XraySocksPort,
+                    ["server_port"] = xraySocksPort,
                     ["version"] = "5"
                 },
                 new JsonObject { ["type"] = "direct", ["tag"] = "direct" }
@@ -491,9 +502,9 @@ public class XrayTunnelProvider : ITunnelProvider
         while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
         {
             if (_xrayProcess?.HasExited == true)
-                throw new InvalidOperationException($"xray زودتر خارج شد (exit code {_xrayProcess.ExitCode})");
+                throw new InvalidOperationException(LocalizationService.Instance.Format("xray زودتر خارج شد (exit code {0})", _xrayProcess.ExitCode));
             if (_singBoxProcess?.HasExited == true)
-                throw new InvalidOperationException($"sing-box bridge زودتر خارج شد (exit code {_singBoxProcess.ExitCode})");
+                throw new InvalidOperationException(LocalizationService.Instance.Format("sing-box bridge زودتر خارج شد (exit code {0})", _singBoxProcess.ExitCode));
 
             var idx = FindInterfaceIndex(TunInterfaceName);
             if (idx > 0) return idx;

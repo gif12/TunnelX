@@ -24,7 +24,7 @@ public class L2tpTunnelProvider : ITunnelProvider
         _config = config;
         _vpnInterfaceIndex = -1;
         Status.State = ConnectionState.Connecting;
-        Status.Message = "در حال ایجاد اتصال VPN...";
+        Status.Message = LocalizationService.Instance.T("در حال ایجاد اتصال VPN...");
         Logger.Info($"Starting VPN connection to {config.ServerAddress}");
 
         try
@@ -107,13 +107,13 @@ public class L2tpTunnelProvider : ITunnelProvider
             if (!createResult.Success)
             {
                 Status.State   = ConnectionState.Error;
-                Status.Message = $"خطا در ایجاد VPN: {createResult.Error}";
+                Status.Message = LocalizationService.Instance.Format("خطا در ایجاد VPN: {0}", createResult.Error);
                 Logger.Error($"VPN creation failed: {createResult.Error}");
                 return false;
             }
             Logger.Info("VPN connection profile created successfully");
 
-            Status.Message = "در حال اتصال به سرور...";
+            Status.Message = LocalizationService.Instance.T("در حال اتصال به سرور...");
 
             // Step 3: Connect using rasdial (60-second timeout for L2TP negotiation)
             var connectResult = await RunProcessAsync(
@@ -126,7 +126,7 @@ public class L2tpTunnelProvider : ITunnelProvider
             {
                 Status.State   = ConnectionState.Error;
                 var errorMsg   = MapRasDialError(connectResult.ExitCode, connectResult.Output, connectResult.Error);
-                Status.Message = $"خطا: {errorMsg}";
+                Status.Message = LocalizationService.Instance.Format("خطا: {0}", errorMsg);
                 Logger.Error($"VPN connection failed: ExitCode={connectResult.ExitCode}, Error={errorMsg}");
                 return false;
             }
@@ -143,7 +143,7 @@ public class L2tpTunnelProvider : ITunnelProvider
             Status.VpnLocalIp        = vpnInfo.localIp;
             Status.VpnServerIp       = config.ServerAddress;
             Status.VpnInterfaceIndex = vpnInfo.interfaceIndex;
-            Status.Message           = $"متصل — IP: {vpnInfo.localIp}";
+            Status.Message           = LocalizationService.Instance.Format("متصل — IP: {0}", vpnInfo.localIp);
             Logger.Info($"VPN fully connected. Local IP: {vpnInfo.localIp}, Interface Index: {vpnInfo.interfaceIndex}");
 
             return true;
@@ -151,14 +151,14 @@ public class L2tpTunnelProvider : ITunnelProvider
         catch (OperationCanceledException)
         {
             Status.State   = ConnectionState.Disconnected;
-            Status.Message = "اتصال لغو شد";
+            Status.Message = LocalizationService.Instance.T("اتصال لغو شد");
             Logger.Warning("VPN connection cancelled by user");
             return false;
         }
         catch (Exception ex)
         {
             Status.State   = ConnectionState.Error;
-            Status.Message = $"خطا: {ex.Message}";
+            Status.Message = LocalizationService.Instance.Format("خطا: {0}", ex.Message);
             Logger.Error("VPN connection failed with exception", ex);
             return false;
         }
@@ -173,7 +173,7 @@ public class L2tpTunnelProvider : ITunnelProvider
         if (_config == null) return;
 
         Status.State   = ConnectionState.Disconnecting;
-        Status.Message = "در حال قطع اتصال...";
+        Status.Message = LocalizationService.Instance.T("در حال قطع اتصال...");
 
         try
         {
@@ -195,7 +195,7 @@ public class L2tpTunnelProvider : ITunnelProvider
             Status.ConnectedSince    = null;
             Status.VpnLocalIp        = string.Empty;
             Status.VpnInterfaceIndex = -1;
-            Status.Message           = "قطع شد";
+            Status.Message           = LocalizationService.Instance.T("قطع شد");
         }
     }
 
@@ -281,23 +281,23 @@ public class L2tpTunnelProvider : ITunnelProvider
     private static string MapRasDialError(int exitCode, string output, string error) =>
         exitCode switch
         {
-            691 => "نام کاربری یا رمز عبور اشتباه است",
-            692 => "پورت یا دستگاه اشغال است",
-            718 => "انتظار برای پاسخ سرور به اتمام رسید (زمان‌بر)",
-            720 => "پروتکل PPP بین کلاینت و سرور مطابقت ندارد",
-            734 => "پروتکل Link Control قطع شد",
-            735 => "آدرس درخواستی توسط سرور رد شد",
-            742 => "رایانه به اینترنت متصل نیست",
-            768 => "رمزنگاری L2TP/IPsec شکست خورد - PSK یا تنظیمات سرور را بررسی کنید",
-            769 => "مقصد در دسترس نیست (سرور خاموش یا آدرس اشتباه)",
-            781 => "Pre-Shared Key (PSK) اشتباه است",
-            787 => "رمزنگاری L2TP شکست خورد",
-            800 => "سرور VPN در دسترس نیست",
-            809 => "نوع شبکه را نمی‌توان مشخص کرد (فایروال مسدود کرده)",
-            812 => "اتصال قبلی باعث تضاد شده",
+            691 => LocalizationService.Instance.T("نام کاربری یا رمز عبور اشتباه است"),
+            692 => LocalizationService.Instance.T("پورت یا دستگاه اشغال است"),
+            718 => LocalizationService.Instance.T("انتظار برای پاسخ سرور به اتمام رسید (زمان‌بر)"),
+            720 => LocalizationService.Instance.T("پروتکل PPP بین کلاینت و سرور مطابقت ندارد"),
+            734 => LocalizationService.Instance.T("پروتکل Link Control قطع شد"),
+            735 => LocalizationService.Instance.T("آدرس درخواستی توسط سرور رد شد"),
+            742 => LocalizationService.Instance.T("رایانه به اینترنت متصل نیست"),
+            768 => LocalizationService.Instance.T("رمزنگاری L2TP/IPsec شکست خورد - PSK یا تنظیمات سرور را بررسی کنید"),
+            769 => LocalizationService.Instance.T("مقصد در دسترس نیست (سرور خاموش یا آدرس اشتباه)"),
+            781 => LocalizationService.Instance.T("Pre-Shared Key (PSK) اشتباه است"),
+            787 => LocalizationService.Instance.T("رمزنگاری L2TP شکست خورد"),
+            800 => LocalizationService.Instance.T("سرور VPN در دسترس نیست"),
+            809 => LocalizationService.Instance.T("نوع شبکه را نمی‌توان مشخص کرد (فایروال مسدود کرده)"),
+            812 => LocalizationService.Instance.T("اتصال قبلی باعث تضاد شده"),
             _ when !string.IsNullOrWhiteSpace(error)  => error.Trim(),
             _ when !string.IsNullOrWhiteSpace(output) => output.Trim(),
-            _ => $"خطای ناشناخته (exit code: {exitCode})"
+            _ => LocalizationService.Instance.Format("خطای ناشناخته (exit code: {0})", exitCode)
         };
 
     private static string SanitizeForPowerShell(string value) => value.Replace("'", "''");

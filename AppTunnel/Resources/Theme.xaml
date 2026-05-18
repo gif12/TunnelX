@@ -5,9 +5,9 @@
     <FontFamily x:Key="AppFont">pack://application:,,,/AppTunnel;component/Fonts/#Vazirmatn, Vazirmatn, Vazir, Segoe UI, Tahoma</FontFamily>
 
     <!-- Color Palette: Windows 11 Dark Mode + Orange Accent -->
-    <Color x:Key="PrimaryColor">#E8803A</Color>
-    <Color x:Key="PrimaryDarkColor">#C46A2A</Color>
-    <Color x:Key="AccentColor">#F09848</Color>
+    <Color x:Key="PrimaryColor">#F97316</Color>
+    <Color x:Key="PrimaryDarkColor">#EA580C</Color>
+    <Color x:Key="AccentColor">#F97316</Color>
     <Color x:Key="BackgroundColor">#202020</Color>
     <Color x:Key="SurfaceColor">#282828</Color>
     <Color x:Key="CardColor">#2D2D2D</Color>
@@ -22,6 +22,10 @@
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
     <SolidColorBrush x:Key="PrimaryDarkBrush" Color="{StaticResource PrimaryDarkColor}"/>
     <SolidColorBrush x:Key="AccentBrush" Color="{StaticResource AccentColor}"/>
+    <LinearGradientBrush x:Key="PrimaryGradientBrush" StartPoint="0,0" EndPoint="1,1">
+        <GradientStop Color="#F97316" Offset="0"/>
+        <GradientStop Color="#F97316" Offset="1"/>
+    </LinearGradientBrush>
     <SolidColorBrush x:Key="BackgroundBrush" Color="{StaticResource BackgroundColor}"/>
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="CardBrush" Color="{StaticResource CardColor}"/>
@@ -61,6 +65,7 @@
                                        FontFamily="{TemplateBinding FontFamily}"
                                        Foreground="#555555"
                                        FontSize="{TemplateBinding FontSize}"
+                                       TextAlignment="{TemplateBinding TextAlignment}"
                                        Padding="{TemplateBinding Padding}"
                                        VerticalAlignment="Center"
                                        IsHitTestVisible="False"

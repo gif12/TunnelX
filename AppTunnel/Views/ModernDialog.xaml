@@ -1,14 +1,16 @@
 <Window x:Class="AppTunnel.Views.ModernDialog"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:services="clr-namespace:AppTunnel.Services"
         Title="TunnelX"
-        Width="340" Height="200"
-        MinWidth="300" MinHeight="170"
+        Width="360"
+        MinWidth="330" MinHeight="220"
+        SizeToContent="Height"
         WindowStartupLocation="CenterOwner"
         WindowStyle="None"
         AllowsTransparency="True"
         Background="Transparent"
-        FlowDirection="RightToLeft"
+        FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}"
         ShowInTaskbar="False"
         ResizeMode="NoResize">
 
@@ -21,11 +23,11 @@
             <DropShadowEffect Color="Black" BlurRadius="30" Opacity="0.7" ShadowDepth="0"/>
         </Border.Effect>
 
-        <Grid Margin="18">
+        <Grid Margin="20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
-                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
@@ -40,7 +42,9 @@
                        FontSize="15" FontWeight="Bold"
                        Foreground="{StaticResource TextPrimaryBrush}"
                        HorizontalAlignment="Center"
-                       Margin="0,0,0,8"/>
+                       TextWrapping="Wrap"
+                       TextAlignment="Center"
+                       Margin="0,0,0,10"/>
 
             <!-- Message -->
             <TextBlock x:Name="MessageText" Grid.Row="2"
@@ -50,14 +54,15 @@
                        TextWrapping="Wrap"
                        TextAlignment="Center"
                        HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="0,0,0,14"
-                       LineHeight="20"/>
+                       VerticalAlignment="Top"
+                       MaxWidth="310"
+                       Margin="0,0,0,18"
+                       LineHeight="22"/>
 
             <!-- Buttons -->
             <StackPanel Grid.Row="3" Orientation="Horizontal" 
                         HorizontalAlignment="Center" 
-                        FlowDirection="RightToLeft">
+                        FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}">
                 <Button x:Name="PrimaryButton" Content="بله" 
                         Style="{StaticResource PrimaryButton}"
                         MinWidth="80" Margin="0,0,6,0"

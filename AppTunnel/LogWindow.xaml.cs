@@ -11,9 +11,20 @@ public partial class LogWindow : Window
     public LogWindow()
     {
         InitializeComponent();
+        Loaded += (_, _) => LocalizationService.Instance.ApplyTo(this);
+        LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
         LoadLogs();
         Logger.LogAdded += OnLogAdded;
-        Closed += (_, _) => Logger.LogAdded -= OnLogAdded;
+        Closed += (_, _) =>
+        {
+            Logger.LogAdded -= OnLogAdded;
+            LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;
+        };
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        LocalizationService.Instance.ApplyTo(this);
     }
 
     private void LoadLogs()
@@ -46,19 +57,26 @@ public partial class LogWindow : Window
     {
         Logger.Clear();
         LogTextBox.Clear();
+        DialogService.Success(LocalizationService.Instance.T("لاگ‌ها پاک شدند"));
     }
 
     private void OnCopyClick(object sender, RoutedEventArgs e)
     {
         try
         {
+            if (string.IsNullOrWhiteSpace(LogTextBox.Text))
+            {
+                DialogService.Info(LocalizationService.Instance.T("لاگی برای کپی وجود ندارد"), "TunnelX");
+                return;
+            }
+
             Clipboard.SetText(LogTextBox.Text);
-            DialogService.ShowCopied("لاگ‌ها");
+            DialogService.ShowCopied(LocalizationService.Instance.T("لاگ‌ها"));
         }
         catch (Exception ex)
         {
             Logger.Error($"Failed to copy logs: {ex}");
-            DialogService.Error($"خطا در کپی کردن:\n{ex.Message}", "خطا");
+            DialogService.Error(LocalizationService.Instance.Format("خطا در کپی کردن:\n{0}", ex.Message), "خطا");
         }
     }
 }

@@ -1,0 +1,13 @@
+---
+description: WPF localization and direction rules for TunnelX
+alwaysApply: true
+---
+
+# TunnelX Localization Rules
+
+- Treat Persian XAML literals as source keys. Every visible `Text`, `Content`, `Header`, `ToolTip`, `Tag`, and `Run.Text` literal must have an English entry in `LocalizationService.EnglishTranslations()`.
+- Prefer bindings for dynamic UI text. Expose localization-aware ViewModel properties for stateful text, and raise `PropertyChanged` for them from `OnLanguageChanged()`.
+- For DataTemplate, lazy-loaded, and virtualized controls, do not rely on one-time traversal only. Ensure controls can be re-localized on `Loaded` and after language changes.
+- Preserve the original source string. If a control is first seen while English is active, recover the Persian source key from the reverse translation table instead of storing the English value as the original.
+- Bind layout direction to `AppFlowDirection` or `LocalizationService.FlowDirection`. Keep technical fields (`IP`, ports, paths, config, logs, crypto addresses) explicitly `LeftToRight` and left-aligned.
+- After adding UI, test both language directions by toggling Persian -> English -> Persian once and checking newly loaded tabs/templates.

@@ -37,7 +37,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             {
                 if (t.IsFaulted)
                     Application.Current?.Dispatcher.Invoke(() =>
-                        StatusText = $"خطا: {t.Exception?.InnerException?.Message}");
+                        StatusText = LocalizationService.Instance.Format("خطا: {0}", t.Exception?.InnerException?.Message));
             }, TaskScheduler.Default);
         }, _ => !IsBusy || ConnectionState == ConnectionState.Connecting);
         AddAppCommand = new RelayCommand(_ => AddCustomApp());
@@ -76,6 +76,9 @@ public partial class MainViewModel : INotifyPropertyChanged
         CopyDonationInfoCommand = new RelayCommand(_ => CopyDonationInfoToClipboard());
         CheckForUpdatesCommand = new RelayCommand(_ => _ = CheckForUpdatesAsync(false), _ => !IsCheckingForUpdates);
         OpenLatestReleaseCommand = new RelayCommand(_ => OpenExternalLink(LatestReleaseUrl), _ => !string.IsNullOrWhiteSpace(LatestReleaseUrl));
+        ToggleLanguageCommand = new RelayCommand(_ => ToggleLanguage());
+
+        LocalizationService.Instance.LanguageChanged += (_, _) => OnLanguageChanged();
 
         _trafficRouter.TrafficUpdated += OnTrafficUpdated;
 
@@ -114,7 +117,7 @@ public partial class MainViewModel : INotifyPropertyChanged
                 {
                     if (t.IsFaulted)
                         Application.Current?.Dispatcher.Invoke(() =>
-                            StatusText = $"خطای اتصال خودکار: {t.Exception?.InnerException?.Message}");
+                            StatusText = LocalizationService.Instance.Format("خطای اتصال خودکار: {0}", t.Exception?.InnerException?.Message));
                 }, TaskScheduler.Default);
             }
         }
@@ -197,7 +200,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     private string _mixedProxyPortStatusText = "";
     public string MixedProxyPortStatusText
     {
-        get => _mixedProxyPortStatusText;
+        get => LocalizationService.Instance.T(_mixedProxyPortStatusText);
         set { _mixedProxyPortStatusText = value; OnPropertyChanged(); }
     }
 
@@ -244,8 +247,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     }
 
     public string GameModeStatusText => IsGameModeEnabled
-        ? "Game Mode فعال است: Route نگهداری طولانی‌تر، DNS سریع‌تر و DSCP برای بسته‌های بازی اعمال می‌شود."
-        : "Game Mode غیرفعال است: حالت متعادل برای مصرف عمومی.";
+        ? LocalizationService.Instance.T("Game Mode فعال است: Route نگهداری طولانی‌تر، DNS سریع‌تر و DSCP برای بسته‌های بازی اعمال می‌شود.")
+        : LocalizationService.Instance.T("Game Mode غیرفعال است: حالت متعادل برای مصرف عمومی.");
 
     private bool _startWithWindows;
     public bool StartWithWindows
@@ -287,6 +290,19 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    public string LanguageToggleText => LocalizationService.Instance.ToggleLanguageText;
+    public bool AppIsRightToLeft => LocalizationService.Instance.IsRightToLeft;
+    public string AppTitleText => LocalizationService.Instance.IsRightToLeft ? "تانلکس" : "TunnelX";
+    public string AppTitleAccentText => LocalizationService.Instance.IsRightToLeft ? "س" : "X";
+    public System.Windows.FlowDirection AppTitleFlowDirection => LocalizationService.Instance.FlowDirection;
+    public System.Windows.HorizontalAlignment AppTitleAccentAlignment => LocalizationService.Instance.IsRightToLeft
+        ? System.Windows.HorizontalAlignment.Left
+        : System.Windows.HorizontalAlignment.Right;
+    public System.Windows.FlowDirection AppFlowDirection => LocalizationService.Instance.FlowDirection;
+    public System.Windows.TextAlignment AppTextAlignment => LocalizationService.Instance.TextAlignment;
+    public System.Windows.HorizontalAlignment AppStartHorizontalAlignment => LocalizationService.Instance.StartHorizontalAlignment;
+    public System.Windows.HorizontalAlignment AppEndHorizontalAlignment => LocalizationService.Instance.EndHorizontalAlignment;
+
     private bool _isBusy;
     public bool IsBusy
     {
@@ -310,6 +326,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsConnected));
             OnPropertyChanged(nameof(ConnectButtonText));
+            OnPropertyChanged(nameof(ConnectButtonToolTip));
             OnPropertyChanged(nameof(StatusColor));
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(IsOpenVpnConnectionPending));
@@ -351,8 +368,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     }
 
     public string OpenVpnPrerequisiteText => IsOpenVpnCommunityInstalled
-        ? $"پیش‌نیاز آماده است: نسخه Community اوپن‌وی‌پی‌ان پیدا شد: {OpenVpnDetectedPath}"
-        : "اخطار: نسخه Community اوپن‌وی‌پی‌ان نصب نیست. برای استفاده از اسپلیت‌تانلینگ با این نوع اتصال، ابتدا آن را از لینک رسمی نصب کنید.";
+        ? LocalizationService.Instance.Format("پیش‌نیاز آماده است: نسخه Community اوپن‌وی‌پی‌ان پیدا شد: {0}", OpenVpnDetectedPath)
+        : LocalizationService.Instance.T("اخطار: نسخه Community اوپن‌وی‌پی‌ان نصب نیست. برای استفاده از اسپلیت‌تانلینگ با این نوع اتصال، ابتدا آن را از لینک رسمی نصب کنید.");
 
     public string OpenVpnPrerequisiteColor => IsOpenVpnCommunityInstalled ? "#6CCB5F" : "#E0A020";
 
@@ -362,8 +379,13 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string AppCreatorText => AppInfo.CreatorText;
     public string AppGitHubUrl => AppInfo.GitHubUrl;
     public string AppLicenseText => AppInfo.LicenseName;
-    public string DonatePayPalText => $"پی‌پل: {AppInfo.PayPalEmail}";
-    public string CryptoDonationText => AppInfo.CryptoDonationText;
+    public string AppLicenseDisplayText => LocalizationService.Instance.Format("لایسنس: {0}", AppInfo.LicenseName);
+    public string DonatePayPalText => LocalizationService.Instance.IsRightToLeft
+        ? $"پی‌پل: {AppInfo.PayPalEmail}"
+        : $"PayPal: {AppInfo.PayPalEmail}";
+    public string CryptoDonationText => LocalizationService.Instance.IsRightToLeft
+        ? AppInfo.CryptoDonationText
+        : AppInfo.CryptoDonationTextEn;
 
     private bool _isCheckingForUpdates;
     public bool IsCheckingForUpdates
@@ -394,7 +416,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     private string _updateStatusText = "برای بررسی نسخه جدید، دکمه بررسی بروزرسانی را بزنید.";
     public string UpdateStatusText
     {
-        get => _updateStatusText;
+        get => LocalizationService.Instance.T(_updateStatusText);
         set
         {
             if (_updateStatusText == value) return;
@@ -416,16 +438,27 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public string UpdateButtonText => IsCheckingForUpdates ? "در حال بررسی..." : "بررسی بروزرسانی";
+    public string UpdateButtonText => IsCheckingForUpdates
+        ? LocalizationService.Instance.T("در حال بررسی...")
+        : LocalizationService.Instance.T("بررسی بروزرسانی");
 
     public string ConnectButtonText => _connectionState switch
     {
-        ConnectionState.Disconnected => "🔌  اتصال",
-        ConnectionState.Connecting => "❌  لغو اتصال",
-        ConnectionState.Connected => "🔴  قطع اتصال",
-        ConnectionState.Disconnecting => "⏳  در حال قطع...",
-        ConnectionState.Error => "🔌  اتصال مجدد",
-        _ => "اتصال"
+        ConnectionState.Disconnected => LocalizationService.Instance.T("🔌  اتصال"),
+        ConnectionState.Connecting => LocalizationService.Instance.T("❌  لغو اتصال"),
+        ConnectionState.Connected => LocalizationService.Instance.T("🔴  قطع اتصال"),
+        ConnectionState.Disconnecting => LocalizationService.Instance.T("⏳  در حال قطع..."),
+        ConnectionState.Error => LocalizationService.Instance.T("🔌  اتصال مجدد"),
+        _ => LocalizationService.Instance.T("اتصال")
+    };
+
+    public string ConnectButtonToolTip => _connectionState switch
+    {
+        ConnectionState.Connecting => LocalizationService.Instance.T("لغو تلاش اتصال"),
+        ConnectionState.Connected => LocalizationService.Instance.T("قطع اتصال فعلی"),
+        ConnectionState.Disconnecting => LocalizationService.Instance.T("در حال قطع اتصال..."),
+        ConnectionState.Error => LocalizationService.Instance.T("اتصال مجدد"),
+        _ => LocalizationService.Instance.T("شروع اتصال با پروفایل انتخاب‌شده")
     };
 
     public string StatusColor => _connectionState switch
@@ -439,7 +472,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     private string _statusText = "آماده اتصال";
     public string StatusText
     {
-        get => _statusText;
+        get => LocalizationService.Instance.T(_statusText);
         set { _statusText = value; OnPropertyChanged(); }
     }
 
@@ -663,21 +696,21 @@ public partial class MainViewModel : INotifyPropertyChanged
     private string _configCoreHint = "";
     public string ConfigCoreHint
     {
-        get => _configCoreHint;
+        get => LocalizationService.Instance.T(_configCoreHint);
         set { _configCoreHint = value; OnPropertyChanged(); }
     }
 
     private string _configValidationText = "";
     public string ConfigValidationText
     {
-        get => _configValidationText;
+        get => LocalizationService.Instance.T(_configValidationText);
         set { _configValidationText = value; OnPropertyChanged(); }
     }
 
     private string _saveStatusText = "";
     public string SaveStatusText
     {
-        get => _saveStatusText;
+        get => LocalizationService.Instance.T(_saveStatusText);
         set { _saveStatusText = value; OnPropertyChanged(); OnPropertyChanged(nameof(ProfileSaveHintText)); }
     }
 
@@ -698,11 +731,11 @@ public partial class MainViewModel : INotifyPropertyChanged
     private string _connectionIpText = "-";
     public string ConnectionIpText
     {
-        get => _connectionIpText;
+        get => LocalizationService.Instance.T(_connectionIpText);
         set { _connectionIpText = value; OnPropertyChanged(); }
     }
 
-    public string ConnectionIpLabel => "IP خروجی";
+    public string ConnectionIpLabel => LocalizationService.Instance.T("IP خروجی");
 
     private string _vpnAdapterName = "";
     public string VpnAdapterName
@@ -740,13 +773,15 @@ public partial class MainViewModel : INotifyPropertyChanged
     }
 
     public string FullRouteStatusText => _isFullRouteEnabled
-        ? "Full Route فعال است؛ کل سیستم از تونل عبور می‌کند"
-        : "Split فعال است؛ فقط برنامه‌ها و مقصدهای انتخابی از تونل عبور می‌کنند";
+        ? LocalizationService.Instance.T("Full Route فعال است؛ کل سیستم از تونل عبور می‌کند")
+        : LocalizationService.Instance.T("Split فعال است؛ فقط برنامه‌ها و مقصدهای انتخابی از تونل عبور می‌کنند");
 
-    public string RouteModeTitle => IsFullRouteEnabled ? "حالت کل سیستم" : "حالت انتخابی";
+    public string RouteModeTitle => IsFullRouteEnabled
+        ? LocalizationService.Instance.T("حالت کل سیستم")
+        : LocalizationService.Instance.T("حالت انتخابی");
     public string RouteModeDescription => IsFullRouteEnabled
-        ? "ترافیک کل سیستم از تونل عبور خواهد کرد؛ برای وقتی مناسب است که همه برنامه‌ها باید پشت تونل باشند."
-        : "فقط برنامه‌ها و مقصدهای انتخابی از تونل عبور می‌کنند؛ بقیه ترافیک مستقیم می‌ماند.";
+        ? LocalizationService.Instance.T("ترافیک کل سیستم از تونل عبور خواهد کرد؛ برای وقتی مناسب است که همه برنامه‌ها باید پشت تونل باشند.")
+        : LocalizationService.Instance.T("فقط برنامه‌ها و مقصدهای انتخابی از تونل عبور می‌کنند؛ بقیه ترافیک مستقیم می‌ماند.");
 
     public string HeaderCoreText => $"Core: {ActiveCoreName}";
     public string HeaderRouteText => IsFullRouteEnabled ? "Mode: Full" : "Mode: Split";
@@ -781,8 +816,8 @@ public partial class MainViewModel : INotifyPropertyChanged
         : "-";
 
     public string ConnectedBadgeText => CurrentTunnelType == TunnelType.SocksProxy
-        ? "متصل به پراکسی"
-        : "متصل به VPN";
+        ? LocalizationService.Instance.T("متصل به پراکسی")
+        : LocalizationService.Instance.T("متصل به VPN");
 
     private string ActiveCoreName => CurrentTunnelType switch
     {
@@ -836,7 +871,9 @@ public partial class MainViewModel : INotifyPropertyChanged
         set { _isPinging = value; OnPropertyChanged(); OnPropertyChanged(nameof(PingButtonText)); }
     }
 
-    public string PingButtonText => _isPinging ? "توقف تست" : "تست مقصد";
+    public string PingButtonText => _isPinging
+        ? LocalizationService.Instance.T("توقف تست")
+        : LocalizationService.Instance.T("تست مقصد");
 
     private bool _isTestingConnectedServerPing;
     public bool IsTestingConnectedServerPing
@@ -851,12 +888,14 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public string ConnectedServerPingButtonText => IsTestingConnectedServerPing ? "در حال پینگ..." : "پینگ سرور";
+    public string ConnectedServerPingButtonText => IsTestingConnectedServerPing
+        ? LocalizationService.Instance.T("در حال پینگ...")
+        : LocalizationService.Instance.T("پینگ سرور");
 
     private string _pingResult = "";
     public string PingResult
     {
-        get => _pingResult;
+        get => LocalizationService.Instance.T(_pingResult);
         set { _pingResult = value; OnPropertyChanged(); }
     }
 
@@ -873,12 +912,14 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    public string ServerPingButtonText => _isTestingServerPing ? "در حال تست..." : "تست سرور";
+    public string ServerPingButtonText => _isTestingServerPing
+        ? LocalizationService.Instance.T("در حال تست...")
+        : LocalizationService.Instance.T("تست سرور");
 
     private string _serverPingResult = "";
     public string ServerPingResult
     {
-        get => _serverPingResult;
+        get => LocalizationService.Instance.T(_serverPingResult);
         set { _serverPingResult = value; OnPropertyChanged(); }
     }
 
@@ -998,6 +1039,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     public ICommand CopyDonationInfoCommand { get; }
     public ICommand CheckForUpdatesCommand { get; }
     public ICommand OpenLatestReleaseCommand { get; }
+    public ICommand ToggleLanguageCommand { get; }
 
     #endregion
 
@@ -1024,10 +1066,10 @@ public partial class MainViewModel : INotifyPropertyChanged
         try
         {
             var text =
-                $"{AppInfo.AppName} - حمایت از پروژه\n" +
+                $"{AppInfo.AppName} - {LocalizationService.Instance.T("حمایت از پروژه")}\n" +
                 $"PayPal: {AppInfo.PayPalEmail}\n" +
                 $"PayPal link: {AppInfo.PayPalDonateUrl}\n\n" +
-                AppInfo.CryptoDonationText;
+                CryptoDonationText;
             System.Windows.Clipboard.SetText(text);
             Logger.Info("[UI] Donation info copied to clipboard");
         }
@@ -1065,13 +1107,13 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (latest.Version > current)
             {
                 IsUpdateAvailable = true;
-                UpdateStatusText = $"نسخه جدید آماده است: {latest.TagName} - برای دانلود از GitHub باز کنید.";
+                UpdateStatusText = LocalizationService.Instance.Format("نسخه جدید آماده است: {0} - برای دانلود از GitHub باز کنید.", latest.TagName);
                 Logger.Info($"[UPDATE] New version available: current={current} latest={latest.TagName}");
                 return;
             }
 
             IsUpdateAvailable = false;
-            UpdateStatusText = $"TunnelX به‌روز است. نسخه فعلی: {AppInfo.VersionText}";
+            UpdateStatusText = LocalizationService.Instance.Format("TunnelX به‌روز است. نسخه فعلی: {0}", AppInfo.VersionText);
             Logger.Info($"[UPDATE] App is up to date: current={current} latest={latest.TagName}");
         }
         catch (OperationCanceledException)
@@ -1083,7 +1125,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         catch (Exception ex)
         {
             if (!silent)
-                UpdateStatusText = $"بررسی بروزرسانی ناموفق بود: {ex.Message}";
+                UpdateStatusText = LocalizationService.Instance.Format("بررسی بروزرسانی ناموفق بود: {0}", ex.Message);
             Logger.Warning($"[UPDATE] Latest release check failed: {ex.Message}");
         }
         finally
@@ -1107,7 +1149,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            ConfigValidationText = $"خواندن کلیپ‌بورد ناموفق بود: {ex.Message}";
+            ConfigValidationText = LocalizationService.Instance.Format("خواندن کلیپ‌بورد ناموفق بود: {0}", ex.Message);
         }
     }
 
@@ -1126,8 +1168,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     {
         var dialog = new Microsoft.Win32.OpenFileDialog
         {
-            Title = "انتخاب فایل OpenVPN",
-            Filter = "OpenVPN config (*.ovpn)|*.ovpn|All files (*.*)|*.*",
+            Title = LocalizationService.Instance.T("انتخاب فایل OpenVPN"),
+            Filter = LocalizationService.Instance.T("OpenVPN config (*.ovpn)|*.ovpn|All files (*.*)|*.*"),
             CheckFileExists = true,
             Multiselect = false
         };
@@ -1141,7 +1183,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            ConfigValidationText = $"خواندن فایل OpenVPN ناموفق بود: {ex.Message}";
+            ConfigValidationText = LocalizationService.Instance.Format("خواندن فایل OpenVPN ناموفق بود: {0}", ex.Message);
         }
     }
 
@@ -1199,7 +1241,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             : "هسته: sing-box";
 
         ConfigValidationText = TryExtractProxyEndpoint(config, out var server, out var port, out var error)
-            ? $"سرور: {server}:{port}"
+            ? LocalizationService.Instance.Format("سرور: {0}:{1}", server, port)
             : error;
     }
 
@@ -1207,8 +1249,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     {
         var endpoint = $"{ProxyServerAddress.Trim()}:{ProxyPort}";
         return IsLoopbackProxyServer()
-            ? $"پراکسی آماده است: {endpoint} — توجه: این پراکسی محلی است؛ برنامه‌هایی که خودشان مستقیم از همین پراکسی استفاده کنند خارج از لیست برنامه‌های TunnelX هم پروکسی می‌شوند."
-            : $"پراکسی آماده است: {endpoint}";
+            ? LocalizationService.Instance.Format("پراکسی آماده است: {0} — توجه: این پراکسی محلی است؛ برنامه‌هایی که خودشان مستقیم از همین پراکسی استفاده کنند خارج از لیست برنامه‌های TunnelX هم پروکسی می‌شوند.", endpoint)
+            : LocalizationService.Instance.Format("پراکسی آماده است: {0}", endpoint);
     }
 
     private bool IsLoopbackProxyServer()
@@ -1291,8 +1333,11 @@ public partial class MainViewModel : INotifyPropertyChanged
         var currentName = _selectedProfile.Name?.Trim() ?? "";
         var canRename = string.IsNullOrWhiteSpace(currentName) ||
                         currentName.StartsWith("پروفایل ", StringComparison.OrdinalIgnoreCase) ||
+                        currentName.StartsWith("Profile ", StringComparison.OrdinalIgnoreCase) ||
                         currentName == "پروفایل جدید" ||
-                        currentName == "پیش‌فرض";
+                        currentName == "پیش‌فرض" ||
+                        currentName == "New Profile" ||
+                        currentName == "Default";
         if (!canRename)
             return;
 
@@ -1347,10 +1392,77 @@ public partial class MainViewModel : INotifyPropertyChanged
     private void LoadAppSettings()
     {
         _appSettings = _profileService.LoadAppSettings();
+        LocalizationService.Instance.Initialize(_appSettings.Language);
         _startWithWindows = _appSettings.StartWithWindows;
         _autoConnectOnStartup = _appSettings.AutoConnectOnStartup;
         OnPropertyChanged(nameof(StartWithWindows));
         OnPropertyChanged(nameof(AutoConnectOnStartup));
+        OnPropertyChanged(nameof(LanguageToggleText));
+        OnPropertyChanged(nameof(AppIsRightToLeft));
+        OnPropertyChanged(nameof(AppFlowDirection));
+        OnPropertyChanged(nameof(AppTextAlignment));
+        OnPropertyChanged(nameof(AppStartHorizontalAlignment));
+        OnPropertyChanged(nameof(AppEndHorizontalAlignment));
+    }
+
+    private void ToggleLanguage()
+    {
+        LocalizationService.Instance.ToggleLanguage();
+        _appSettings.Language = LocalizationService.Instance.EffectiveLanguage;
+        _profileService.SaveAppSettings(_appSettings);
+    }
+
+    private void OnLanguageChanged()
+    {
+        OnPropertyChanged(nameof(LanguageToggleText));
+        OnPropertyChanged(nameof(AppIsRightToLeft));
+        OnPropertyChanged(nameof(AppTitleText));
+        OnPropertyChanged(nameof(AppTitleAccentText));
+        OnPropertyChanged(nameof(AppTitleFlowDirection));
+        OnPropertyChanged(nameof(AppTitleAccentAlignment));
+        OnPropertyChanged(nameof(AppFlowDirection));
+        OnPropertyChanged(nameof(AppTextAlignment));
+        OnPropertyChanged(nameof(AppStartHorizontalAlignment));
+        OnPropertyChanged(nameof(AppEndHorizontalAlignment));
+        OnPropertyChanged(nameof(GameModeStatusText));
+        OnPropertyChanged(nameof(OpenVpnPrerequisiteText));
+        OnPropertyChanged(nameof(DonatePayPalText));
+        OnPropertyChanged(nameof(CryptoDonationText));
+        OnPropertyChanged(nameof(AppCreatorText));
+        OnPropertyChanged(nameof(UpdateButtonText));
+        OnPropertyChanged(nameof(UpdateStatusText));
+        OnPropertyChanged(nameof(ConnectButtonText));
+        OnPropertyChanged(nameof(ConnectButtonToolTip));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(MixedProxyPortStatusText));
+        OnPropertyChanged(nameof(AppLicenseDisplayText));
+        OnPropertyChanged(nameof(ConfigCoreHint));
+        OnPropertyChanged(nameof(ConfigValidationText));
+        OnPropertyChanged(nameof(SaveStatusText));
+        OnPropertyChanged(nameof(ConnectionIpText));
+        OnPropertyChanged(nameof(ConnectionIpLabel));
+        OnPropertyChanged(nameof(FullRouteStatusText));
+        OnPropertyChanged(nameof(RouteModeTitle));
+        OnPropertyChanged(nameof(RouteModeDescription));
+        OnPropertyChanged(nameof(HeaderCoreText));
+        OnPropertyChanged(nameof(HeaderRouteText));
+        OnPropertyChanged(nameof(HeaderLeakText));
+        OnPropertyChanged(nameof(HealthLeakText));
+        OnPropertyChanged(nameof(HealthDnsText));
+        OnPropertyChanged(nameof(HealthIpv6Text));
+        OnPropertyChanged(nameof(HealthRoutesText));
+        OnPropertyChanged(nameof(ConnectedBadgeText));
+        OnPropertyChanged(nameof(PingButtonText));
+        OnPropertyChanged(nameof(ConnectedServerPingButtonText));
+        OnPropertyChanged(nameof(ServerPingButtonText));
+        OnPropertyChanged(nameof(PingResult));
+        OnPropertyChanged(nameof(ServerPingResult));
+        OnPropertyChanged(nameof(ProfileCountText));
+        OnPropertyChanged(nameof(ActiveProfileTypeText));
+        OnPropertyChanged(nameof(ActiveProfileEndpointText));
+        OnPropertyChanged(nameof(ProfileSaveHintText));
+        RaiseProfileCardChanged();
+        OnPropertyChanged(nameof(Profiles));
     }
 
     private static void UpdateStartupRegistry(bool enable)

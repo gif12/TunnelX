@@ -536,26 +536,41 @@ public partial class MainViewModel
             return;
         }
 
-        try
+        var hosts = new[] { "api.ipify.org", "ipv4.icanhazip.com" };
+        Exception? lastError = null;
+
+        for (var attempt = 1; attempt <= 4 && _connectionState == ConnectionState.Connected; attempt++)
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-            var ip = await QueryPublicIpViaHttpConnectProxyAsync(proxyPort, cts.Token);
-            ConnectionIpText = string.IsNullOrWhiteSpace(ip) ? "-" : ip;
+            foreach (var host in hosts)
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+                    var ip = await QueryPublicIpViaHttpConnectProxyAsync(proxyPort, host, cts.Token);
+                    if (IPAddress.TryParse(ip, out _))
+                    {
+                        ConnectionIpText = ip;
+                        return;
+                    }
+                }
+                catch (Exception ex) when (ex is OperationCanceledException or IOException or SocketException or AuthenticationException)
+                {
+                    lastError = ex;
+                }
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(1200 * attempt));
         }
-        catch (OperationCanceledException)
-        {
-            ConnectionIpText = "timeout";
-        }
-        catch (Exception ex)
-        {
-            Logger.Warning($"[EXIT-IP] Public IP check failed: {ex.Message}");
+
+        if (lastError != null)
+            Logger.Warning($"[EXIT-IP] Public IP check failed after retries: {lastError.Message}");
+
+        if (_connectionState == ConnectionState.Connected)
             ConnectionIpText = "-";
-        }
     }
 
-    private static async Task<string> QueryPublicIpViaHttpConnectProxyAsync(int proxyPort, CancellationToken ct)
+    private static async Task<string> QueryPublicIpViaHttpConnectProxyAsync(int proxyPort, string host, CancellationToken ct)
     {
-        const string host = "api.ipify.org";
         using var tcp = new TcpClient();
         tcp.NoDelay = true;
         await tcp.ConnectAsync("127.0.0.1", proxyPort, ct);
@@ -574,7 +589,7 @@ public partial class MainViewModel
         await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls12 | SslProtocols.Tls13, checkCertificateRevocation: false);
 
         var request = Encoding.ASCII.GetBytes(
-            $"GET /?format=text HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\nUser-Agent: TunnelX\r\n\r\n");
+            $"GET / HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\nUser-Agent: TunnelX\r\n\r\n");
         await ssl.WriteAsync(request, ct);
 
         using var ms = new MemoryStream();
@@ -676,7 +691,7 @@ public partial class MainViewModel
                     }
                 }
 
-                ServerPingResult = $"هیچ remote قابل‌دسترسی نبود ({lastError?.Message ?? "timeout"})";
+                ServerPingResult = LocalizationService.Instance.Format("هیچ remote قابل‌دسترسی نبود ({0})", lastError?.Message ?? "timeout");
                 return;
             }
 
@@ -712,7 +727,7 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            ServerPingResult = $"خطا: {ex.Message}";
+            ServerPingResult = LocalizationService.Instance.Format("خطا: {0}", ex.Message);
         }
         finally
         {
@@ -817,7 +832,7 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            PingResult = $"خطا: {ex.Message}";
+            PingResult = LocalizationService.Instance.Format("خطا: {0}", ex.Message);
         }
         finally
         {
@@ -1019,7 +1034,7 @@ public partial class MainViewModel
         }
         catch (Exception ex)
         {
-            error = $"پارس کانفیگ ناموفق بود: {ex.Message}";
+            error = LocalizationService.Instance.Format("پارس کانفیگ ناموفق بود: {0}", ex.Message);
             return false;
         }
     }
@@ -1185,7 +1200,7 @@ public partial class MainViewModel
         {
             IsPinging = false;
             if (sent > 0)
-                PingResult += "  [پایان]";
+                PingResult += LocalizationService.Instance.T("  [پایان]");
         }
     }
 
