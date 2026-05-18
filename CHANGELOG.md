@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.2.32 - 2026-05-18
+
 ### English
 
 - Fixed VLESS REALITY configs in the sing-box path by enabling uTLS with the configured fingerprint, preventing startup failures that reported `uTLS is required by reality client`.
@@ -131,6 +133,7 @@
 - Added in-app GitHub and donation links.
 - Added project metadata for MaxFan and GPL-3.0-or-later licensing.
 - Improved leak logging and traffic accounting in recent internal builds.
+
 
 
 
