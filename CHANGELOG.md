@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+## 1.2.31 - 2026-05-18
+
+- Update release packaging and connection UX
+- Update README contact and localization notes
+
 ## 1.2.30 - 2026-05-18
 
 ### English
@@ -116,6 +121,7 @@
 - Added in-app GitHub and donation links.
 - Added project metadata for MaxFan and GPL-3.0-or-later licensing.
 - Improved leak logging and traffic accounting in recent internal builds.
+
 
 
 
