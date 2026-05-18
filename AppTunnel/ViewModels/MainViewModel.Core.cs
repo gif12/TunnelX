@@ -386,6 +386,12 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string AdAudienceText => _githubInstallCount.HasValue
         ? LocalizationService.Instance.Format("تبلیغ شما می‌تواند در معرض دید کاربران TunnelX با بیش از {0} نصب از GitHub باشد.", GitHubInstallCountDisplay)
         : "";
+    public string LogClearButtonText => LocalizationService.Instance.T("پاک کردن");
+    public string LogCopyErrorButtonText => LocalizationService.Instance.T("کپی خطا");
+    public string LogCopyAllButtonText => LocalizationService.Instance.T("کپی همه");
+    public string LogClearToolTipText => LocalizationService.Instance.T("پاک کردن همه لاگ‌ها");
+    public string LogCopyErrorToolTipText => LocalizationService.Instance.T("کپی آخرین خطا یا هشدار");
+    public string LogCopyAllToolTipText => LocalizationService.Instance.T("کپی کردن همه لاگ‌ها");
     public string DonatePayPalText => LocalizationService.Instance.IsRightToLeft
         ? $"پی‌پل: {AppInfo.PayPalEmail}"
         : $"PayPal: {AppInfo.PayPalEmail}";
@@ -1522,6 +1528,12 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AdPlaceholderTitleText));
         OnPropertyChanged(nameof(AdRequestButtonText));
         OnPropertyChanged(nameof(AdAudienceText));
+        OnPropertyChanged(nameof(LogClearButtonText));
+        OnPropertyChanged(nameof(LogCopyErrorButtonText));
+        OnPropertyChanged(nameof(LogCopyAllButtonText));
+        OnPropertyChanged(nameof(LogClearToolTipText));
+        OnPropertyChanged(nameof(LogCopyErrorToolTipText));
+        OnPropertyChanged(nameof(LogCopyAllToolTipText));
         OnPropertyChanged(nameof(UpdateButtonText));
         OnPropertyChanged(nameof(UpdateStatusText));
         OnPropertyChanged(nameof(GitHubInstallCountText));

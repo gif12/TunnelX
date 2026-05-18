@@ -866,23 +866,31 @@
                     </Grid.RowDefinitions>
 
                     <!-- Log Header -->
-                    <Border Grid.Row="0" Padding="12,10" Background="#11FFFFFF">
+                    <Border Grid.Row="0" Padding="8,6" Background="#11FFFFFF">
                         <Grid FlowDirection="{Binding AppFlowDirection}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                            </Grid.RowDefinitions>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="Auto"/>
-                                <ColumnDefinition Width="Auto"/>
                             </Grid.ColumnDefinitions>
-                            <TextBlock Grid.Column="0" Text="🔍 جزئیات عملکرد" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="2"
+                                       Text="🔍 جزئیات عملکرد" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"
                                        VerticalAlignment="Center"
+                                       Margin="0,0,0,4"
                                        TextTrimming="CharacterEllipsis"/>
                             <ComboBox x:Name="LogFilterCombo"
-                                      Grid.Column="1"
+                                      Grid.Row="1"
+                                      Grid.Column="0"
                                       SelectedIndex="0"
                                       SelectionChanged="OnLogFilterChanged"
-                                      Margin="0,0,6,0"
-                                      MinWidth="86"
+                                      Margin="0,0,4,0"
+                                      MinWidth="74"
+                                      HorizontalAlignment="{Binding AppStartHorizontalAlignment}"
+                                      FontSize="10"
                                       Style="{StaticResource DarkComboBox}">
                                 <ComboBoxItem Content="همه" Tag="All"/>
                                 <ComboBoxItem Content="خطا" Tag="Error"/>
@@ -890,18 +898,19 @@
                                 <ComboBoxItem Content="DNS" Tag="Dns"/>
                                 <ComboBoxItem Content="Route" Tag="Route"/>
                             </ComboBox>
-                            <StackPanel Grid.Column="2"
+                            <StackPanel Grid.Row="1"
+                                        Grid.Column="1"
                                         Orientation="Horizontal"
                                         FlowDirection="{Binding AppFlowDirection}">
-                                <Button Content="🗑" ToolTip="پاک کردن" Click="OnLogClearClick"
+                                <Button Content="{Binding LogClearButtonText}" ToolTip="{Binding LogClearToolTipText}" Click="OnLogClearClick"
                                         Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4" FontSize="12" Margin="0,0,4,0"/>
-                                <Button Content="⚠" ToolTip="کپی آخرین خطا یا هشدار" Click="OnLogCopyLastErrorClick"
+                                        Padding="6,3" FontSize="9.5" Margin="0,0,3,0"/>
+                                <Button Content="{Binding LogCopyErrorButtonText}" ToolTip="{Binding LogCopyErrorToolTipText}" Click="OnLogCopyLastErrorClick"
                                         Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4" FontSize="12" Margin="0,0,4,0"/>
-                                <Button Content="📋" ToolTip="کپی کردن" Click="OnLogCopyClick"
+                                        Padding="6,3" FontSize="9.5" Margin="0,0,3,0"/>
+                                <Button Content="{Binding LogCopyAllButtonText}" ToolTip="{Binding LogCopyAllToolTipText}" Click="OnLogCopyClick"
                                         Style="{StaticResource SecondaryButton}"
-                                        Padding="8,4" FontSize="12"/>
+                                        Padding="6,3" FontSize="9.5"/>
                             </StackPanel>
                         </Grid>
                     </Border>

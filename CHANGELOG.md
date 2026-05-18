@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+### English
+
+- Fixed VLESS REALITY configs in the sing-box path by enabling uTLS with the configured fingerprint, preventing startup failures that reported `uTLS is required by reality client`.
+- Replaced icon-only log-panel actions with compact localized text buttons for clearing logs, copying the latest error, and copying all logs.
+
+### فارسی
+
+- مشکل کانفیگ‌های VLESS REALITY در مسیر sing-box اصلاح شد؛ uTLS با fingerprint کانفیگ فعال می‌شود تا خطای `uTLS is required by reality client` هنگام شروع اتصال رخ ندهد.
+- دکمه‌های فقط‌آیکونی پنل لاگ با دکمه‌های متنی و فشرده جایگزین شدند تا پاک کردن لاگ، کپی آخرین خطا و کپی همه لاگ‌ها در فارسی و انگلیسی واضح باشد.
+
 ## 1.2.31 - 2026-05-18
 
 - Update release packaging and connection UX

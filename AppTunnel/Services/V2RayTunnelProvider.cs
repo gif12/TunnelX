@@ -617,6 +617,11 @@ public class V2RayTunnelProvider : ITunnelProvider
             };
             if (security == "reality")
             {
+                tlsObj["utls"] = new JsonObject
+                {
+                    ["enabled"] = true,
+                    ["fingerprint"] = query.GetValueOrDefault("fp", "chrome")
+                };
                 tlsObj["reality"] = new JsonObject
                 {
                     ["enabled"]    = true,

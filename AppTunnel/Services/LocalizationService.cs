@@ -350,7 +350,11 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["خطا"] = "Error",
         ["هشدار"] = "Warning",
         ["پاک کردن"] = "Clear",
+        ["کپی خطا"] = "Copy error",
+        ["کپی همه"] = "Copy all",
+        ["پاک کردن همه لاگ‌ها"] = "Clear all logs",
         ["کپی آخرین خطا یا هشدار"] = "Copy latest error or warning",
+        ["کپی کردن همه لاگ‌ها"] = "Copy all logs",
         ["کپی کردن"] = "Copy",
         ["در حال بارگذاری..."] = "Loading...",
 

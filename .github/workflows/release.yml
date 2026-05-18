@@ -298,6 +298,11 @@ jobs:
 
           $notes = Get-Content -Raw -LiteralPath "${{ steps.release_notes.outputs.notes_file }}"
           $downloadLines = @(
+            "## دانلودها",
+            "",
+            "- پیشنهادشده برای بیشتر کاربران: ``$artifactName``. این نسخه مستقل است و نیازی به نصب جداگانه .NET ندارد.",
+            "- بسته کم‌حجم‌تر برای کاربرانی که Microsoft .NET 8 Desktop Runtime نسخه x64 را نصب دارند: ``$frameworkArtifactName``. فایل ZIP را استخراج کنید و ``TunnelX.exe`` را با دسترسی Administrator اجرا کنید. داخل ZIP یک ``README.txt`` هم برای توضیح همین پیش‌نیاز قرار دارد.",
+            "",
             "## Downloads",
             "",
             "- Recommended for most users: ``$artifactName``. This is the standalone self-contained EXE and does not require a separate .NET installation.",
