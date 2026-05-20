@@ -262,12 +262,14 @@ public partial class TrafficRouterService
     private static bool TryParseConnectionTuple(byte[] packet, uint length, out ConnectionTuple tuple)
     {
         tuple = default;
-        if (length < 20) return false;
+        if (length < 20 || packet.Length < 20) return false;
 
         byte version = (byte)((packet[0] >> 4) & 0xF);
         if (version != 4) return false;
 
         int headerLength = (packet[0] & 0xF) * 4;
+        if (headerLength < 20 || length < headerLength + 4 || packet.Length < headerLength + 4) return false;
+
         byte protocol = packet[9];
 
         var srcIp = new IPAddress(new ReadOnlySpan<byte>(packet, 12, 4));

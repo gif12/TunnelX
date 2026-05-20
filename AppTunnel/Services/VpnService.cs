@@ -18,6 +18,10 @@ public class VpnService
 
     public async Task<bool> ConnectAsync(ServerConfig config, CancellationToken ct = default)
     {
+        ConnectionProgressService.Report("cleanup", ConnectionProgressPhase.Active, "پاکسازی processهای قبلی TunnelX");
+        await TunnelXCleanupService.CleanupAllAsync($"before connect {config.TunnelType}", ct);
+        ConnectionProgressService.Report("cleanup", ConnectionProgressPhase.Complete, "پاکسازی processهای قبلی TunnelX");
+
         if (config.TunnelType == TunnelType.SocksProxy)
             config.V2RayConfig = config.BuildProxyUri();
 
@@ -27,20 +31,26 @@ public class VpnService
             TunnelType.V2Ray => TunnelProviderFactory.Create(config.V2RayConfig),
             TunnelType.OpenVpn => new OpenVpnTunnelProvider(),
             TunnelType.SocksProxy => new V2RayTunnelProvider(),
+            TunnelType.WireGuard => new WireGuardTunnelProvider(),
             _ => throw new NotImplementedException(LocalizationService.Instance.Format("نوع تانل ناشناخته: {0}", config.TunnelType))
         };
 
-        // Wire up the tunnel-failure watchdog for V2Ray connections.
+        // Wire up the tunnel-failure watchdog for sing-box-backed providers.
         if (_activeProvider is V2RayTunnelProvider v2r)
             v2r.OnTunnelFailed = OnTunnelFailed;
+        else if (_activeProvider is WireGuardTunnelProvider wg)
+            wg.OnTunnelFailed = OnTunnelFailed;
 
         return await _activeProvider.ConnectAsync(config, ct);
     }
 
     public async Task DisconnectAsync(CancellationToken ct = default)
     {
-        if (_activeProvider == null) return;
-        await _activeProvider.DisconnectAsync();
+        if (_activeProvider != null)
+            await _activeProvider.DisconnectAsync();
+
+        await TunnelXCleanupService.CleanupAllAsync("after disconnect", ct);
+        _activeProvider = null;
     }
 
     public bool IsInterfaceUp() => _activeProvider?.IsInterfaceUp() ?? false;

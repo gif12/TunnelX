@@ -15,27 +15,54 @@ public partial class TrafficRouterService
         try
         {
             // Give VPN a moment to fully settle.
-            await Task.Delay(1000);
+            await Task.Delay(_vpnServerIsUdpOnly ? 3000 : 1000);
 
             using var ping = new System.Net.NetworkInformation.Ping();
 
-            // 1. TCP-connect to the tunnel/proxy server directly (via physical NIC).
-            //    ICMP is useless here: CDN servers (e.g. Cloudflare, Arvancloud) never
-            //    respond to pings, so Ping.Send() always times out even when the server
-            //    is perfectly healthy.  We use the original hostname (_vpnServerHost) so
-            //    that CDN-aware DNS (which may return different IPs per resolve) is used,
-            //    matching exactly how sing-box connects.
-            try
+            // 1. Reachability of the tunnel server.
+            //    For TCP-based tunnels (V2Ray/Xray/OpenVPN-tcp): TCP-connect via the
+            //    physical NIC. ICMP is useless because CDNs (Cloudflare, Arvancloud)
+            //    never reply to pings. We connect by the original hostname so any
+            //    per-resolve CDN IP rotation matches what sing-box actually uses.
+            //
+            //    For UDP-only tunnels (WireGuard): a TCP probe to the WG UDP port
+            //    will ALWAYS time out, even when the tunnel is perfectly healthy.
+            //    We do a best-effort UDP datagram instead — it cannot actually
+            //    confirm WireGuard handshake success, but it at least won't lie.
+            if (_vpnServerIsUdpOnly)
             {
-                var sw = System.Diagnostics.Stopwatch.StartNew();
-                using var tcpServer = new TcpClient();
-                using var serverCts = new System.Threading.CancellationTokenSource(3000);
-                await tcpServer.ConnectAsync(_vpnServerHost, _vpnServerPort, serverCts.Token);
-                sw.Stop();
-                Logger.Info($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} (direct): {sw.ElapsedMilliseconds}ms — reachable");
+                try
+                {
+                    var serverIp = await DnsResolverCache.ResolveFirstIpv4Async(_vpnServerHost, CancellationToken.None);
+                    if (serverIp != null)
+                    {
+                        using var udp = new UdpClient(AddressFamily.InterNetwork);
+                        udp.Connect(serverIp, _vpnServerPort);
+                        var probe = new byte[] { 0x00 };
+                        await udp.SendAsync(probe, probe.Length);
+                        Logger.Info($"[CONN-CHECK] UDP tunnel server {_vpnServerHost}:{_vpnServerPort} ({serverIp}, direct): probe sent — UDP is stateless; actual tunnel health is observed via traffic flow");
+                    }
+                    else
+                    {
+                        Logger.Warning($"[CONN-CHECK] UDP tunnel server {_vpnServerHost}:{_vpnServerPort}: DNS resolution failed");
+                    }
+                }
+                catch (Exception ex) { Logger.Warning($"[CONN-CHECK] UDP tunnel server {_vpnServerHost}:{_vpnServerPort} probe failed: {ex.Message}"); }
             }
-            catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort}: timeout (3000ms) — server unreachable or port blocked"); }
-            catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} failed: {ex.Message}"); }
+            else
+            {
+                try
+                {
+                    var sw = System.Diagnostics.Stopwatch.StartNew();
+                    using var tcpServer = new TcpClient();
+                    using var serverCts = new System.Threading.CancellationTokenSource(3000);
+                    await tcpServer.ConnectAsync(_vpnServerHost, _vpnServerPort, serverCts.Token);
+                    sw.Stop();
+                    Logger.Info($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} (direct): {sw.ElapsedMilliseconds}ms — reachable");
+                }
+                catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort}: timeout (3000ms) — server unreachable or port blocked"); }
+                catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} failed: {ex.Message}"); }
+            }
 
             // 2. Resolve an Iranian intranet hostname and ping it via the
             //    default route (physical NIC). Confirms the local intranet
@@ -99,6 +126,13 @@ public partial class TrafficRouterService
                 //    it afterwards (it's in active use).
                 try
                 {
+                    if (_vpnServerIsUdpOnly &&
+                        !await WaitForWireGuardDataPlaneAsync(TimeSpan.FromSeconds(10)))
+                    {
+                        Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN delayed — WireGuard has not observed inbound tunnel traffic yet");
+                        return;
+                    }
+
                     bool routeAdded = false;
                     if (!routeAlreadyPresent)
                     {
@@ -113,9 +147,14 @@ public partial class TrafficRouterService
                     sw.Stop();
                     Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} ({intlIp}:443, via VPN tunnel): {sw.ElapsedMilliseconds}ms");
 
-                    // Remove temp route only if we added it and no target app needs it
+                    // Do not remove the temp route immediately. TCP can still
+                    // emit FIN/ACK or retransmit tail packets after ConnectAsync
+                    // returns; immediate removal sends VPN-source packets toward
+                    // the physical NIC, where leak-guard has to drop them.
+                    // Let the normal delayed route cleanup remove it after the
+                    // short grace window instead.
                     if (routeAdded && !_ipToProcess.ContainsKey(intlNbo))
-                        TryRemoveHostRoute(intlNbo);
+                        ScheduleDelayedRouteRemoval(intlNbo);
                 }
                 catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN: timeout (3000ms)"); }
                 catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN failed: {ex.Message}"); }
@@ -124,5 +163,21 @@ public partial class TrafficRouterService
                 Logger.Warning($"[CONN-CHECK] Could not resolve {InternationalCheckHost} — skipping international checks");
         }
         catch { }
+    }
+
+    private async Task<bool> WaitForWireGuardDataPlaneAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (_isRunning && DateTime.UtcNow < deadline)
+        {
+            if (Interlocked.Read(ref _statVpnIngressSniffed) > 0 ||
+                Interlocked.Read(ref _statNetInRewritten) > 0)
+                return true;
+
+            await Task.Delay(300);
+        }
+
+        return Interlocked.Read(ref _statVpnIngressSniffed) > 0 ||
+               Interlocked.Read(ref _statNetInRewritten) > 0;
     }
 }

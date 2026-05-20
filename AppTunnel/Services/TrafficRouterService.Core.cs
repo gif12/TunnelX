@@ -56,6 +56,7 @@ public partial class TrafficRouterService : IDisposable
     private string _vpnServerIp = "";    // resolved IPv4 — used in WinDivert filter strings
     private string _vpnServerHost = "";   // original hostname/IP from config — used for TCP health checks
     private int _vpnServerPort = 443;     // original server port from config — used for TCP health checks
+    private bool _vpnServerIsUdpOnly;     // true for WireGuard etc. — skip TCP probe in CONN-CHECK
     private string _vpnGatewayIp = "";    // optional next hop for TAP/OpenVPN host routes
     private byte[]? _vpnLocalIpBytes;
     private volatile bool _isRunning;
@@ -99,11 +100,17 @@ public partial class TrafficRouterService : IDisposable
     private long _statInboundSendFailed;
     // Packet intercept (source-IP rewriting) counters
     private long _statNetOutRewritten;
+    private long _statWgVpnOutRewritten;
+    private long _statWgVpnOutSeen;
+    private long _statWgDnsRedirect;
+    private long _statWgQuicDropped;
     private long _statNetInRewritten;
     private long _statNetOutPassthrough;
     private long _statNetOutSendFailed;
     private long _statVpnEgressSniffed;
     private long _statVpnEgressFromOurIp;
+    private long _statVpnIngressSniffed;
+    private long _statVpnIngressToOurIp;
     // Leak accounting:
     // - Confirmed: packet escaped split policy (should remain 0 in normal operation)
     // - Blocked: attempted leak that was dropped locally by leak-guard
@@ -118,10 +125,14 @@ public partial class TrafficRouterService : IDisposable
     // to attribute to a selected app (e.g. tail packets after a flow ends).
     private long _totalVpnBytesSent;
     private long _totalVpnBytesReceived;
+    private string? _vpnNicId;
+    private long _baselineVpnBytesSent;
+    private long _baselineVpnBytesReceived;
     // Physical NIC baseline for computing total network usage since connection start.
     private string? _physicalNicId;
     private int _physicalInterfaceIndex = -1;
     private string _physicalGatewayIp = "";
+    private byte[]? _physicalLocalIpBytes;
     private long _baselinePhysBytesSent;
     private long _baselinePhysBytesReceived;
     private long _directBytesSent;
@@ -163,6 +174,14 @@ public partial class TrafficRouterService : IDisposable
     /// </summary>
     public bool EnableDnsOptimization { get; set; } = true;
 
+    /// <summary>
+    /// Enables packet-level UDP/TCP port-53 redirection for target apps.
+    /// Some WireGuard providers drop plain DNS (UDP/53) inside the tunnel, so
+    /// WireGuard can disable this while keeping the rest of split routing active.
+    /// </summary>
+    public bool EnableDnsRedirect { get; set; } = true;
+    public string DnsRedirectOverrideIp { get; set; } = "";
+
     private bool _enableGameMode;
     /// <summary>
     /// Game mode prefers lower latency behavior for routed packets.
@@ -183,8 +202,14 @@ public partial class TrafficRouterService : IDisposable
     private IPAddress _dnsRedirectIp = IPAddress.Parse("8.8.8.8");
     private uint _dnsRedirectIpNbo = BitConverter.ToUInt32(new byte[] { 8, 8, 8, 8 }, 0);
     private byte[] _dnsRedirectIpBytes = new byte[] { 8, 8, 8, 8 };
+    // Flow-layer hint: (proto, localPort) → target app for port-53 sockets.
+    // Chrome often issues IPv6 DNS first; connCache may miss the UDP owner on IPv4.
+    private readonly ConcurrentDictionary<(byte proto, ushort localPort), string> _dnsPortOwners = new();
+    private readonly ConcurrentDictionary<int, string> _dnsPidOwners = new();
 
     private MixedProxyServer? _mixedProxy;
+    private Task? _wgVpnOutTask;
+    private IntPtr _wgVpnOutHandle = IntPtr.Zero;
 
 #pragma warning disable CS0067
     public event Action<string, long, long>? TrafficUpdated;
@@ -236,8 +261,33 @@ public partial class TrafficRouterService : IDisposable
     /// so the connection-tab "total" reading reflects actual tunnel usage.
     /// </summary>
     public (long sent, long received) GetTotalVpnTraffic()
-        => (Interlocked.Read(ref _totalVpnBytesSent),
-            Interlocked.Read(ref _totalVpnBytesReceived));
+    {
+        var sniffSent = Interlocked.Read(ref _totalVpnBytesSent);
+        var sniffReceived = Interlocked.Read(ref _totalVpnBytesReceived);
+        if (_vpnNicId == null)
+            return (sniffSent, sniffReceived);
+
+        try
+        {
+            var nic = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                .FirstOrDefault(n => n.Id == _vpnNicId);
+            if (nic == null)
+                return (sniffSent, sniffReceived);
+
+            var stats = nic.GetIPStatistics();
+            var adapterSent = Math.Max(0, stats.BytesSent - _baselineVpnBytesSent);
+            var adapterReceived = Math.Max(0, stats.BytesReceived - _baselineVpnBytesReceived);
+
+            // Sniff counters are still used for per-app attribution, but adapter
+            // counters are the safer total when a read-only WinDivert handle misses
+            // packets on a specific VPN driver.
+            return (Math.Max(sniffSent, adapterSent), Math.Max(sniffReceived, adapterReceived));
+        }
+        catch
+        {
+            return (sniffSent, sniffReceived);
+        }
+    }
 
     /// <summary>
     /// Returns the sum of tunnel traffic attributed to app counters during the
@@ -309,18 +359,32 @@ public partial class TrafficRouterService : IDisposable
         string vpnServerIp,
         string vpnGatewayIp = "",
         int vpnServerPort = 443,
-        bool resetCounters = true)
+        bool resetCounters = true,
+        bool serverIsUdpOnly = false)
     {
-        if (_isRunning) return;
+        if (vpnInterfaceIndex <= 0 || string.IsNullOrWhiteSpace(vpnLocalIp))
+        {
+            Logger.Error($"[ROUTER] Start aborted: invalid VPN session (ifIdx={vpnInterfaceIndex}, ip='{vpnLocalIp}')");
+            throw new InvalidOperationException($"Invalid VPN session for TrafficRouter (ifIdx={vpnInterfaceIndex}).");
+        }
+
+        if (_isRunning)
+        {
+            Logger.Warning("[ROUTER] Start called while already running — restarting for new VPN session");
+            StopAsync(resetCounters: false).GetAwaiter().GetResult();
+        }
 
         _vpnInterfaceIndex = vpnInterfaceIndex;
         _vpnLocalIp = vpnLocalIp;
         _vpnGatewayIp = vpnGatewayIp;
+        _vpnServerIsUdpOnly = serverIsUdpOnly;
         _vpnLocalIpBytes = IPAddress.TryParse(vpnLocalIp, out var vpnAddr)
             ? vpnAddr.GetAddressBytes()
             : null;
         _cts = new CancellationTokenSource();
         _isRunning = true;
+        if (!_vpnServerIsUdpOnly)
+            _wgVpnOutTask = null;
 
         // Keep the original hostname for TCP-based health checks (domain may be behind
         // a CDN that returns different IPs; we should connect by name, not cached IP).
@@ -334,6 +398,30 @@ public partial class TrafficRouterService : IDisposable
         if (IPAddress.TryParse(vpnServerIp, out _))
         {
             _vpnServerIp = vpnServerIp;
+        }
+        else if (_vpnServerIsUdpOnly)
+        {
+            // WireGuard connect already resolves the endpoint; avoid a second
+            // blocking GetHostAddresses call here (often ~20s on filtered DNS).
+            _vpnServerIp = "0.0.0.0";
+            Logger.Warning($"[DNS] WireGuard server '{vpnServerIp}' is not IPv4 yet — WG-OUT filter uses 0.0.0.0 until refresh");
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(4));
+                    var v4 = await DnsResolverCache.ResolveFirstIpv4Async(vpnServerIp, cts.Token);
+                    if (v4 != null)
+                    {
+                        _vpnServerIp = v4.ToString();
+                        Logger.Info($"[DNS] WireGuard server resolved async '{vpnServerIp}' → {_vpnServerIp}");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Logger.Warning($"[DNS] Async WireGuard server resolve failed: {ex.Message}");
+                }
+            });
         }
         else
         {
@@ -367,42 +455,6 @@ public partial class TrafficRouterService : IDisposable
             _vpnServerIp = "0.0.0.0";
         }
 
-        // Auto-exclude all currently-configured Windows DNS servers from VPN
-        // routing.  Otherwise, when a target app (e.g. chrome) does a DNS
-        // lookup, TunnelX adds a /32 host route for the DNS server through
-        // the VPN. sing-box itself uses the same system DNS to resolve the
-        // VPN server's hostname \u2014 and that DNS query then enters the TUN it
-        // is trying to forward through, causing a recursive "lookup\u2026 i/o
-        // timeout" loop.  Keeping DNS traffic on the physical NIC avoids it.
-        try
-        {
-            var dnsCount = 0;
-            foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
-            {
-                if (nic.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
-                if (nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
-                if (nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel) continue;
-                System.Net.NetworkInformation.IPInterfaceProperties props;
-                try { props = nic.GetIPProperties(); } catch { continue; }
-                foreach (var dns in props.DnsAddresses)
-                {
-                    if (dns.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork) continue;
-                    var nbo = BitConverter.ToUInt32(dns.GetAddressBytes(), 0);
-                    if (_excludedIps.TryAdd(nbo, true))
-                    {
-                        Logger.Info($"[DNS-EXCLUDE] {dns} (auto-excluded \u2014 system DNS on '{nic.Name}')");
-                        dnsCount++;
-                    }
-                }
-            }
-            if (dnsCount == 0)
-                Logger.Info("[DNS-EXCLUDE] No system DNS servers found to auto-exclude");
-        }
-        catch (Exception ex)
-        {
-            Logger.Warning($"[DNS-EXCLUDE] Enumeration failed: {ex.Message}");
-        }
-
         ConfigureDnsRedirectTarget();
 
         if (resetCounters)
@@ -413,71 +465,52 @@ public partial class TrafficRouterService : IDisposable
         _flowMatchLogCount = 0;
 
         Logger.Info($"TrafficRouter starting: VPN Interface={vpnInterfaceIndex}, LocalIP={vpnLocalIp}, Gateway={_vpnGatewayIp}, ServerIP={vpnServerIp}");
+
+        // Fast path: Wi-Fi/Ethernet by name only (full scan runs deferred).
+        if (!TryBootstrapPhysicalNicFast(vpnInterfaceIndex))
+        {
+            _physicalInterfaceIndex = -1;
+            _physicalGatewayIp = "";
+            _physicalLocalIpBytes = null;
+        }
+        TryBootstrapVpnNicBaseline(vpnInterfaceIndex);
+
         Logger.Info($"Target apps: {string.Join(", ", _targetExecutables.Keys)}");
         if (PassthroughMode)
             Logger.Warning("DIAGNOSTIC PASSTHROUGH MODE ENABLED — packets will NOT be redirected. For testing only.");
 
-        LogNetworkInterfaces();
-
-        // Record baseline physical NIC stats for total network traffic calculation.
-        // Iterate manually so a single adapter throwing GetIPv4Properties() doesn't
-        // abort the whole search (LINQ FirstOrDefault propagates predicate exceptions).
-        try
+        if (_vpnServerIsUdpOnly)
         {
-            System.Net.NetworkInformation.NetworkInterface? physNic = null;
-            foreach (var n in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
-            {
-                try
-                {
-                    if (n.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
-                    if (n.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
-                    if (n.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel) continue;
-                    if ((n.GetIPProperties().GetIPv4Properties()?.Index ?? -1) == vpnInterfaceIndex) continue;
-                    physNic = n;
-                    break;
-                }
-                catch { /* skip adapters whose property queries fail */ }
-            }
-            if (physNic != null)
-            {
-                _physicalNicId = physNic.Id;
-                var physProps = physNic.GetIPProperties();
-                _physicalInterfaceIndex = physProps.GetIPv4Properties()?.Index ?? -1;
-                _physicalGatewayIp = physProps.GatewayAddresses
-                    .FirstOrDefault(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                    ?.Address.ToString() ?? "";
-                var nicStats = physNic.GetIPStatistics();
-                _baselinePhysBytesSent = nicStats.BytesSent;
-                _baselinePhysBytesReceived = nicStats.BytesReceived;
-                Logger.Info($"[NIC-BASELINE] Physical NIC '{physNic.Name}' ifIdx={_physicalInterfaceIndex} baseline: sent={_baselinePhysBytesSent} recv={_baselinePhysBytesReceived}");
-            }
+            AutoExcludeSystemDnsServers();
+            if (AddVpnServerPhysicalRoute())
+                Logger.Info($"[WG-ROUTE] VPN server {_vpnServerIp} pinned to physical NIC for WireGuard control traffic");
             else
-            {
-                _physicalInterfaceIndex = -1;
-                _physicalGatewayIp = "";
-                Logger.Warning("[NIC-BASELINE] No suitable physical NIC found — DirectTraffic counter will be unavailable.");
-            }
+                Logger.Warning($"[WG-ROUTE] Could not pin VPN server {_vpnServerIp} to physical gateway");
+            RemoveDefaultRouteOnVpn();
+            InstallWireGuardDnsBootstrap();
         }
-        catch (Exception ex) { Logger.Warning($"[NIC-BASELINE] Failed: {ex.Message}"); }
 
-        // Validate VPN interface actually exists with expected IP
-        try
+        // Flow tracking must run before NET-OUT so DNS port→app hints exist when
+        // Chrome falls back from blocked IPv6 DNS to IPv4 resolver traffic.
+        _routingTask = Task.Run(() => FlowTrackingLoop(_cts.Token));
+        // Start source-IP rewriting before DNS/include refresh. If system DNS is
+        // filtered, DnsResolverCache may use DoH bootstrap IPs that we just routed
+        // via the VPN, and those sockets need the same strong-host NAT handling.
+        _networkOutTask = Task.Run(() => NetworkOutboundLoop(_cts.Token));
+        _networkInTask = Task.Run(() => NetworkInboundLoop(_cts.Token));
+        if (_vpnServerIsUdpOnly)
         {
-            var vpnNic = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
-                .FirstOrDefault(n => {
-                    try { return n.GetIPProperties().GetIPv4Properties()?.Index == vpnInterfaceIndex; }
-                    catch { return false; }
-                });
-            if (vpnNic == null)
-                Logger.Warning($"[VPN-DETECT] No NIC found with interface index {vpnInterfaceIndex}!");
-            else
-                Logger.Info($"[VPN-DETECT] VPN NIC confirmed: name='{vpnNic.Name}' type={vpnNic.NetworkInterfaceType} status={vpnNic.OperationalStatus}");
+            _wgVpnOutTask = null;
+            Logger.Info("[WG-OUT] Active VPN-interface intercept disabled for WireGuard; using NET-OUT/NET-IN plus read-only sniffing");
         }
-        catch (Exception ex) { Logger.Warning($"[VPN-DETECT] NIC validation failed: {ex.Message}"); }
-
-        RemoveDefaultRouteOnVpn();
         _fullRouteEnabled = false;
-        RefreshDestinationLists(installIncludedRoutes: true);
+        _ = Task.Run(RunDeferredRouteBootstrap);
+        // Do not block connect UI on slow per-domain DNS lookups (4s timeout each).
+        _ = Task.Run(() =>
+        {
+            try { RefreshDestinationLists(installIncludedRoutes: true); }
+            catch (Exception ex) { Logger.Warning($"[DEST] Initial refresh failed: {ex.Message}"); }
+        });
         _destinationRefreshTimer = new System.Threading.Timer(_ => RefreshDestinationLists(installIncludedRoutes: true), null,
             TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
         _ = Task.Run(RunConnectivityChecks);
@@ -487,9 +520,6 @@ public partial class TrafficRouterService : IDisposable
         //   FLOW layer for connect events from target apps, and proactively add
         //   a /32 host route via the VPN adapter. Windows then natively routes
         //   that destination via the VPN — picking the VPN IP as source —
-        //   without any user-mode packet handling on the data path.
-        _routingTask = Task.Run(() => FlowTrackingLoop(_cts.Token));
-
         // Block outbound IPv6 from target apps at the NETWORK layer.
         // The FLOW layer is observe-only (SNIFF mode) and cannot block;
         // intercepting at the packet level lets us silently drop IPv6
@@ -508,21 +538,101 @@ public partial class TrafficRouterService : IDisposable
         _statsTimer = new System.Threading.Timer(_ => ReportStats(), null,
             TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(5));
 
-        // PACKET INTERCEPT (source-IP rewriting):
-        //   The FLOW layer detects target-app connections and installs /32 host
-        //   routes. However, sockets bound before the route was installed keep
-        //   their physical source IP. The Windows strong-host model then drops
-        //   those packets on the VPN interface (source IP mismatch). The network
-        //   intercept loops below rewrite the source IP to the VPN IP and
-        //   reverse-NAT the replies, making all target-app connections work.
-        _networkOutTask = Task.Run(() => NetworkOutboundLoop(_cts.Token));
-        _networkInTask = Task.Run(() => NetworkInboundLoop(_cts.Token));
-
         // Optional mixed SOCKS5/HTTP proxy
         if (EnableSocks5)
         {
             _mixedProxy = new MixedProxyServer(Socks5Port);
             _mixedProxy.Start(vpnLocalIp, EnsureHostRouteForSocks5);
+        }
+    }
+
+    private void RegisterDnsPortOwner(byte proto, ushort localPort, string owner)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+            return;
+        _dnsPortOwners[(proto, localPort)] = owner;
+    }
+
+    private string? TryGetDnsPortOwner(byte proto, ushort localPort)
+        => _dnsPortOwners.TryGetValue((proto, localPort), out var owner) ? owner : null;
+
+    private void RegisterDnsPidOwner(int pid, string owner)
+    {
+        if (pid <= 0 || string.IsNullOrWhiteSpace(owner))
+            return;
+        _dnsPidOwners[pid] = owner;
+    }
+
+    private string? TryGetDnsPidOwner(int pid)
+        => pid > 0 && _dnsPidOwners.TryGetValue(pid, out var owner) ? owner : null;
+
+    private string? ResolveDnsProcessOwner(ConnectionProcessCache connCache, ConnectionTuple tuple)
+    {
+        var proc = connCache.GetProcessName(tuple);
+        if (!string.IsNullOrWhiteSpace(proc))
+            return proc;
+
+        proc = TryGetDnsPortOwner(tuple.Protocol, tuple.LocalPort);
+        if (!string.IsNullOrWhiteSpace(proc))
+            return proc;
+
+        var pid = connCache.GetOwningPid(tuple);
+        if (pid > 0)
+        {
+            proc = TryGetDnsPidOwner(pid);
+            if (!string.IsNullOrWhiteSpace(proc))
+                return proc;
+        }
+
+        return null;
+    }
+
+    private void InstallWireGuardDnsBootstrap()
+    {
+        if (!_vpnServerIsUdpOnly || !EnableDnsRedirect)
+            return;
+
+        EnsureHostRouteViaVpn(_dnsRedirectIpNbo, _dnsRedirectIp);
+        _ipToProcess[_dnsRedirectIpNbo] = "[WG-DNS]";
+        Logger.Info($"[WG-DNS] Resolver {_dnsRedirectIp} host-routed via WireGuard (NET-OUT/WG-OUT DNS + DoH bootstrap)");
+
+        // DoH resolvers from DnsResolverCache + profile DNS (no hardcoded public IP list).
+        var dohRoutes = new HashSet<uint> { _dnsRedirectIpNbo };
+        foreach (var resolver in DnsResolverCache.DohBootstrapResolvers)
+        {
+            var nbo = BitConverter.ToUInt32(resolver.GetAddressBytes(), 0);
+            if (!dohRoutes.Add(nbo) || IsExcludedDestination(nbo))
+                continue;
+            EnsureHostRouteViaVpn(nbo, resolver);
+            _ipToProcess[nbo] = "[WG-DOH]";
+        }
+
+    }
+
+    private void InstallDohBootstrapRoutes()
+    {
+        if (!EnableDnsOptimization)
+            return;
+
+        // TunnelX DoH bootstrap must not be forced through WireGuard when the peer
+        // drops UDP/53 — it would stall include/exclude refresh and health checks.
+        if (_vpnServerIsUdpOnly)
+            return;
+
+        foreach (var resolver in DnsResolverCache.DohBootstrapResolvers)
+        {
+            try
+            {
+                var nbo = BitConverter.ToUInt32(resolver.GetAddressBytes(), 0);
+                _includedIps[nbo] = true;
+                _ipToProcess[nbo] = "[DNS-DOH]";
+                EnsureHostRouteViaVpn(nbo, resolver);
+                Logger.Info($"[DNS-DOH] Bootstrap resolver routed via VPN: {resolver}");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[DNS-DOH] Could not route bootstrap resolver {resolver}: {ex.Message}");
+            }
         }
     }
 
@@ -539,8 +649,16 @@ public partial class TrafficRouterService : IDisposable
         long leakBlockedRecovered = Interlocked.Read(ref _statLeakBlockedRecovered);
         long leakBlockedSuppressed = Interlocked.Read(ref _statLeakBlockedSuppressed);
         long netOutRw = Interlocked.Read(ref _statNetOutRewritten);
+        long wgOutRw = Interlocked.Read(ref _statWgVpnOutRewritten);
+        long wgOutSeen = Interlocked.Read(ref _statWgVpnOutSeen);
+        long wgDnsRedirect = Interlocked.Read(ref _statWgDnsRedirect);
+        long wgQuicDropped = Interlocked.Read(ref _statWgQuicDropped);
         long netInRw = Interlocked.Read(ref _statNetInRewritten);
         long netOutFail = Interlocked.Read(ref _statNetOutSendFailed);
+        long vpnOut = Interlocked.Read(ref _statVpnEgressSniffed);
+        long vpnOutOurIp = Interlocked.Read(ref _statVpnEgressFromOurIp);
+        long vpnIn = Interlocked.Read(ref _statVpnIngressSniffed);
+        long vpnInOurIp = Interlocked.Read(ref _statVpnIngressToOurIp);
         string mode = _fullRouteEnabled ? "full-route" : "split";
         string leakState = leakConfirmed > 0 ? "LEAK-DETECTED" :
             (leakBlocked > 0 ? "PROTECTED" : "OK");
@@ -548,15 +666,25 @@ public partial class TrafficRouterService : IDisposable
             $"[STATS] mode={mode} health={leakState} " +
             $"flows={flowEst}/{flowDel} targetHit={flowHit} excluded={flowExcl} ipv6Drop={ipv6Blocked} " +
             $"routes={Interlocked.Read(ref _statRoutesAdded)}({Interlocked.Read(ref _statRoutesFailed)}fail)/{_addedRoutes.Count}active " +
-            $"rewriteOut={netOutRw} rewriteIn={netInRw} rewriteFail={netOutFail} nat={_natTable.Count} " +
+            $"rewriteOut={netOutRw} wgSeen={wgOutSeen} wgRewrite={wgOutRw} wgDns={wgDnsRedirect} wgQuicDrop={wgQuicDropped} rewriteIn={netInRw} rewriteFail={netOutFail} " +
+            $"vpnOut={vpnOut}/{vpnOutOurIp} vpnIn={vpnIn}/{vpnInOurIp} nat={_natTable.Count} " +
             $"leakConfirmed={leakConfirmed} protectedBlocked={leakBlocked} recovered={leakBlockedRecovered} suppressed={leakBlockedSuppressed} " +
             $"targets={_targetExecutables.Count} blockedApps={_blockedExecutables.Count}");
+        if (_vpnServerIsUdpOnly)
+        {
+            var wgTicks = Interlocked.Increment(ref _diagTick);
+            if (wgTicks % 2 == 0)
+            {
+                try { RemoveDefaultRouteOnVpn(); } catch { }
+            }
+        }
 
         // Loop health check — warn if any background loop has exited unexpectedly
         var deadLoops = new List<string>();
         if (_routingTask?.IsCompleted == true) deadLoops.Add("FlowTracking");
         if (_networkOutTask?.IsCompleted == true) deadLoops.Add("NetOut");
         if (_networkInTask?.IsCompleted == true) deadLoops.Add("NetIn");
+        if (_vpnServerIsUdpOnly && _wgVpnOutTask?.IsCompleted == true) deadLoops.Add("WgVpnOut");
         if (_vpnSniffTask?.IsCompleted == true) deadLoops.Add("VpnSniff");
         if (_physSniffTask?.IsCompleted == true) deadLoops.Add("PhysSniff");
         if (_directSniffTask?.IsCompleted == true) deadLoops.Add("DirectSniff");
@@ -605,17 +733,133 @@ public partial class TrafficRouterService : IDisposable
             Logger.Info($"[NET-STATS] NAT stale entries cleaned: {natCleaned}");
     }
 
+    private void RunDeferredRouteBootstrap()
+    {
+        try
+        {
+            DiscoverPhysicalNicBaseline(_vpnInterfaceIndex);
+            AutoExcludeSystemDnsServers();
+            LogNetworkInterfaces();
+            try
+            {
+                var vpnNic = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(n => {
+                        try { return n.GetIPProperties().GetIPv4Properties()?.Index == _vpnInterfaceIndex; }
+                        catch { return false; }
+                    });
+                if (vpnNic == null)
+                    Logger.Warning($"[VPN-DETECT] No NIC found with interface index {_vpnInterfaceIndex}!");
+                else
+                    Logger.Info($"[VPN-DETECT] VPN NIC confirmed: name='{vpnNic.Name}' type={vpnNic.NetworkInterfaceType} status={vpnNic.OperationalStatus}");
+            }
+            catch (Exception ex) { Logger.Warning($"[VPN-DETECT] NIC validation failed: {ex.Message}"); }
+
+            RemoveDefaultRouteOnVpn();
+            InstallDohBootstrapRoutes();
+            InstallWireGuardDnsBootstrap();
+            if (_vpnServerIsUdpOnly)
+            {
+                if (AddVpnServerPhysicalRoute())
+                    Logger.Info($"[WG-ROUTE] VPN server {_vpnServerIp} pinned to physical NIC for WireGuard control traffic");
+                else
+                    Logger.Warning($"[WG-ROUTE] Could not pin VPN server {_vpnServerIp} to physical gateway");
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[ROUTER] Deferred route bootstrap failed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Registers Windows-configured DNS resolvers as excluded so general traffic uses the
+    /// physical path (exclude = outside tunnel). Target-app DNS to these resolvers is still
+    /// redirected to <see cref="_dnsRedirectIp"/> via NET-OUT / WG-OUT.
+    /// </summary>
+    private void AutoExcludeSystemDnsServers()
+    {
+        try
+        {
+            var dnsCount = 0;
+
+            void TryExcludeDns(IPAddress? dns, string reason)
+            {
+                if (dns == null || dns.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+                    return;
+                var nbo = BitConverter.ToUInt32(dns.GetAddressBytes(), 0);
+                if (nbo == _dnsRedirectIpNbo)
+                    return;
+                byte b0 = dns.GetAddressBytes()[0];
+                if (b0 is 0 or 127 or >= 224)
+                    return;
+                if (_excludedIps.TryAdd(nbo, true))
+                {
+                    dnsCount++;
+                    Logger.Info($"[DNS-EXCLUDE] {dns} ({reason})");
+                }
+            }
+
+            System.Net.NetworkInformation.NetworkInterface? physicalNic = null;
+            if (_physicalInterfaceIndex > 0)
+            {
+                physicalNic = System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces()
+                    .FirstOrDefault(n =>
+                    {
+                        try { return n.GetIPProperties().GetIPv4Properties()?.Index == _physicalInterfaceIndex; }
+                        catch { return false; }
+                    });
+            }
+
+            if (physicalNic != null)
+            {
+                System.Net.NetworkInformation.IPInterfaceProperties props;
+                try { props = physicalNic.GetIPProperties(); }
+                catch { props = null!; }
+                if (props != null)
+                {
+                    foreach (var dns in props.DnsAddresses)
+                        TryExcludeDns(dns, $"auto-excluded — DNS on physical NIC '{physicalNic.Name}'");
+                }
+            }
+
+            foreach (var nic in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (nic.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                if (nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                if (nic.NetworkInterfaceType == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel) continue;
+                if (IsVirtualNicName(nic.Name)) continue;
+                if (physicalNic != null && nic.Id == physicalNic.Id) continue;
+
+                System.Net.NetworkInformation.IPInterfaceProperties props;
+                try { props = nic.GetIPProperties(); } catch { continue; }
+                foreach (var dns in props.DnsAddresses)
+                    TryExcludeDns(dns, $"auto-excluded — DNS on '{nic.Name}'");
+            }
+
+            if (dnsCount == 0)
+                Logger.Info("[DNS-EXCLUDE] No system DNS servers found to auto-exclude");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[DNS-EXCLUDE] Enumeration failed: {ex.Message}");
+        }
+    }
+
     private void ConfigureDnsRedirectTarget()
     {
-        var selected = EnableDnsOptimization
-            ? (EnableGameMode ? IPAddress.Parse("1.1.1.1") : IPAddress.Parse("8.8.8.8"))
-            : IPAddress.Parse("8.8.8.8");
+        var selected = IPAddress.TryParse(DnsRedirectOverrideIp, out var overrideIp) &&
+                       overrideIp.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork
+            ? overrideIp
+            : EnableDnsOptimization
+                ? (EnableGameMode ? IPAddress.Parse("1.1.1.1") : IPAddress.Parse("8.8.8.8"))
+                : IPAddress.Parse("8.8.8.8");
 
         _dnsRedirectIp = selected;
         _dnsRedirectIpBytes = selected.GetAddressBytes();
         _dnsRedirectIpNbo = BitConverter.ToUInt32(_dnsRedirectIpBytes, 0);
 
-        Logger.Info($"[DNS] Redirect target={_dnsRedirectIp} optimization={EnableDnsOptimization} gameMode={EnableGameMode}");
+        var source = string.IsNullOrWhiteSpace(DnsRedirectOverrideIp) ? "default" : "override";
+        Logger.Info($"[DNS] Redirect target={_dnsRedirectIp} source={source} enabled={EnableDnsRedirect} optimization={EnableDnsOptimization} gameMode={EnableGameMode}");
     }
 
     private void LogNetworkInterfaces()
@@ -819,6 +1063,12 @@ public partial class TrafficRouterService : IDisposable
             try { await _networkInTask; }
             catch (OperationCanceledException) { }
         }
+        if (_wgVpnOutTask != null)
+        {
+            try { await _wgVpnOutTask; }
+            catch (OperationCanceledException) { }
+        }
+        _wgVpnOutTask = null;
 
         if (_fullRouteEnabled)
             try { SetFullRouteEnabled(false); } catch (Exception ex) { Logger.Warning($"Disable full-route failed: {ex.Message}"); }
@@ -834,6 +1084,8 @@ public partial class TrafficRouterService : IDisposable
         _ipToProcess.Clear();
         _ipRefCount.Clear();
         _flowOwnerByTuple.Clear();
+        _dnsPortOwners.Clear();
+        _dnsPidOwners.Clear();
         _loggedMatchIps.Clear();
         _loggedExcludedIps.Clear();
         _recentLeakByDst.Clear();
@@ -855,11 +1107,17 @@ public partial class TrafficRouterService : IDisposable
         Interlocked.Exchange(ref _statInboundNatMatched, 0);
         Interlocked.Exchange(ref _statInboundSendFailed, 0);
         Interlocked.Exchange(ref _statNetOutRewritten, 0);
+        Interlocked.Exchange(ref _statWgVpnOutRewritten, 0);
+        Interlocked.Exchange(ref _statWgVpnOutSeen, 0);
+        Interlocked.Exchange(ref _statWgDnsRedirect, 0);
+        Interlocked.Exchange(ref _statWgQuicDropped, 0);
         Interlocked.Exchange(ref _statNetInRewritten, 0);
         Interlocked.Exchange(ref _statNetOutPassthrough, 0);
         Interlocked.Exchange(ref _statNetOutSendFailed, 0);
         Interlocked.Exchange(ref _statVpnEgressSniffed, 0);
         Interlocked.Exchange(ref _statVpnEgressFromOurIp, 0);
+        Interlocked.Exchange(ref _statVpnIngressSniffed, 0);
+        Interlocked.Exchange(ref _statVpnIngressToOurIp, 0);
         Interlocked.Exchange(ref _statLeakConfirmed, 0);
         Interlocked.Exchange(ref _statLeakBlocked, 0);
         Interlocked.Exchange(ref _statLeakBlockedRecovered, 0);
@@ -963,6 +1221,12 @@ public partial class TrafficRouterService : IDisposable
                 _networkInHandle = IntPtr.Zero;
                 closed++;
             }
+            if (_wgVpnOutHandle != IntPtr.Zero && _wgVpnOutHandle != new IntPtr(-1))
+            {
+                WinDivertNative.WinDivertClose(_wgVpnOutHandle);
+                _wgVpnOutHandle = IntPtr.Zero;
+                closed++;
+            }
             Logger.Info($"[HANDLE] Closed {closed} WinDivert handles");
         }
     }
@@ -1003,5 +1267,210 @@ public partial class TrafficRouterService : IDisposable
             1275 => "Driver blocked by Windows - disable driver signature enforcement",
             _ => $"Unknown error {error}"
         };
+    }
+
+    private static bool IsVirtualNicName(string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return true;
+        return name.Contains("TunnelX", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("WireGuard", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("VirtualBox", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("VMware", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("Hyper-V", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("vEthernet", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("WSL", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("TAP", StringComparison.OrdinalIgnoreCase) ||
+               name.Contains("TUN", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool TryGetNicProperties(
+        System.Net.NetworkInformation.NetworkInterface nic,
+        out System.Net.NetworkInformation.IPInterfaceProperties? props)
+    {
+        props = null;
+        try
+        {
+            var task = Task.Run(() => nic.GetIPProperties());
+            if (!task.Wait(TimeSpan.FromMilliseconds(400)))
+                return false;
+            props = task.Result;
+            return props != null;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool TryBootstrapPhysicalNicFast(int vpnInterfaceIndex)
+    {
+        try
+        {
+            foreach (var n in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (n.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                var type = n.NetworkInterfaceType;
+                if (type == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                if (type == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel) continue;
+                if (IsVirtualNicName(n.Name)) continue;
+
+                var name = n.Name ?? "";
+                var isLikelyPhysical = type == System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211 ||
+                                       type == System.Net.NetworkInformation.NetworkInterfaceType.Ethernet ||
+                                       name.Contains("Wi-Fi", StringComparison.OrdinalIgnoreCase) ||
+                                       name.Contains("WLAN", StringComparison.OrdinalIgnoreCase) ||
+                                       name.Contains("Ethernet", StringComparison.OrdinalIgnoreCase);
+                if (!isLikelyPhysical) continue;
+
+                System.Net.NetworkInformation.IPInterfaceProperties props;
+                try { props = n.GetIPProperties(); }
+                catch { continue; }
+
+                var ifIdx = props.GetIPv4Properties()?.Index ?? -1;
+                if (ifIdx <= 0 || ifIdx == vpnInterfaceIndex) continue;
+
+                var gw = props.GatewayAddresses
+                    .FirstOrDefault(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                                         !g.Address.Equals(IPAddress.Any) &&
+                                         !g.Address.Equals(IPAddress.Parse("0.0.0.0")));
+                if (gw == null) continue;
+
+                var physIp = props.UnicastAddresses
+                    .FirstOrDefault(a => a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                                         !IPAddress.IsLoopback(a.Address))
+                    ?.Address;
+                if (physIp == null) continue;
+
+                _physicalNicId = n.Id;
+                _physicalInterfaceIndex = ifIdx;
+                _physicalGatewayIp = gw.Address.ToString();
+                _physicalLocalIpBytes = physIp.GetAddressBytes();
+                var nicStats = n.GetIPStatistics();
+                _baselinePhysBytesSent = nicStats.BytesSent;
+                _baselinePhysBytesReceived = nicStats.BytesReceived;
+                Logger.Info($"[NIC-BASELINE] Fast physical NIC '{n.Name}' ifIdx={ifIdx} gw={_physicalGatewayIp} baseline: sent={_baselinePhysBytesSent} recv={_baselinePhysBytesReceived}");
+                return true;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[NIC-BASELINE] Fast bootstrap failed: {ex.Message}");
+        }
+
+        return false;
+    }
+
+    private void TryBootstrapVpnNicBaseline(int vpnInterfaceIndex)
+    {
+        try
+        {
+            foreach (var n in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (n.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up)
+                    continue;
+
+                System.Net.NetworkInformation.IPInterfaceProperties props;
+                try { props = n.GetIPProperties(); }
+                catch { continue; }
+
+                var ifIdx = props.GetIPv4Properties()?.Index ?? -1;
+                if (ifIdx != vpnInterfaceIndex)
+                    continue;
+
+                var nicStats = n.GetIPStatistics();
+                _vpnNicId = n.Id;
+                _baselineVpnBytesSent = nicStats.BytesSent;
+                _baselineVpnBytesReceived = nicStats.BytesReceived;
+                Logger.Info($"[VPN-BASELINE] VPN NIC '{n.Name}' ifIdx={ifIdx} baseline: sent={_baselineVpnBytesSent} recv={_baselineVpnBytesReceived}");
+                return;
+            }
+
+            _vpnNicId = null;
+            _baselineVpnBytesSent = 0;
+            _baselineVpnBytesReceived = 0;
+            Logger.Warning($"[VPN-BASELINE] No VPN NIC baseline found for ifIdx={vpnInterfaceIndex}; using packet sniff counters only.");
+        }
+        catch (Exception ex)
+        {
+            _vpnNicId = null;
+            _baselineVpnBytesSent = 0;
+            _baselineVpnBytesReceived = 0;
+            Logger.Warning($"[VPN-BASELINE] Failed: {ex.Message}");
+        }
+    }
+
+    private void DiscoverPhysicalNicBaseline(int vpnInterfaceIndex)
+    {
+        try
+        {
+            var ranked = new List<(System.Net.NetworkInformation.NetworkInterface Nic, int Score)>();
+            foreach (var n in System.Net.NetworkInformation.NetworkInterface.GetAllNetworkInterfaces())
+            {
+                if (n.OperationalStatus != System.Net.NetworkInformation.OperationalStatus.Up) continue;
+                var type = n.NetworkInterfaceType;
+                if (type == System.Net.NetworkInformation.NetworkInterfaceType.Loopback) continue;
+                if (type == System.Net.NetworkInformation.NetworkInterfaceType.Tunnel) continue;
+                if (IsVirtualNicName(n.Name)) continue;
+
+                var score = type switch
+                {
+                    System.Net.NetworkInformation.NetworkInterfaceType.Wireless80211 => 100,
+                    System.Net.NetworkInformation.NetworkInterfaceType.Ethernet => 90,
+                    _ => 10
+                };
+                var name = n.Name ?? "";
+                if (name.Contains("Wi-Fi", StringComparison.OrdinalIgnoreCase) ||
+                    name.Contains("WLAN", StringComparison.OrdinalIgnoreCase))
+                    score += 30;
+                ranked.Add((n, score));
+            }
+
+            ranked.Sort((a, b) => b.Score.CompareTo(a.Score));
+            foreach (var (candidate, _) in ranked.Take(6))
+            {
+                if (!TryGetNicProperties(candidate, out var props) || props == null) continue;
+                int ifIdx;
+                try { ifIdx = props.GetIPv4Properties()?.Index ?? -1; }
+                catch { continue; }
+                if (ifIdx <= 0 || ifIdx == vpnInterfaceIndex) continue;
+
+                var hasGateway = props.GatewayAddresses.Any(g =>
+                    g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                    !g.Address.Equals(IPAddress.Any) &&
+                    !g.Address.Equals(IPAddress.Parse("0.0.0.0")));
+                if (!hasGateway) continue;
+
+                var physIp = props.UnicastAddresses
+                    .FirstOrDefault(a =>
+                        a.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                        !IPAddress.IsLoopback(a.Address))
+                    ?.Address;
+                if (physIp == null) continue;
+
+                _physicalNicId = candidate.Id;
+                _physicalInterfaceIndex = ifIdx;
+                _physicalGatewayIp = props.GatewayAddresses
+                    .First(g => g.Address.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
+                    .Address.ToString();
+                _physicalLocalIpBytes = physIp.GetAddressBytes();
+                var nicStats = candidate.GetIPStatistics();
+                _baselinePhysBytesSent = nicStats.BytesSent;
+                _baselinePhysBytesReceived = nicStats.BytesReceived;
+                Logger.Info($"[NIC-BASELINE] Physical NIC '{candidate.Name}' ifIdx={_physicalInterfaceIndex} gw={_physicalGatewayIp} baseline: sent={_baselinePhysBytesSent} recv={_baselinePhysBytesReceived}");
+                return;
+            }
+
+            if (_physicalInterfaceIndex > 0)
+            {
+                Logger.Info($"[NIC-BASELINE] Deferred scan kept existing physical NIC ifIdx={_physicalInterfaceIndex} gw={_physicalGatewayIp}");
+                return;
+            }
+
+            Logger.Warning("[NIC-BASELINE] No suitable physical NIC found — DirectTraffic counter will be unavailable.");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[NIC-BASELINE] Failed: {ex.Message}");
+        }
     }
 }

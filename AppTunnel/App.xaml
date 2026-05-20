@@ -14,9 +14,13 @@
             <!-- Global Font Settings -->
             <Style TargetType="{x:Type Window}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
                 <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
                 <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
                 <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
+            </Style>
+            <Style TargetType="{x:Type UserControl}">
+                <Setter Property="Cursor" Value="Arrow"/>
             </Style>
             <Style TargetType="{x:Type TextBlock}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
@@ -32,6 +36,7 @@
             </Style>
             <Style TargetType="{x:Type Button}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                <Setter Property="Cursor" Value="Hand"/>
             </Style>
             <Style TargetType="{x:Type Label}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
@@ -47,6 +52,10 @@
             </Style>
             <Style TargetType="{x:Type ListBoxItem}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+                <Setter Property="Cursor" Value="Arrow"/>
+            </Style>
+            <Style TargetType="{x:Type ListViewItem}">
+                <Setter Property="Cursor" Value="Arrow"/>
             </Style>
             <Style TargetType="{x:Type ToolTip}">
                 <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>

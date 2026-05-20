@@ -1,9 +1,11 @@
+using System.Collections.Concurrent;
+using System.Threading;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media.Animation;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using AppTunnel.Models;
 using AppTunnel.ViewModels;
 using AppTunnel.Helpers;
@@ -20,6 +22,8 @@ public partial class MainWindow : Window
     private bool _isRealExit;
     private ConnectionState _lastNotifiedConnectionState = ConnectionState.Disconnected;
     private bool _updateNotificationShown;
+    private readonly ConcurrentQueue<string> _pendingLogEntries = new();
+    private int _logFlushScheduled;
     private const int WmSysCommand = 0x0112;
     private const int WmGetMinMaxInfo = 0x0024;
     private const int ScSize = 0xF000;
@@ -43,6 +47,7 @@ public partial class MainWindow : Window
             });
         };
 
+        AppNotificationService.Initialize(this);
         InitializeTrayIcon();
         Loaded += OnLoaded;
         Closing += OnClosing;
@@ -154,28 +159,9 @@ public partial class MainWindow : Window
         menu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
 
         var exitItem = new System.Windows.Forms.ToolStripMenuItem("خروج از برنامه");
-        exitItem.Click += async (_, _) =>
+        exitItem.Click += (_, _) =>
         {
-            if (_viewModel.IsConnected)
-            {
-                bool confirmed = false;
-                Dispatcher.Invoke(() =>
-                {
-                    confirmed = DialogService.Confirm(
-                        "اتصال VPN فعال است. با خروج، اتصال قطع خواهد شد.\nآیا مطمئن هستید؟",
-                        "TunnelX — خروج");
-                });
-
-                if (!confirmed) return;
-
-                try { await _viewModel.DisconnectAndCleanupAsync(); }
-                catch { }
-            }
-
-            _isRealExit = true;
-            _trayIcon?.Dispose();
-            _trayIcon = null;
-            Dispatcher.Invoke(() => Application.Current.Shutdown());
+            Dispatcher.InvokeAsync(async () => await TryExitApplicationAsync());
         };
         menu.Items.Add(exitItem);
 
@@ -225,11 +211,10 @@ public partial class MainWindow : Window
         if (_trayIcon != null)
         {
             _trayIcon.Visible = true;
-            _trayIcon.ShowBalloonTip(
-                2000,
-                LocalizationService.Instance.T("TunnelX در پس‌زمینه فعال است"),
-                LocalizationService.Instance.T("برای باز کردن پنجره، روی آیکن کنار ساعت دوبار کلیک کنید."),
-                System.Windows.Forms.ToolTipIcon.Info);
+            AppNotificationService.ShowTray(
+                "TunnelX در پس‌زمینه فعال است",
+                "برای باز کردن پنجره، روی آیکن کنار ساعت دوبار کلیک کنید.",
+                AppNotificationKind.Info);
         }
     }
 
@@ -244,16 +229,40 @@ public partial class MainWindow : Window
         switch (state)
         {
             case ConnectionState.Connected:
-                ShowTrayNotification(LocalizationService.Instance.T("تونل فعال شد"), GetConnectedTrayMessage(),
-                    System.Windows.Forms.ToolTipIcon.Info);
+                {
+                    var profileName = _viewModel.SelectedProfileName;
+                    if (!string.IsNullOrWhiteSpace(profileName))
+                    {
+                        AppNotificationService.ShowTrayFormat(
+                            "تونل فعال شد",
+                            "پروفایل «{0}» فعال است و ترافیک انتخاب‌شده از تونل عبور می‌کند.",
+                            AppNotificationKind.Success,
+                            profileName);
+                    }
+                    else
+                    {
+                        AppNotificationService.ShowTray(
+                            "تونل فعال شد",
+                            "ترافیک انتخاب‌شده از TunnelX عبور می‌کند.",
+                            AppNotificationKind.Success);
+                    }
+
+                    TelegramChannelPromoService.ScheduleAfterSuccessfulConnection();
+                }
                 break;
             case ConnectionState.Disconnected:
-                ShowTrayNotification(LocalizationService.Instance.T("تونل خاموش شد"), LocalizationService.Instance.T("ارتباط امن متوقف شده و ترافیک دیگر از TunnelX عبور نمی‌کند."),
-                    System.Windows.Forms.ToolTipIcon.Info);
+                TelegramChannelPromoService.OnDisconnected();
+                AppNotificationService.ShowTray(
+                    "تونل خاموش شد",
+                    "ارتباط امن متوقف شده و ترافیک دیگر از TunnelX عبور نمی‌کند.",
+                    AppNotificationKind.Info);
                 break;
             case ConnectionState.Error:
-                ShowTrayNotification(LocalizationService.Instance.T("اتصال برقرار نشد"), GetErrorTrayMessage(),
-                    System.Windows.Forms.ToolTipIcon.Warning);
+                TelegramChannelPromoService.OnDisconnected();
+                AppNotificationService.ShowTrayLiteralBody(
+                    "اتصال برقرار نشد",
+                    _viewModel.BuildConnectionFailureTrayMessage(),
+                    AppNotificationKind.Warning);
                 break;
         }
     }
@@ -264,39 +273,10 @@ public partial class MainWindow : Window
             return;
 
         _updateNotificationShown = true;
-        ShowTrayNotification(LocalizationService.Instance.T("نسخه جدید آماده است"),
-            LocalizationService.Instance.T("از منوی System Tray یا بخش بروزرسانی، صفحه دانلود TunnelX را باز کنید."),
-            System.Windows.Forms.ToolTipIcon.Info);
-    }
-
-    private string GetConnectedTrayMessage()
-    {
-        var profileName = _viewModel.SelectedProfileName;
-        if (!string.IsNullOrWhiteSpace(profileName))
-            return LocalizationService.Instance.Format("پروفایل «{0}» فعال است و ترافیک انتخاب‌شده از تونل عبور می‌کند.", profileName);
-
-        return LocalizationService.Instance.T("ترافیک انتخاب‌شده از TunnelX عبور می‌کند.");
-    }
-
-    private string GetErrorTrayMessage()
-    {
-        var status = _viewModel.StatusText?.Trim();
-        if (string.IsNullOrWhiteSpace(status) ||
-            status == LocalizationService.Instance.T("خطا") ||
-            status.Equals("Error", StringComparison.OrdinalIgnoreCase))
-            return LocalizationService.Instance.T("جزئیات خطا را در پنجره برنامه یا لاگ‌ها بررسی کنید.");
-
-        return status.StartsWith(LocalizationService.Instance.T("خطا"), StringComparison.OrdinalIgnoreCase) ||
-               status.StartsWith("Error", StringComparison.OrdinalIgnoreCase)
-            ? status
-            : LocalizationService.Instance.Format("جزئیات: {0}", status);
-    }
-
-    private void ShowTrayNotification(string title, string message, System.Windows.Forms.ToolTipIcon icon)
-    {
-        if (_trayIcon == null) return;
-        _trayIcon.Visible = true;
-        _trayIcon.ShowBalloonTip(3500, title, message, icon);
+        AppNotificationService.ShowTrayPersistent(
+            "نسخه جدید آماده است",
+            "از منوی System Tray یا بخش بروزرسانی، صفحه دانلود TunnelX را باز کنید.",
+            AppNotificationKind.Info);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -364,24 +344,13 @@ public partial class MainWindow : Window
         if (_isRealExit)
         {
             _loadCts.Cancel();
-            // Ensure VPN is disconnected even if shutdown is triggered externally
-            if (_viewModel.IsConnected)
-            {
-                e.Cancel = true;
-                try { await _viewModel.DisconnectAndCleanupAsync(); } catch { }
-                _isRealExit = true;
-                _trayIcon?.Dispose();
-                Application.Current.Shutdown();
-                return;
-            }
             _viewModel.ForceSave();
             _trayIcon?.Dispose();
             return;
         }
 
-        // X button → minimize to tray instead of closing
         e.Cancel = true;
-        MinimizeToTray();
+        await TryExitApplicationAsync();
     }
 
 
@@ -399,47 +368,44 @@ public partial class MainWindow : Window
     }
 
     private async void OnCloseClick(object sender, RoutedEventArgs e)
-    {
-        // X button → show confirmation and exit
-        string message = _viewModel.IsConnected 
-            ? "اتصال VPN فعال است. با خروج، اتصال قطع خواهد شد.\nآیا مطمئن هستید؟"
-            : "آیا می‌خواهید از TunnelX خارج شوید؟";
-
-        if (DialogService.Confirm(message, "TunnelX — خروج", this))
-        {
-            if (_viewModel.IsConnected)
-            {
-                try { await _viewModel.DisconnectAndCleanupAsync(); }
-                catch { }
-            }
-
-            _isRealExit = true;
-            _trayIcon?.Dispose();
-            _trayIcon = null;
-            Application.Current.Shutdown();
-        }
-    }
+        => await TryExitApplicationAsync();
 
     private async void OnExitAppClick(object sender, RoutedEventArgs e)
+        => await TryExitApplicationAsync();
+
+    private async Task TryExitApplicationAsync()
     {
-        // Show confirmation dialog
-        string message = _viewModel.IsConnected 
-            ? "اتصال VPN فعال است. با خروج، اتصال قطع خواهد شد.\nآیا مطمئن هستید؟"
-            : "آیا می‌خواهید از TunnelX خارج شوید؟";
+        string message;
+        if (_viewModel.IsConnected)
+            message = "اتصال VPN فعال است. با خروج، اتصال قطع خواهد شد.\nآیا مطمئن هستید؟";
+        else if (_viewModel.IsConnectionPending || _viewModel.IsBusy)
+            message = "اتصال در جریان است. با خروج، تلاش اتصال قطع می‌شود.\nآیا مطمئن هستید؟";
+        else
+            message = "آیا می‌خواهید از TunnelX خارج شوید؟";
 
-        if (DialogService.Confirm(message, "TunnelX — خروج", this))
-        {
-            if (_viewModel.IsConnected)
-            {
-                try { await _viewModel.DisconnectAndCleanupAsync(); }
-                catch { }
-            }
+        if (!DialogService.Confirm(message, "TunnelX — خروج", this))
+            return;
 
-            _isRealExit = true;
-            _trayIcon?.Dispose();
-            _trayIcon = null;
-            Application.Current.Shutdown();
-        }
+        _isRealExit = true;
+        _loadCts.Cancel();
+        _trayIcon?.Dispose();
+        _trayIcon = null;
+
+        ShowShutdownOverlay();
+
+        try { await _viewModel.PrepareForApplicationExitAsync(); }
+        catch (Exception ex) { Logger.Warning($"[EXIT] Shutdown preparation failed: {ex.Message}"); }
+
+        App.ForceTerminateApplication();
+    }
+
+    private void ShowShutdownOverlay()
+    {
+        ShutdownStatusText.Text = LocalizationService.Instance.T("در حال بستن پروسس‌ها و خروج...");
+        ShutdownOverlay.Visibility = Visibility.Visible;
+        ShutdownOverlay.IsHitTestVisible = true;
+        IsEnabled = false;
+        UpdateLayout();
     }
 
     private bool _logPanelLoaded;
@@ -535,19 +501,52 @@ public partial class MainWindow : Window
 
     private void OnLogAdded(string logEntry)
     {
-        Dispatcher.BeginInvoke(() =>
+        _pendingLogEntries.Enqueue(logEntry);
+        if (Interlocked.Exchange(ref _logFlushScheduled, 1) != 0)
+            return;
+
+        Dispatcher.BeginInvoke(
+            new Action(FlushPendingLogEntries),
+            System.Windows.Threading.DispatcherPriority.Background);
+    }
+
+    private void FlushPendingLogEntries()
+    {
+        Interlocked.Exchange(ref _logFlushScheduled, 0);
+
+        var appended = false;
+        var batch = new System.Text.StringBuilder();
+        var count = 0;
+        while (count < 200 && _pendingLogEntries.TryDequeue(out var entry))
         {
-            if (!LogMatchesFilter(logEntry)) return;
-            LogTextBox.AppendText(logEntry + Environment.NewLine);
+            if (LogMatchesFilter(entry))
+            {
+                batch.AppendLine(entry);
+                appended = true;
+            }
+            count++;
+        }
+
+        if (appended)
+        {
+            LogTextBox.AppendText(batch.ToString());
             LogTextBox.ScrollToEnd();
-        });
+        }
+
+        if (!_pendingLogEntries.IsEmpty &&
+            Interlocked.Exchange(ref _logFlushScheduled, 1) == 0)
+        {
+            Dispatcher.BeginInvoke(
+                new Action(FlushPendingLogEntries),
+                System.Windows.Threading.DispatcherPriority.Background);
+        }
     }
 
     private void OnLogClearClick(object sender, RoutedEventArgs e)
     {
         Logger.Clear();
         LogTextBox.Clear();
-        ShowToast(LocalizationService.Instance.T("لاگ‌ها پاک شدند"));
+        ShowLogToast(LocalizationService.Instance.T("لاگ‌ها پاک شدند"), LogToastKind.Success);
     }
 
     private void OnLogCopyClick(object sender, RoutedEventArgs e)
@@ -556,17 +555,17 @@ public partial class MainWindow : Window
         {
             if (string.IsNullOrWhiteSpace(LogTextBox.Text))
             {
-                ShowToast(LocalizationService.Instance.T("لاگی برای کپی وجود ندارد"), "ℹ");
+                ShowLogToast(LocalizationService.Instance.T("لاگی برای کپی وجود ندارد"), LogToastKind.Info);
                 return;
             }
 
             System.Windows.Clipboard.SetText(LogTextBox.Text);
-            ShowToast(LocalizationService.Instance.T("لاگ کپی شد"));
+            ShowLogToast(LocalizationService.Instance.T("لاگ کپی شد"), LogToastKind.Success);
         }
         catch (Exception ex)
         {
             Logger.Warning($"[UI] Copy logs failed: {ex.Message}");
-            ShowToast(LocalizationService.Instance.T("کپی لاگ ناموفق بود"), "⚠");
+            ShowLogToast(LocalizationService.Instance.T("کپی لاگ ناموفق بود"), LogToastKind.Warning);
         }
     }
 
@@ -582,17 +581,17 @@ public partial class MainWindow : Window
                 l.Contains("[WARN]", StringComparison.OrdinalIgnoreCase));
             if (string.IsNullOrWhiteSpace(line))
             {
-                ShowToast(LocalizationService.Instance.T("آخرین خطا یا هشدار پیدا نشد"), "ℹ");
+                ShowLogToast(LocalizationService.Instance.T("آخرین خطا یا هشدار پیدا نشد"), LogToastKind.Info);
                 return;
             }
 
             System.Windows.Clipboard.SetText(line);
-            ShowToast(LocalizationService.Instance.T("آخرین خطا یا هشدار کپی شد"));
+            ShowLogToast(LocalizationService.Instance.T("آخرین خطا یا هشدار کپی شد"), LogToastKind.Success);
         }
         catch (Exception ex)
         {
             Logger.Warning($"[UI] Copy last error/warning failed: {ex.Message}");
-            ShowToast(LocalizationService.Instance.T("کپی لاگ ناموفق بود"), "⚠");
+            ShowLogToast(LocalizationService.Instance.T("کپی لاگ ناموفق بود"), LogToastKind.Warning);
         }
     }
 
@@ -686,29 +685,133 @@ public partial class MainWindow : Window
     }
 
     private CancellationTokenSource? _toastCts;
+    private CancellationTokenSource? _logToastCts;
+
+    private enum LogToastKind
+    {
+        Success,
+        Info,
+        Warning
+    }
+
+    private void ShowLogToast(string message, LogToastKind kind = LogToastKind.Success, int durationMs = 2800)
+    {
+        _logToastCts?.Cancel();
+        _logToastCts = new CancellationTokenSource();
+        var token = _logToastCts.Token;
+
+        ApplyLogToastStyle(kind);
+        LogToastIcon.Text = kind switch
+        {
+            LogToastKind.Success => "✓",
+            LogToastKind.Info => "ℹ",
+            LogToastKind.Warning => "⚠",
+            _ => "•"
+        };
+        LogToastMessage.Text = message;
+        LogToastPanel.Visibility = Visibility.Visible;
+        LogToastPanel.Opacity = 1;
+        LogToastPanel.BeginAnimation(OpacityProperty, null);
+
+        Task.Delay(durationMs, token).ContinueWith(_ =>
+        {
+            if (token.IsCancellationRequested)
+                return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(280));
+                fadeOut.Completed += (__, ___) => LogToastPanel.Visibility = Visibility.Collapsed;
+                LogToastPanel.BeginAnimation(OpacityProperty, fadeOut);
+            });
+        }, TaskScheduler.Default);
+    }
+
+    private void ApplyLogToastStyle(LogToastKind kind)
+    {
+        LogToastPanel.Background = TryFindResource("CardBrush") as System.Windows.Media.Brush
+            ?? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2D, 0x2D, 0x2D));
+        LogToastMessage.Foreground = TryFindResource("TextPrimaryBrush") as System.Windows.Media.Brush
+            ?? System.Windows.Media.Brushes.White;
+
+        var accent = kind switch
+        {
+            LogToastKind.Info => TryFindResource("AccentBrush"),
+            LogToastKind.Warning => TryFindResource("WarningBrush"),
+            _ => TryFindResource("SuccessBrush")
+        } as System.Windows.Media.Brush ?? TryFindResource("AccentBrush") as System.Windows.Media.Brush;
+
+        LogToastPanel.BorderBrush = accent ?? System.Windows.Media.Brushes.Orange;
+        LogToastIcon.Foreground = accent ?? LogToastMessage.Foreground;
+    }
 
     public void ShowToast(string message, string icon = "✅", int durationMs = 3000)
+    {
+        var kind = icon switch
+        {
+            "⚠" or "⚠️" => AppNotificationKind.Warning,
+            "❌" or "✖" => AppNotificationKind.Error,
+            "ℹ" or "ℹ️" => AppNotificationKind.Info,
+            _ => AppNotificationKind.Success
+        };
+        ShowAppToast(message, kind, durationMs);
+    }
+
+    public void ShowAppToast(string message, AppNotificationKind kind = AppNotificationKind.Success, int durationMs = 3000)
     {
         _toastCts?.Cancel();
         _toastCts = new CancellationTokenSource();
         var token = _toastCts.Token;
 
-        ToastIcon.Text = icon;
+        ApplyAppToastStyle(kind);
+        ToastIcon.Text = kind switch
+        {
+            AppNotificationKind.Warning => "⚠",
+            AppNotificationKind.Error => "❌",
+            AppNotificationKind.Info => "ℹ",
+            _ => "✅"
+        };
         ToastMessage.Text = message;
         ToastPanel.Visibility = Visibility.Visible;
         ToastPanel.Opacity = 1;
+        ToastPanel.BeginAnimation(OpacityProperty, null);
+        ToastSlideTransform.Y = 12;
+        ToastSlideTransform.BeginAnimation(
+            TranslateTransform.YProperty,
+            new DoubleAnimation(12, 0, TimeSpan.FromMilliseconds(260))
+            {
+                EasingFunction = new QuadraticEase { EasingMode = EasingMode.EaseOut }
+            });
 
         Task.Delay(durationMs, token).ContinueWith(_ =>
         {
-            if (!token.IsCancellationRequested)
+            if (token.IsCancellationRequested)
+                return;
+
+            Dispatcher.BeginInvoke(() =>
             {
-                Dispatcher.BeginInvoke(() =>
-                {
-                    var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(300));
-                    fadeOut.Completed += (__, ___) => ToastPanel.Visibility = Visibility.Collapsed;
-                    ToastPanel.BeginAnimation(OpacityProperty, fadeOut);
-                });
-            }
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(280));
+                fadeOut.Completed += (__, ___) => ToastPanel.Visibility = Visibility.Collapsed;
+                ToastPanel.BeginAnimation(OpacityProperty, fadeOut);
+            });
         }, TaskScheduler.Default);
+    }
+
+    private void ApplyAppToastStyle(AppNotificationKind kind)
+    {
+        ToastPanel.Background = TryFindResource("CardBrush") as System.Windows.Media.Brush
+            ?? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2D, 0x2D, 0x2D));
+        ToastMessage.Foreground = TryFindResource("TextPrimaryBrush") as System.Windows.Media.Brush
+            ?? System.Windows.Media.Brushes.White;
+
+        var accent = kind switch
+        {
+            AppNotificationKind.Info => TryFindResource("AccentBrush"),
+            AppNotificationKind.Warning => TryFindResource("WarningBrush"),
+            AppNotificationKind.Error => TryFindResource("ErrorBrush"),
+            _ => TryFindResource("SuccessBrush")
+        } as System.Windows.Media.Brush ?? TryFindResource("AccentBrush") as System.Windows.Media.Brush;
+
+        ToastIcon.Foreground = accent ?? ToastMessage.Foreground;
     }
 }

@@ -91,12 +91,16 @@ public partial class TrafficRouterService
                             lastRefresh = DateTime.UtcNow;
                         }
 
-                        packetProc = connCache.GetProcessName(probeTuple);
+                        var packetPid = connCache.GetOwningPid(probeTuple);
+                        packetProc = packetPid > 0 ? ResolveTargetOwner(packetPid) : null;
+                        packetProc ??= connCache.GetProcessName(probeTuple);
                         if (packetProc == null)
                         {
                             connCache.Refresh();
                             lastRefresh = DateTime.UtcNow;
-                            packetProc = connCache.GetProcessName(probeTuple);
+                            packetPid = connCache.GetOwningPid(probeTuple);
+                            packetProc = packetPid > 0 ? ResolveTargetOwner(packetPid) : null;
+                            packetProc ??= connCache.GetProcessName(probeTuple);
                         }
 
                         isBlockedProc = !_fullRouteEnabled && IsExecutableBlocked(packetProc);
@@ -185,28 +189,31 @@ public partial class TrafficRouterService
                     // NXDOMAIN or fake IPs for sites like facebook.com, preventing any
                     // connection even though our tunnel is up.
                     //
-                    // Fix: intercept port-53 traffic from target apps aimed at private
-                    // or excluded DNS servers and silently redirect it to the optimized
-                    // public DNS target which transits the VPN. On the inbound path the source IP
+                    // Fix: intercept port-53 from target apps aimed at private or auto-detected
+                    // system DNS (exclude = direct for other apps) and redirect to the tunnel
+                    // resolver. On the inbound path the source IP
                     // is spoofed back to the original server so the OS/Chrome accepts the
                     // response (it came from the "expected" address).
-                    if (tuple2.RemotePort == 53 && (isPrivate || IsExcludedDestination(dstNbo)))
+                    bool wireGuardDnsCandidate = _vpnServerIsUdpOnly && tuple2.RemotePort == 53;
+                    bool classicDnsCandidate = tuple2.RemotePort == 53 && (isPrivate || IsExcludedDestination(dstNbo));
+                    if (EnableDnsRedirect && (wireGuardDnsCandidate || classicDnsCandidate))
                     {
                         if ((DateTime.UtcNow - lastRefresh).TotalMilliseconds > 300)
                         {
                             connCache.Refresh();
                             lastRefresh = DateTime.UtcNow;
                         }
-                        var dnsProc = connCache.GetProcessName(tuple2);
-                        if (dnsProc == null)
+                        var dnsProc = ResolveDnsProcessOwner(connCache, tuple2);
+                        if (string.IsNullOrWhiteSpace(dnsProc))
                         {
                             connCache.Refresh();
                             lastRefresh = DateTime.UtcNow;
-                            dnsProc = connCache.GetProcessName(tuple2);
+                            dnsProc = ResolveDnsProcessOwner(connCache, tuple2);
                         }
 
                         if (!string.IsNullOrWhiteSpace(dnsProc) && IsExecutableTargeted(dnsProc))
                         {
+                            LearnTargetDnsQueryFromOutboundPacket(buffer, readLen, dnsProc);
                             uint publicDnsNbo = _dnsRedirectIpNbo;
 
                             // Save original DNS server IP so we can spoof it back on the response
@@ -218,18 +225,20 @@ public partial class TrafficRouterService
                             Buffer.BlockCopy(buffer, 12, origSrc, 0, 4);
                             uint origIfIdx = addr.IfIdx;
 
-                            // Rewrite: dst → optimized DNS, src → VPN IP, send via TUN
+                            // Rewrite destination to the public resolver and egress via VPN.
+                            // WireGuard split-tunnel removes the VPN default route; without a
+                            // /32 to the resolver and VPN source IP, DNS would leak to the ISP
+                            // (blocked in Iran). Telegram works with hardcoded IPs; browsers need DNS.
                             Buffer.BlockCopy(_dnsRedirectIpBytes, 0, buffer, 16, 4);
-                            Buffer.BlockCopy(_vpnLocalIpBytes, 0, buffer, 12, 4);
+                            var dnsRouteIp = _dnsRedirectIp;
+                            Buffer.BlockCopy(_vpnLocalIpBytes!, 0, buffer, 12, 4);
                             addr.IfIdx = (uint)_vpnInterfaceIndex;
+                            EnsureHostRouteViaVpn(publicDnsNbo, dnsRouteIp);
+                            _ipToProcess[publicDnsNbo] = dnsProc;
+
                             addr.SubIfIdx = 0;
                             ApplyGameModePacketTuning(buffer, readLen);
                             WinDivertNative.WinDivertHelperCalcChecksums(buffer, readLen, ref addr, 0);
-
-                            // Ensure optimized DNS target has a host route via VPN
-                            var dnsRouteIp = _dnsRedirectIp;
-                            _ = Task.Run(() => EnsureHostRouteViaVpn(publicDnsNbo, dnsRouteIp));
-                            _ipToProcess[publicDnsNbo] = dnsProc;
 
                             _natTable[(tuple2.Protocol, tuple2.LocalPort, publicDnsNbo)] = new NatEntry
                             {
@@ -268,13 +277,17 @@ public partial class TrafficRouterService
                                 lastRefresh = DateTime.UtcNow;
                             }
 
-                            procName = connCache.GetProcessName(tuple2);
+                            var pid = connCache.GetOwningPid(tuple2);
+                            procName = pid > 0 ? ResolveTargetOwner(pid) : null;
+                            procName ??= connCache.GetProcessName(tuple2);
                             // Force refresh if not found — socket might be brand new
                             if (procName == null)
                             {
                                 connCache.Refresh();
                                 lastRefresh = DateTime.UtcNow;
-                                procName = connCache.GetProcessName(tuple2);
+                                pid = connCache.GetOwningPid(tuple2);
+                                procName = pid > 0 ? ResolveTargetOwner(pid) : null;
+                                procName ??= connCache.GetProcessName(tuple2);
                             }
 
                             // Check if source app is in target tunnel apps
@@ -286,6 +299,18 @@ public partial class TrafficRouterService
 
                         if (shouldRoute)
                         {
+                            if (_vpnServerIsUdpOnly &&
+                                tuple2.Protocol == 17 &&
+                                tuple2.RemotePort == 443 &&
+                                !string.IsNullOrWhiteSpace(procName) &&
+                                ShouldForceTcpFallbackForWireGuard(procName))
+                            {
+                                var dropped = Interlocked.Increment(ref _statWgQuicDropped);
+                                if (dropped <= 8)
+                                    Logger.Info($"[WG-QUIC-DROP] {procName} UDP/443 → {tuple2.RemoteIp}:443 dropped to force TCP fallback");
+                                continue;
+                            }
+
                             bool shouldInstallHostRoute = !_fullRouteEnabled || isIncluded ||
                                 IsExecutableTargeted(procName);
 
@@ -498,5 +523,326 @@ public partial class TrafficRouterService
 
             opt += len;
         }
+    }
+
+    private static bool IsSafeIpv4TransportPacket(byte[] packet, uint length)
+    {
+        if (length < 20 || packet.Length < 20)
+            return false;
+
+        int packetLen = (int)Math.Min(length, (uint)packet.Length);
+        if ((packet[0] >> 4) != 4)
+            return false;
+
+        int ipHeaderLen = (packet[0] & 0x0F) * 4;
+        if (ipHeaderLen < 20 || packetLen < ipHeaderLen)
+            return false;
+
+        int totalLen = (packet[2] << 8) | packet[3];
+        if (totalLen < ipHeaderLen || totalLen > packetLen)
+            return false;
+
+        ushort frag = (ushort)((packet[6] << 8) | packet[7]);
+        if ((frag & 0x3FFF) != 0)
+            return false;
+
+        byte protocol = packet[9];
+        if (protocol == 6)
+        {
+            if (totalLen < ipHeaderLen + 20)
+                return false;
+
+            int tcpOffset = ipHeaderLen;
+            int tcpHeaderLen = ((packet[tcpOffset + 12] >> 4) & 0x0F) * 4;
+            return tcpHeaderLen >= 20 && totalLen >= ipHeaderLen + tcpHeaderLen;
+        }
+
+        if (protocol == 17)
+        {
+            if (totalLen < ipHeaderLen + 8)
+                return false;
+
+            int udpLen = (packet[ipHeaderLen + 4] << 8) | packet[ipHeaderLen + 5];
+            return udpLen >= 8 && udpLen <= totalLen - ipHeaderLen;
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// WireGuard uses a point-to-point adapter: after a host route is installed,
+    /// packets can leave directly on the VPN ifIdx while still carrying the
+    /// physical source IP. The generic NET-OUT loop may never see them. Rewrite
+    /// source IP on the VPN interface before WireGuard drops them (strong host).
+    /// </summary>
+    private void WireGuardVpnOutboundLoop(CancellationToken ct)
+    {
+        try
+        {
+            // Observe all packets already leaving on the WireGuard interface. Some
+            // Windows/WireGuard paths need this pass-through handle to see packets
+            // after NET-OUT reinjects them onto the adapter. Healthy packets take a
+            // fast path below; only wrong-source packets do owner/NAT work.
+            string filter = $"outbound and ip and ifIdx == {_vpnInterfaceIndex} and (tcp or udp) " +
+                            $"and ip.DstAddr != {_vpnServerIp} and ip.DstAddr != 127.0.0.1";
+
+            IntPtr h;
+            lock (_handleLock)
+            {
+                h = WinDivertNative.WinDivertOpen(filter, WinDivertLayer.Network, 0, 0);
+                _wgVpnOutHandle = h;
+            }
+
+            if (h == IntPtr.Zero || h == new IntPtr(-1))
+            {
+                int err = Marshal.GetLastWin32Error();
+                Logger.Warning($"[WG-OUT] WinDivert open failed: {err} ({GetWinDivertErrorMessage(err)})");
+                return;
+            }
+
+            Logger.Info($"[WG-OUT] VPN-interface rewrite handle opened (filter='{filter}')");
+
+            WinDivertNative.WinDivertSetParam(h, 0, 16384);
+            WinDivertNative.WinDivertSetParam(h, 1, 2000);
+            WinDivertNative.WinDivertSetParam(h, 2, 33554432);
+
+            var buffer = new byte[65535];
+            var addr = new WinDivertAddress();
+            var connCache = new ConnectionProcessCache();
+            var lastRefresh = DateTime.MinValue;
+            int logCount = 0;
+            int wgDnsRedirectLogCount = 0;
+
+            while (!ct.IsCancellationRequested)
+            {
+                uint readLen = 0;
+                if (!WinDivertNative.WinDivertRecv(h, buffer, (uint)buffer.Length, ref readLen, ref addr))
+                {
+                    if (ct.IsCancellationRequested || !_isRunning) break;
+                    continue;
+                }
+
+                Interlocked.Increment(ref _statWgVpnOutSeen);
+
+                if (readLen < 20 || _vpnLocalIpBytes is not { Length: 4 } vpnLocalIpBytes)
+                {
+                    WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                    continue;
+                }
+
+                bool srcIsVpn = buffer[12] == vpnLocalIpBytes[0] &&
+                                buffer[13] == vpnLocalIpBytes[1] &&
+                                buffer[14] == vpnLocalIpBytes[2] &&
+                                buffer[15] == vpnLocalIpBytes[3];
+
+                if (!TryParseConnectionTuple(buffer, readLen, out var tuple))
+                {
+                    WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                    continue;
+                }
+
+                uint dstNbo = BitConverter.ToUInt32(buffer, 16);
+
+                if ((DateTime.UtcNow - lastRefresh).TotalMilliseconds > 300)
+                {
+                    connCache.Refresh();
+                    lastRefresh = DateTime.UtcNow;
+                }
+
+                var pid = connCache.GetOwningPid(tuple);
+                string? targetOwner = pid > 0 ? ResolveTargetOwner(pid) : null;
+                if (targetOwner == null)
+                {
+                    var procHint = connCache.GetProcessName(tuple);
+                    if (!string.IsNullOrWhiteSpace(procHint) && IsExecutableTargeted(procHint))
+                        targetOwner = procHint;
+                }
+                if (targetOwner == null &&
+                    _flowOwnerByTuple.TryGetValue((tuple.Protocol, tuple.LocalPort, dstNbo), out var flowOwner) &&
+                    IsExecutableTargeted(flowOwner))
+                {
+                    targetOwner = flowOwner;
+                }
+                if (targetOwner == null &&
+                    _ipToProcess.TryGetValue(dstNbo, out var ipOwner) &&
+                    IsExecutableTargeted(ipOwner))
+                {
+                    targetOwner = ipOwner;
+                }
+
+                // DNS on WG ifIdx never hits NET-OUT. Packets may use physical OR VPN
+                // source on this ifIdx (strong-host); do not require srcIsVpn.
+                if (EnableDnsRedirect &&
+                    _vpnServerIsUdpOnly &&
+                    tuple.Protocol == 17 &&
+                    tuple.RemotePort == 53)
+                {
+                    byte[] dstBytes = BitConverter.GetBytes(dstNbo);
+                    var dnsProc = targetOwner ?? connCache.GetProcessName(tuple);
+                    if (string.IsNullOrWhiteSpace(dnsProc) &&
+                        _ipToProcess.TryGetValue(dstNbo, out var routeOwner))
+                        dnsProc = routeOwner;
+
+                    // Exclude = outside tunnel for non-target apps. Include/user exclude
+                    // still applies to normal traffic; target-app DNS is redirected below.
+                    bool isTargetDns = IsExecutableTargeted(dnsProc) ||
+                                         (!string.IsNullOrWhiteSpace(targetOwner) && IsExecutableTargeted(targetOwner));
+                    if (!isTargetDns)
+                    {
+                        WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                        continue;
+                    }
+
+                    if (dstBytes[0] >= 224 || dstNbo == _dnsRedirectIpNbo)
+                    {
+                        WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                        continue;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(dnsProc))
+                        dnsProc = "dns";
+
+                    {
+                        LearnTargetDnsQueryFromOutboundPacket(buffer, readLen, dnsProc);
+                        var dnsOrigDst = new byte[4];
+                        Buffer.BlockCopy(buffer, 16, dnsOrigDst, 0, 4);
+                        var wgDnsOrigSrc = new byte[4];
+                        Buffer.BlockCopy(buffer, 12, wgDnsOrigSrc, 0, 4);
+                        uint origIfIdx = addr.IfIdx;
+                        uint dnsReturnIfIdx = srcIsVpn || _physicalInterfaceIndex <= 0
+                            ? origIfIdx
+                            : (uint)_physicalInterfaceIndex;
+
+                        Buffer.BlockCopy(_dnsRedirectIpBytes, 0, buffer, 16, 4);
+                        Buffer.BlockCopy(vpnLocalIpBytes, 0, buffer, 12, 4);
+                        addr.IfIdx = (uint)_vpnInterfaceIndex;
+                        addr.SubIfIdx = 0;
+                        EnsureHostRouteViaVpn(_dnsRedirectIpNbo, _dnsRedirectIp);
+                        if (!string.IsNullOrWhiteSpace(dnsProc))
+                            _ipToProcess[_dnsRedirectIpNbo] = dnsProc;
+
+                        ApplyGameModePacketTuning(buffer, readLen);
+                        WinDivertNative.WinDivertHelperCalcChecksums(buffer, readLen, ref addr, 0);
+
+                        _natTable[(tuple.Protocol, tuple.LocalPort, _dnsRedirectIpNbo)] = new NatEntry
+                        {
+                            OriginalSrcIp = wgDnsOrigSrc,
+                            PhysicalIfIdx = dnsReturnIfIdx,
+                            ProcessName = dnsProc ?? "dns",
+                            LastSeen = DateTime.UtcNow,
+                            IsDnsRedirect = true,
+                            DnsOrigDstIp = dnsOrigDst
+                        };
+
+                        Interlocked.Increment(ref _redirectCount);
+                        Interlocked.Increment(ref _statWgDnsRedirect);
+                        if (wgDnsRedirectLogCount < 5)
+                        {
+                            wgDnsRedirectLogCount++;
+                            Logger.Info($"[WG-DNS-REDIRECT] {dnsProc ?? "dns"} → {_dnsRedirectIp}:53 (was: {tuple.RemoteIp}:53)");
+                        }
+
+                        WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                        continue;
+                    }
+                }
+
+                bool shouldRoute = _addedRoutes.ContainsKey(dstNbo) || _fullRouteEnabled ||
+                                   IsIncludedDestination(dstNbo) || targetOwner != null;
+                string? procName = targetOwner;
+
+                if (_vpnServerIsUdpOnly &&
+                    tuple.Protocol == 17 &&
+                    tuple.RemotePort == 443 &&
+                    !string.IsNullOrWhiteSpace(targetOwner) &&
+                    ShouldForceTcpFallbackForWireGuard(targetOwner))
+                {
+                    var dropped = Interlocked.Increment(ref _statWgQuicDropped);
+                    if (dropped <= 8)
+                        Logger.Info($"[WG-QUIC-DROP] {targetOwner} UDP/443 → {tuple.RemoteIp}:443 dropped to force TCP fallback");
+                    continue;
+                }
+
+                if (srcIsVpn)
+                {
+                    // This is the normal successful path after NET-OUT or Windows
+                    // routing selected the WireGuard source IP. Do not rewrite it
+                    // again, but keep route ownership fresh and allow QUIC/DNS policy
+                    // above to run first.
+                    if (!IsExcludedDestination(dstNbo) && shouldRoute)
+                    {
+                        var routeOwner = targetOwner ?? procName;
+                        if (!string.IsNullOrWhiteSpace(routeOwner))
+                            _ipToProcess[dstNbo] = routeOwner;
+                        if (!_addedRoutes.ContainsKey(dstNbo))
+                            EnsureHostRouteViaVpn(dstNbo, tuple.RemoteIp);
+                    }
+
+                    WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                    continue;
+                }
+
+                if (!shouldRoute || IsExcludedDestination(dstNbo))
+                {
+                    WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr);
+                    continue;
+                }
+
+                var origSrc = new byte[4];
+                Buffer.BlockCopy(buffer, 12, origSrc, 0, 4);
+
+                Buffer.BlockCopy(vpnLocalIpBytes, 0, buffer, 12, 4);
+                addr.IfIdx = (uint)_vpnInterfaceIndex;
+                addr.SubIfIdx = 0;
+                ApplyGameModePacketTuning(buffer, readLen);
+                WinDivertNative.WinDivertHelperCalcChecksums(buffer, readLen, ref addr, 0);
+
+                var ownerName = procName ??
+                                (_ipToProcess.TryGetValue(dstNbo, out var mappedOwner) ? mappedOwner : "unknown");
+                var returnIfIdx = _physicalInterfaceIndex > 0
+                    ? (uint)_physicalInterfaceIndex
+                    : addr.IfIdx;
+                _natTable[(tuple.Protocol, tuple.LocalPort, dstNbo)] = new NatEntry
+                {
+                    OriginalSrcIp = origSrc,
+                    PhysicalIfIdx = returnIfIdx,
+                    ProcessName = ownerName,
+                    LastSeen = DateTime.UtcNow
+                };
+
+                Interlocked.Increment(ref _statWgVpnOutRewritten);
+                if (logCount < 5)
+                {
+                    logCount++;
+                    Logger.Info($"[WG-OUT] Rewrite #{logCount}: {ownerName} → {tuple.RemoteIp}:{tuple.RemotePort} (returnIf={returnIfIdx})");
+                }
+
+                if (!WinDivertNative.WinDivertSend(h, buffer, readLen, IntPtr.Zero, ref addr))
+                {
+                    int err = Marshal.GetLastWin32Error();
+                    if (Interlocked.Increment(ref _statNetOutSendFailed) <= 5)
+                        Logger.Warning($"[WG-OUT] send failed: err={err} dst={tuple.RemoteIp}");
+                }
+            }
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception ex)
+        {
+            if (_isRunning) Logger.Warning($"[WG-OUT] Loop error: {ex.Message}");
+        }
+    }
+
+    private static bool ShouldForceTcpFallbackForWireGuard(string executableName)
+    {
+        if (string.IsNullOrWhiteSpace(executableName))
+            return false;
+
+        return executableName.Equals("chrome.exe", StringComparison.OrdinalIgnoreCase) ||
+               executableName.Equals("msedge.exe", StringComparison.OrdinalIgnoreCase) ||
+               executableName.Equals("msedgewebview2.exe", StringComparison.OrdinalIgnoreCase) ||
+               executableName.Equals("brave.exe", StringComparison.OrdinalIgnoreCase) ||
+               executableName.Equals("firefox.exe", StringComparison.OrdinalIgnoreCase) ||
+               executableName.Equals("cursor.exe", StringComparison.OrdinalIgnoreCase) ||
+               executableName.Equals("codex.exe", StringComparison.OrdinalIgnoreCase);
     }
 }

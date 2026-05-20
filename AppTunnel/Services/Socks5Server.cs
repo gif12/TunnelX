@@ -233,7 +233,8 @@ internal sealed class Socks5Server
                 }
                 catch (Exception dex)
                 {
-                    Logger.Warning($"[SOCKS5 #{connId}] connect {host}:{port} failed: {dex.Message}");
+                    if (!IsBenignCanceledConnect(dex))
+                        Logger.Warning($"[SOCKS5 #{connId}] connect {host}:{port} failed: {dex.Message}");
                     await WriteReplyAsync(stream, 0x05 /*conn refused*/, ct);
                     return;
                 }
@@ -308,5 +309,16 @@ internal sealed class Socks5Server
             }
         }
         catch { }
+    }
+
+    private static bool IsBenignCanceledConnect(Exception ex)
+    {
+        if (ex is OperationCanceledException || ex is TaskCanceledException)
+            return true;
+        if (ex is SocketException sx &&
+            (sx.SocketErrorCode == SocketError.OperationAborted ||
+             sx.SocketErrorCode == SocketError.TimedOut))
+            return true;
+        return ex.Message.Contains("operation was canceled", StringComparison.OrdinalIgnoreCase);
     }
 }

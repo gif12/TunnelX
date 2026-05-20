@@ -11,12 +11,14 @@ namespace AppTunnel.Services;
 internal class ConnectionProcessCacheV6
 {
     private readonly Dictionary<(ushort port, byte protocol), string> _cache = new();
+    private readonly Dictionary<(ushort port, byte protocol), int> _pidCache = new();
     private Dictionary<int, string> _pidNameCache = new();
     private int _refreshCount;
 
     public void Refresh()
     {
         _cache.Clear();
+        _pidCache.Clear();
         if (++_refreshCount % 3 == 0)
             _pidNameCache = new Dictionary<int, string>();
         RefreshTcp6();
@@ -27,6 +29,9 @@ internal class ConnectionProcessCacheV6
     {
         return _cache.GetValueOrDefault((localPort, protocol));
     }
+
+    public int GetOwningPid(ushort localPort, byte protocol)
+        => _pidCache.GetValueOrDefault((localPort, protocol));
 
     private void RefreshTcp6()
     {
@@ -55,7 +60,10 @@ internal class ConnectionProcessCacheV6
                 ushort port = (ushort)IPAddress.NetworkToHostOrder((short)localPort);
                 var name = GetProcessNameByPid(pid);
                 if (name != null)
+                {
                     _cache[(port, 6)] = name;
+                    _pidCache[(port, 6)] = pid;
+                }
             }
         }
         finally { Marshal.FreeHGlobal(buffer); }
@@ -87,7 +95,10 @@ internal class ConnectionProcessCacheV6
                 ushort port = (ushort)IPAddress.NetworkToHostOrder((short)localPort);
                 var name = GetProcessNameByPid(pid);
                 if (name != null)
+                {
                     _cache[(port, 17)] = name;
+                    _pidCache[(port, 17)] = pid;
+                }
             }
         }
         finally { Marshal.FreeHGlobal(buffer); }

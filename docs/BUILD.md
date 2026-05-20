@@ -10,6 +10,10 @@ Building from source requires the .NET 8 SDK. Running a framework-dependent deve
 dotnet build AppTunnel.sln -c Release
 ```
 
+### WPF: missing `*.g.cs` (CS2001) after `clean`
+
+If `dotnet clean` was followed immediately by `dotnet build --no-restore`, or two builds touched `obj` at once, the compiler can briefly look for generated files such as `MainWindow.g.cs` before markup compile has recreated them. Run a normal `dotnet build` (with restore) once, or repeat the build; the generated files are recreated automatically.
+
 ## Standalone Compressed EXE
 
 This is the recommended public release format. It is self-contained, so users do not need to install .NET 8 separately. Native components are bundled and extracted by the app at runtime when needed.

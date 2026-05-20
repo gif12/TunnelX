@@ -31,11 +31,25 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        var orphanHosts = TunnelXHostProcess.CountOtherSamePathHosts();
+        if (orphanHosts > 1)
+        {
+            Logger.Warning($"[STARTUP] Found {orphanHosts} extra TunnelX hosts; terminating orphans.");
+            TunnelXHostProcess.TerminateOtherHosts();
+        }
+
         if (!TryAcquireSingleInstance())
         {
+            Logger.Info("[STARTUP] Another TunnelX instance is already running; forwarding show request.");
             SignalExistingInstanceToShow();
             Shutdown(0);
             return;
+        }
+
+        if (TunnelXHostProcess.CountOtherSamePathHosts() > 0)
+        {
+            Logger.Warning("[STARTUP] Removing leftover TunnelX host processes from a previous session.");
+            TunnelXHostProcess.TerminateOtherHosts();
         }
 
         // Ensure the data directory exists before anything else.
@@ -86,13 +100,15 @@ public partial class App : Application
         MainWindow = mainWindow;
         mainWindow.Show();
 
-        // Clean up any stale VPN connection left by a previous crash/kill.
-        CleanupStaleVpn();
+        Logger.Info("TunnelX application started");
+
+        // Clean up engines left by a previous crash/kill. Keep off the UI thread.
+        _ = Task.Run(() => CleanupStaleArtifacts("startup background", includeVpnProfiles: false));
 
         // Safety net: if the process is killed, try to disconnect VPN.
         AppDomain.CurrentDomain.ProcessExit += (_, _) =>
         {
-            try { CleanupStaleVpn(); } catch { }
+            try { CleanupStaleArtifacts("process exit", includeVpnProfiles: true, timeoutSeconds: 8); } catch { }
         };
 
         // Global exception handlers for debugging
@@ -100,7 +116,7 @@ public partial class App : Application
         {
             var ex = args.ExceptionObject as Exception;
             Logger.Error("Unhandled exception in AppDomain", ex);
-            try { CleanupStaleVpn(); } catch { }
+            try { CleanupStaleArtifacts("fatal exception", includeVpnProfiles: true, timeoutSeconds: 5); } catch { }
             MessageBox.Show(
                 $"Critical error occurred:\n{ex?.Message}\n\nCheck Debug Log for details.",
                 "TunnelX - Fatal Error",
@@ -118,35 +134,92 @@ public partial class App : Application
                 MessageBoxImage.Error);
             args.Handled = true; // Prevent crash
         };
-
-        Logger.Info("TunnelX application started");
     }
 
     protected override void OnExit(ExitEventArgs e)
     {
         Logger.Info("TunnelX application exiting");
 
-        try { _bringToFrontRegistration?.Unregister(null); } catch { }
-        try { _bringToFrontEvent?.Dispose(); } catch { }
-        try
-        {
-            _singleInstanceMutex?.ReleaseMutex();
-            _singleInstanceMutex?.Dispose();
-        }
-        catch { }
+        try { CleanupStaleArtifacts("app exit", includeVpnProfiles: true, timeoutSeconds: 12); } catch { }
+
+        ReleaseSingleInstanceResources();
 
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Ends the process immediately after cleanup. Prefer this over <see cref="Shutdown"/>
+    /// while a connection attempt is still running in the background.
+    /// </summary>
+    internal static void ForceTerminateApplication()
+    {
+        try { TunnelXHostProcess.TerminateOtherHosts(); } catch { }
+
+        if (Current is App app)
+        {
+            try { app.ReleaseSingleInstanceResources(); } catch { }
+        }
+
+        Environment.Exit(0);
     }
 
     private bool TryAcquireSingleInstance()
     {
         try
         {
-            _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out bool createdNew);
-            if (!createdNew)
-                return false;
+            if (!TryCreateSingleInstanceMutex(out var createdNew))
+            {
+                Logger.Warning("[STARTUP] Single-instance mutex unavailable; continuing without lock.");
+                return true;
+            }
 
+            if (!createdNew)
+            {
+                if (TunnelXHostProcess.TryTerminateUnresponsiveHosts())
+                {
+                    TryCreateSingleInstanceMutex(out createdNew);
+                    Logger.Warning("[STARTUP] Recovered from an unresponsive TunnelX instance.");
+                }
+
+                if (TunnelXHostProcess.IsAnotherTunnelXHostAlive())
+                    return false;
+
+                if (!createdNew)
+                    Logger.Warning("[STARTUP] Recovering abandoned TunnelX single-instance lock.");
+            }
+
+            return SetupSingleInstanceCallbacks();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[STARTUP] Single-instance lock failed; continuing anyway: {ex.Message}");
+            return true;
+        }
+    }
+
+    private bool TryCreateSingleInstanceMutex(out bool createdNew)
+    {
+        try
+        {
+            _singleInstanceMutex?.Dispose();
+            _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out createdNew);
+            return true;
+        }
+        catch
+        {
+            createdNew = false;
+            return false;
+        }
+    }
+
+    private bool SetupSingleInstanceCallbacks()
+    {
+        try
+        {
+
+            _bringToFrontEvent?.Dispose();
             _bringToFrontEvent = new EventWaitHandle(false, EventResetMode.AutoReset, BringToFrontEventName);
+            _bringToFrontRegistration?.Unregister(null);
             _bringToFrontRegistration = ThreadPool.RegisterWaitForSingleObject(
                 _bringToFrontEvent,
                 (_, _) => Dispatcher.BeginInvoke(new Action(BringMainWindowToFront)),
@@ -156,9 +229,32 @@ public partial class App : Application
 
             return true;
         }
-        catch
+        catch (Exception ex)
         {
+            Logger.Warning($"[STARTUP] Bring-to-front event setup failed: {ex.Message}");
             return true;
+        }
+    }
+
+    private void ReleaseSingleInstanceResources()
+    {
+        try { _bringToFrontRegistration?.Unregister(null); } catch { }
+        try { _bringToFrontEvent?.Dispose(); } catch { }
+        _bringToFrontRegistration = null;
+        _bringToFrontEvent = null;
+
+        try
+        {
+            if (_singleInstanceMutex != null)
+            {
+                try { _singleInstanceMutex.ReleaseMutex(); } catch { }
+                _singleInstanceMutex.Dispose();
+            }
+        }
+        catch { }
+        finally
+        {
+            _singleInstanceMutex = null;
         }
     }
 
@@ -190,24 +286,24 @@ public partial class App : Application
     /// Also removes duplicates like "TunnelX 2", "TunnelX 3" that Windows
     /// sometimes creates when the original wasn't fully removed.
     /// </summary>
-    private static void CleanupStaleVpn()
+    private static void CleanupStaleArtifacts(string reason, bool includeVpnProfiles, int timeoutSeconds = 10)
     {
-        // ── 0. Kill any stray sing-box process left over from a crash ──────────
         try
         {
-            var killSingBox = new ProcessStartInfo
-            {
-                FileName               = "taskkill",
-                Arguments              = "/F /IM sing-box.exe",
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true
-            };
-            using var kp = Process.Start(killSingBox);
-            kp?.WaitForExit(3000);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(timeoutSeconds));
+            TunnelXCleanupService.CleanupAllAsync(reason, cts.Token).GetAwaiter().GetResult();
         }
-        catch { }
+        catch (OperationCanceledException)
+        {
+            Logger.Warning($"[CLEANUP] Timed out after {timeoutSeconds}s during '{reason}'");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[CLEANUP] Central cleanup failed: {ex.Message}");
+        }
+
+        if (!includeVpnProfiles)
+            return;
 
         const string vpnName = "TunnelX";
         try

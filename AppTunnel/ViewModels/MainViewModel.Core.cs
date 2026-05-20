@@ -27,6 +27,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     private DateTime _connectionStartTime;
     private ProfileService.AppSettings _appSettings = new();
     private bool _isLoadingProfile;
+    private const string StartupRegistryRunKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
+    private const string StartupRegistryValueName = "TunnelX";
 
     public MainViewModel()
     {
@@ -67,17 +69,27 @@ public partial class MainViewModel : INotifyPropertyChanged
         TogglePingCommand = new RelayCommand(_ => TogglePing(), _ => IsConnected);
         TestConnectedServerPingCommand = new RelayCommand(_ => _ = TestConnectedServerPingAsync(), _ => IsConnected && !IsTestingConnectedServerPing);
         TestServerPingCommand = new RelayCommand(_ => _ = TestServerPingAsync(), _ => !IsConnected && !IsTestingServerPing);
-        PasteConfigCommand = new RelayCommand(_ => PasteConfigFromClipboard(), _ => !IsConnected && (CurrentTunnelType == TunnelType.V2Ray || CurrentTunnelType == TunnelType.OpenVpn));
-        ClearConfigCommand = new RelayCommand(_ => ClearCurrentConfig(), _ => !IsConnected && (CurrentTunnelType == TunnelType.V2Ray || CurrentTunnelType == TunnelType.OpenVpn));
+        PasteConfigCommand = new RelayCommand(_ => PasteConfigFromClipboard(), _ => !IsConnected && (CurrentTunnelType == TunnelType.V2Ray || CurrentTunnelType == TunnelType.OpenVpn || CurrentTunnelType == TunnelType.WireGuard));
+        ClearConfigCommand = new RelayCommand(_ => ClearCurrentConfig(), _ => !IsConnected && (CurrentTunnelType == TunnelType.V2Ray || CurrentTunnelType == TunnelType.OpenVpn || CurrentTunnelType == TunnelType.WireGuard));
         BrowseOpenVpnConfigCommand = new RelayCommand(_ => BrowseForOpenVpnConfig(), _ => !IsConnected && CurrentTunnelType == TunnelType.OpenVpn);
+        BrowseWireGuardConfigCommand = new RelayCommand(_ => BrowseForWireGuardConfig(), _ => !IsConnected && CurrentTunnelType == TunnelType.WireGuard);
         OpenOpenVpnCommunityDownloadCommand = new RelayCommand(_ => OpenExternalLink(OpenVpnCommunityDownloadUrl));
+        OpenWireGuardDownloadCommand = new RelayCommand(_ => OpenExternalLink(WireGuardDownloadUrl));
         OpenGitHubCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.GitHubUrl));
         OpenDonateCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.PayPalDonateUrl));
         OpenAdRequestCommand = new RelayCommand(_ => OpenExternalLink(AppInfo.TelegramContactUrl));
+        OpenTelegramChannelCommand = new RelayCommand(_ => OpenTelegramChannel());
         CopyDonationInfoCommand = new RelayCommand(_ => CopyDonationInfoToClipboard());
+        CopyHelpCryptoAddressCommand = new RelayCommand(p => CopyHelpCryptoAddress(p as string));
         CheckForUpdatesCommand = new RelayCommand(_ => _ = CheckForUpdatesAsync(false), _ => !IsCheckingForUpdates);
         OpenLatestReleaseCommand = new RelayCommand(_ => OpenExternalLink(LatestReleaseUrl), _ => !string.IsNullOrWhiteSpace(LatestReleaseUrl));
         ToggleLanguageCommand = new RelayCommand(_ => ToggleLanguage());
+
+        CancelConnectionCommand = new RelayCommand(
+            _ => _ = CancelConnectingAsync(),
+            _ => _connectionState == ConnectionState.Connecting);
+
+        SubscribeConnectionProgress();
 
         LocalizationService.Instance.LanguageChanged += (_, _) => OnLanguageChanged();
 
@@ -105,23 +117,12 @@ public partial class MainViewModel : INotifyPropertyChanged
         LoadHistory();
         LoadAppSettings();
         RefreshOpenVpnInstallStatus();
+        RefreshWireGuardInstallStatus();
         _ = CheckForUpdatesAsync(true);
 
-        // Auto-connect to last active profile if enabled
-        if (_appSettings.AutoConnectOnStartup && !string.IsNullOrEmpty(_appSettings.LastActiveProfileId))
-        {
-            var lastProfile = Profiles.FirstOrDefault(p => p.Id == _appSettings.LastActiveProfileId);
-            if (lastProfile != null)
-            {
-                SelectedProfile = lastProfile;
-                _ = ToggleConnectionAsync().ContinueWith(t =>
-                {
-                    if (t.IsFaulted)
-                        Application.Current?.Dispatcher.Invoke(() =>
-                            StatusText = LocalizationService.Instance.Format("خطای اتصال خودکار: {0}", t.Exception?.InnerException?.Message));
-                }, TaskScheduler.Default);
-            }
-        }
+        RefreshHelpCryptoWalletRows();
+
+        QueueAutoConnectToLastProfile();
     }
 
     #region Properties
@@ -258,11 +259,26 @@ public partial class MainViewModel : INotifyPropertyChanged
         set
         {
             if (_startWithWindows == value) return;
+
+            if (!TryUpdateStartupRegistry(value, out var error))
+            {
+                _startWithWindows = IsStartupRegistryEnabledForCurrentExecutable();
+                OnPropertyChanged();
+                StatusText = string.IsNullOrWhiteSpace(error)
+                    ? "تغییر تنظیم اجرای خودکار ویندوز ناموفق بود"
+                    : error;
+                return;
+            }
+
             _startWithWindows = value;
             OnPropertyChanged();
-            UpdateStartupRegistry(value);
             _appSettings.StartWithWindows = value;
             _profileService.SaveAppSettings(_appSettings);
+
+            if (value)
+                Helpers.DialogService.Info(
+                    "اجرای خودکار ویندوز فعال شد. اگر فایل TunnelX را جابه‌جا کردید، این گزینه را یک بار خاموش و روشن کنید.",
+                    "TunnelX — استارت‌آپ");
         }
     }
 
@@ -331,6 +347,12 @@ public partial class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(StatusColor));
             OnPropertyChanged(nameof(StatusText));
             OnPropertyChanged(nameof(IsOpenVpnConnectionPending));
+            OnPropertyChanged(nameof(IsConnectionPending));
+            OnPropertyChanged(nameof(ConnectingTitleText));
+            OnPropertyChanged(nameof(ConnectingHelpText));
+            OnPropertyChanged(nameof(ShowConnectionErrorPanel));
+            OnPropertyChanged(nameof(HasConnectionError));
+            OnPropertyChanged(nameof(ConnectionErrorDetail));
             RaiseHealthStatusChanged();
             CommandManager.InvalidateRequerySuggested();
         }
@@ -339,7 +361,9 @@ public partial class MainViewModel : INotifyPropertyChanged
     public bool IsConnected => _connectionState == ConnectionState.Connected;
     public bool IsOpenVpnConnectionPending =>
         _connectionState == ConnectionState.Connecting && CurrentTunnelType == TunnelType.OpenVpn;
+    public bool IsConnectionPending => _connectionState == ConnectionState.Connecting;
     public const string OpenVpnCommunityDownloadUrl = "https://openvpn.net/community-downloads/";
+    public const string WireGuardDownloadUrl = "https://www.wireguard.com/install/";
 
     private bool _isOpenVpnCommunityInstalled;
     public bool IsOpenVpnCommunityInstalled
@@ -373,6 +397,50 @@ public partial class MainViewModel : INotifyPropertyChanged
         : LocalizationService.Instance.T("اخطار: نسخه Community اوپن‌وی‌پی‌ان نصب نیست. برای استفاده از اسپلیت‌تانلینگ با این نوع اتصال، ابتدا آن را از لینک رسمی نصب کنید.");
 
     public string OpenVpnPrerequisiteColor => IsOpenVpnCommunityInstalled ? "#6CCB5F" : "#E0A020";
+    public string OpenVpnIntroText => LocalizationService.Instance.T("TunnelX فایل .ovpn را با OpenVPN Community اجرا می‌کند و مسیر/DNS پیش‌فرض OpenVPN را کنترل می‌کند تا فقط برنامه‌های انتخابی از تونل عبور کنند.");
+    public string OpenVpnInstallGuideText => LocalizationService.Instance.T("می‌توانید فایل .ovpn را همین حالا اضافه کنید، اما اتصال OpenVPN فقط بعد از نصب OpenVPN Community انجام می‌شود. اگر نصب نیست، دکمه دانلود را بزنید، نصب را کامل کنید، سپس به TunnelX برگردید و اتصال را بزنید.");
+    public string OpenVpnConnectWarningText => LocalizationService.Instance.T("OpenVPN Connect به‌تنهایی کافی نیست؛ اگر Community نصب نباشد، از دکمه دانلود پایین استفاده کنید.");
+    public string DownloadOpenVpnText => LocalizationService.Instance.T("دانلود OpenVPN");
+
+    private bool _isWireGuardInstalled;
+    public bool IsWireGuardInstalled
+    {
+        get => _isWireGuardInstalled;
+        private set
+        {
+            if (_isWireGuardInstalled == value) return;
+            _isWireGuardInstalled = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(WireGuardPrerequisiteText));
+            OnPropertyChanged(nameof(WireGuardPrerequisiteColor));
+        }
+    }
+
+    private string _wireGuardDetectedPath = "";
+    public string WireGuardDetectedPath
+    {
+        get => _wireGuardDetectedPath;
+        private set
+        {
+            if (_wireGuardDetectedPath == value) return;
+            _wireGuardDetectedPath = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(WireGuardPrerequisiteText));
+        }
+    }
+
+    public string WireGuardPrerequisiteText => IsWireGuardInstalled
+        ? LocalizationService.Instance.Format("پیش‌نیاز آماده است: WireGuard رسمی ویندوز پیدا شد: {0}", WireGuardDetectedPath)
+        : LocalizationService.Instance.T("اخطار: WireGuard رسمی ویندوز نصب نیست. برای استفاده از اسپلیت‌تانلینگ WireGuard، ابتدا آن را از لینک رسمی نصب کنید.");
+
+    public string WireGuardPrerequisiteColor => IsWireGuardInstalled ? "#6CCB5F" : "#E0A020";
+    public string WireGuardIntroText => LocalizationService.Instance.T("TunnelX کانفیگ WireGuard را با WireGuard رسمی ویندوز به‌صورت adapter واقعی اجرا می‌کند و سپس اسپلیت‌تانلینگ برنامه‌ها را مثل OpenVPN/L2TP مدیریت می‌کند. نسخه فعلی فقط کانفیگ تک-peer را پشتیبانی می‌کند.");
+    public string WireGuardInstallGuideText => LocalizationService.Instance.T("می‌توانید فایل .conf را همین حالا اضافه کنید، اما اتصال WireGuard فقط بعد از نصب WireGuard رسمی ویندوز انجام می‌شود. اگر نصب نیست، دکمه دانلود را بزنید، نصب را کامل کنید، سپس به TunnelX برگردید و اتصال را بزنید.");
+    public string DownloadWireGuardText => LocalizationService.Instance.T("دانلود WireGuard");
+    public string WireGuardFileLabelText => LocalizationService.Instance.T("فایل WireGuard (.conf)");
+    public string WireGuardConfigLabelText => LocalizationService.Instance.T("کانفیگ WireGuard");
+    public string ChooseFileText => LocalizationService.Instance.T("انتخاب فایل");
+    public string RemoveFileText => LocalizationService.Instance.T("حذف فایل");
 
     /// <summary>App version read from a single app-wide source.</summary>
     public string AppVersion => AppInfo.VersionText;
@@ -386,6 +454,11 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string AdAudienceText => _githubInstallCount.HasValue
         ? LocalizationService.Instance.Format("تبلیغ شما می‌تواند در معرض دید کاربران TunnelX با بیش از {0} نصب از GitHub باشد.", GitHubInstallCountDisplay)
         : "";
+    public string TelegramChannelJoinButtonText => LocalizationService.Instance.T("📢 برای دریافت اخبار آپدیت و اطلاع‌رسانی، در کانال تلگرام TunnelX عضو شوید");
+    public string TelegramChannelToolTipText => LocalizationService.Instance.Format("کانال تلگرام TunnelX — {0}", AppInfo.TelegramChannelHandle);
+    public string FooterTelegramButtonText => LocalizationService.Instance.T("📢 تلگرام");
+    public string FooterTelegramToolTipText => TelegramChannelToolTipText;
+    public string FooterMadeByText => LocalizationService.Instance.T("توسط Maxifan");
     public string LogClearButtonText => LocalizationService.Instance.T("پاک کردن");
     public string LogCopyErrorButtonText => LocalizationService.Instance.T("کپی خطا");
     public string LogCopyAllButtonText => LocalizationService.Instance.T("کپی همه");
@@ -398,6 +471,20 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string CryptoDonationText => LocalizationService.Instance.IsRightToLeft
         ? AppInfo.CryptoDonationText
         : AppInfo.CryptoDonationTextEn;
+
+    public ObservableCollection<CryptoDonationAddress> HelpCryptoWalletRows { get; } = new();
+
+    public string HelpProjectCardTitleText => LocalizationService.Instance.T("پروژه و بروزرسانی");
+    public string HelpProjectMissionText => LocalizationService.Instance.T(
+        "TunnelX اسپلیت‌تانلینگ برنامه‌ای را برای ویندوز فراهم می‌کند: فقط برنامه‌ها و مقصدهای انتخابی از تونل عبور می‌کنند و بقیه ترافیک مستقیم می‌ماند.");
+    public string HelpSupportCardTitleText => LocalizationService.Instance.T("حمایت از پروژه");
+    public string HelpSupportCtaText => LocalizationService.Instance.T(
+        "با حمایت شما توسعه TunnelX ادامه می‌یابد؛ رفع باگ، پشتیبانی از پروتکل‌های جدید و قابلیت‌های بیشتر در راه است.");
+    public string HelpGitHubButtonText => LocalizationService.Instance.T("GitHub پروژه TunnelX");
+    public string HelpGitHubButtonToolTipText => LocalizationService.Instance.T("باز کردن صفحه GitHub پروژه TunnelX");
+    public string HelpDonatePayPalButtonText => LocalizationService.Instance.T("حمایت با پی‌پل");
+    public string HelpCopyCryptoAddressButtonText => LocalizationService.Instance.T("کپی");
+    public string HelpCopyCryptoAddressToolTipText => LocalizationService.Instance.T("کپی آدرس کیف پول");
 
     private bool _isCheckingForUpdates;
     public bool IsCheckingForUpdates
@@ -425,16 +512,19 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private string _updateStatusText = "برای بررسی نسخه جدید، دکمه بررسی بروزرسانی را بزنید.";
-    public string UpdateStatusText
+    private string _updateStatusKey = "برای بررسی نسخه جدید، دکمه بررسی بروزرسانی را بزنید.";
+    private object[] _updateStatusFormatArgs = Array.Empty<object>();
+
+    public string UpdateStatusText =>
+        _updateStatusFormatArgs.Length > 0
+            ? LocalizationService.Instance.Format(_updateStatusKey, _updateStatusFormatArgs)
+            : LocalizationService.Instance.T(_updateStatusKey);
+
+    private void SetUpdateStatus(string persianKey, params object[] formatArgs)
     {
-        get => LocalizationService.Instance.T(_updateStatusText);
-        set
-        {
-            if (_updateStatusText == value) return;
-            _updateStatusText = value;
-            OnPropertyChanged();
-        }
+        _updateStatusKey = persianKey;
+        _updateStatusFormatArgs = formatArgs ?? Array.Empty<object>();
+        OnPropertyChanged(nameof(UpdateStatusText));
     }
 
     private string _latestReleaseUrl = AppInfo.LatestReleaseUrl;
@@ -495,6 +585,23 @@ public partial class MainViewModel : INotifyPropertyChanged
         _ => "#666666"
     };
 
+    public string ConnectingTitleText => CurrentTunnelType switch
+    {
+        TunnelType.OpenVpn => LocalizationService.Instance.T("در حال اتصال OpenVPN"),
+        TunnelType.WireGuard => LocalizationService.Instance.T("در حال اتصال WireGuard"),
+        TunnelType.V2Ray => LocalizationService.Instance.T("در حال اتصال V2Ray/Xray"),
+        TunnelType.SocksProxy => LocalizationService.Instance.T("در حال اتصال Proxy"),
+        TunnelType.L2tpIpsec => LocalizationService.Instance.T("در حال اتصال L2TP/IPsec"),
+        _ => LocalizationService.Instance.T("در حال اتصال")
+    };
+
+    public string ConnectingHelpText => CurrentTunnelType switch
+    {
+        TunnelType.OpenVpn => LocalizationService.Instance.T("تا قبل از بالا آمدن آداپتر، مسیرهای سیستم تغییر داده نمی‌شود. اگر اتصال طولانی شد، فایل .ovpn، نام کاربری/رمز یا نصب OpenVPN Community را بررسی کنید."),
+        TunnelType.WireGuard => LocalizationService.Instance.T("TunnelX در حال آماده‌سازی سرویس WireGuard و آداپتر ویندوز است. می‌توانید با دکمه لغو اتصال تلاش فعلی را متوقف کنید."),
+        _ => LocalizationService.Instance.T("TunnelX در حال راه‌اندازی اتصال و آماده‌سازی مسیرهای اسپلیت‌تانلینگ است. می‌توانید با دکمه لغو اتصال تلاش فعلی را متوقف کنید.")
+    };
+
     private string _statusText = "آماده اتصال";
     public string StatusText
     {
@@ -518,12 +625,17 @@ public partial class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(IsOpenVpnConnectionPending));
             OnPropertyChanged(nameof(ConnectedBadgeText));
+        OnPropertyChanged(nameof(ConnectedCardToolTipText));
             OnPropertyChanged(nameof(ConnectionIpLabel));
             OnPropertyChanged(nameof(ConnectedServerPingButtonText));
+            OnPropertyChanged(nameof(ConnectingTitleText));
+            OnPropertyChanged(nameof(ConnectingHelpText));
             if (_selectedProfile != null)
                 _selectedProfile.TunnelType = value;
             if (value == TunnelType.OpenVpn)
                 RefreshOpenVpnInstallStatus();
+            if (value == TunnelType.WireGuard)
+                RefreshWireGuardInstallStatus();
             UpdateConfigDiagnostics();
             RaiseProfileCardChanged();
             RaiseHealthStatusChanged();
@@ -581,6 +693,41 @@ public partial class MainViewModel : INotifyPropertyChanged
             _selectedOpenVpnConfigPath = value;
             if (_selectedProfile != null)
                 _selectedProfile.OpenVpnConfigPath = value;
+            OnPropertyChanged();
+            RaiseProfileCardChanged();
+            SaveCurrentState();
+        }
+    }
+
+    private string _selectedWireGuardConfig = "";
+    public string SelectedWireGuardConfig
+    {
+        get => _selectedWireGuardConfig;
+        set
+        {
+            if (_selectedWireGuardConfig == value) return;
+            _selectedWireGuardConfig = value;
+            if (_selectedProfile != null)
+                _selectedProfile.WireGuardConfig = value;
+            OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            RaiseProfileCardChanged();
+            RaiseHealthStatusChanged();
+            SaveCurrentState();
+            CommandManager.InvalidateRequerySuggested();
+        }
+    }
+
+    private string _selectedWireGuardConfigPath = "";
+    public string SelectedWireGuardConfigPath
+    {
+        get => _selectedWireGuardConfigPath;
+        set
+        {
+            if (_selectedWireGuardConfigPath == value) return;
+            _selectedWireGuardConfigPath = value;
+            if (_selectedProfile != null)
+                _selectedProfile.WireGuardConfigPath = value;
             OnPropertyChanged();
             RaiseProfileCardChanged();
             SaveCurrentState();
@@ -845,6 +992,11 @@ public partial class MainViewModel : INotifyPropertyChanged
         ? LocalizationService.Instance.T("متصل به پراکسی")
         : LocalizationService.Instance.T("متصل به VPN");
 
+    public string ConnectedCardToolTipText => LocalizationService.Instance.Format(
+        "وضعیت اتصال: {0} — {1}",
+        ConnectedBadgeText,
+        ConnectedProfileName);
+
     public string ConnectedProfileName => string.IsNullOrWhiteSpace(SelectedProfileName)
         ? LocalizationService.Instance.T("پروفایل فعال")
         : SelectedProfileName;
@@ -860,6 +1012,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         TunnelType.V2Ray => "sing-box",
         TunnelType.OpenVpn => "OpenVPN",
         TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5",
+        TunnelType.WireGuard => "WireGuard / Windows Adapter",
         _ => "-"
     };
 
@@ -891,7 +1044,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         set { _directTraffic = value; OnPropertyChanged(); }
     }
 
-    private string _pingTarget = "8.8.8.8";
+    private string _pingTarget = "www.google.com";
     public string PingTarget
     {
         get => _pingTarget;
@@ -906,8 +1059,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     }
 
     public string PingButtonText => _isPinging
-        ? LocalizationService.Instance.T("توقف تست")
-        : LocalizationService.Instance.T("تست مقصد");
+        ? LocalizationService.Instance.T("توقف")
+        : LocalizationService.Instance.T("پینگ");
 
     private bool _isTestingConnectedServerPing;
     public bool IsTestingConnectedServerPing
@@ -926,12 +1079,11 @@ public partial class MainViewModel : INotifyPropertyChanged
         ? LocalizationService.Instance.T("در حال پینگ...")
         : LocalizationService.Instance.T("پینگ سرور");
 
-    private string _pingResult = "";
-    public string PingResult
-    {
-        get => LocalizationService.Instance.T(_pingResult);
-        set { _pingResult = value; OnPropertyChanged(); }
-    }
+    private string _pingResultKey = "";
+    private object?[] _pingResultArgs = Array.Empty<object?>();
+    private bool _pingShowDoneSuffix;
+
+    public string PingResult => BuildLocalizedPingText(_pingResultKey, _pingResultArgs, _pingShowDoneSuffix);
 
     private bool _isTestingServerPing;
     public bool IsTestingServerPing
@@ -950,11 +1102,57 @@ public partial class MainViewModel : INotifyPropertyChanged
         ? LocalizationService.Instance.T("در حال تست...")
         : LocalizationService.Instance.T("تست سرور");
 
-    private string _serverPingResult = "";
-    public string ServerPingResult
+    private string _serverPingResultKey = "";
+    private object?[] _serverPingResultArgs = Array.Empty<object?>();
+
+    public string ServerPingResult => BuildLocalizedPingText(_serverPingResultKey, _serverPingResultArgs, false);
+
+    public string ServerPingSectionTitleText => LocalizationService.Instance.T("🏓 سرور");
+    public string ServerPingToolTipText => LocalizationService.Instance.T("قبل از اتصال، دسترسی و latency سرور را تست می‌کند");
+    public string RouteTestSectionTitleText => LocalizationService.Instance.T("تست مسیر");
+    public string FullRouteCardTitleText => LocalizationService.Instance.T("عبور کل سیستم");
+    public string ManualProxyCardTitleText => LocalizationService.Instance.T("پروکسی دستی");
+    public string ConnectionDurationLabelText => LocalizationService.Instance.T("مدت");
+    public string TunnelTrafficLabelText => LocalizationService.Instance.T("تونل");
+    public string DirectTrafficLabelText => LocalizationService.Instance.T("خارج تونل");
+    public string RouteTestHelpText => LocalizationService.Instance.T("یک دامنه یا IP را از داخل تونل تست کنید.");
+    public string ManualProxyCardToolTipText => LocalizationService.Instance.T("این آدرس داخلی را در برنامه‌هایی وارد کنید که تنظیم Proxy جداگانه دارند یا خودکار وارد تونل نمی‌شوند. پورت این پراکسی از تب تنظیمات قابل تغییر است.");
+    public string PingTargetToolTipText => LocalizationService.Instance.T("IP یا دامنه مقصد برای تست از داخل تونل");
+    public string PingTargetButtonToolTipText => LocalizationService.Instance.T("تست همین مقصد از داخل مسیر تونل");
+    public string ConnectedServerPingToolTipText => LocalizationService.Instance.T("دسترسی به سرور همین اتصال را تست می‌کند");
+
+    private static string BuildLocalizedPingText(string key, object?[] args, bool showDoneSuffix)
     {
-        get => LocalizationService.Instance.T(_serverPingResult);
-        set { _serverPingResult = value; OnPropertyChanged(); }
+        if (string.IsNullOrEmpty(key))
+            return "";
+
+        var loc = LocalizationService.Instance;
+        var text = args.Length > 0 ? loc.Format(key, args) : loc.T(key);
+        return showDoneSuffix ? text + loc.T("  [پایان]") : text;
+    }
+
+    private void SetPingResult(string key, params object?[] args)
+    {
+        _pingResultKey = key;
+        _pingResultArgs = args ?? Array.Empty<object?>();
+        _pingShowDoneSuffix = false;
+        OnPropertyChanged(nameof(PingResult));
+    }
+
+    private void MarkPingResultDone()
+    {
+        if (string.IsNullOrEmpty(_pingResultKey))
+            return;
+
+        _pingShowDoneSuffix = true;
+        OnPropertyChanged(nameof(PingResult));
+    }
+
+    private void SetServerPingResult(string key, params object?[] args)
+    {
+        _serverPingResultKey = key;
+        _serverPingResultArgs = args ?? Array.Empty<object?>();
+        OnPropertyChanged(nameof(ServerPingResult));
     }
 
     public int EnabledAppsCount => TunnelApps.Count(a => a.IsEnabled);
@@ -1047,6 +1245,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     #region Commands
 
     public ICommand ConnectCommand { get; }
+    public ICommand CancelConnectionCommand { get; }
     public ICommand AddAppCommand { get; }
     public ICommand RemoveAppCommand { get; }
     public ICommand ToggleAppCommand { get; }
@@ -1067,11 +1266,15 @@ public partial class MainViewModel : INotifyPropertyChanged
     public ICommand PasteConfigCommand { get; }
     public ICommand ClearConfigCommand { get; }
     public ICommand BrowseOpenVpnConfigCommand { get; }
+    public ICommand BrowseWireGuardConfigCommand { get; }
     public ICommand OpenOpenVpnCommunityDownloadCommand { get; }
+    public ICommand OpenWireGuardDownloadCommand { get; }
     public ICommand OpenGitHubCommand { get; }
     public ICommand OpenDonateCommand { get; }
     public ICommand OpenAdRequestCommand { get; }
+    public ICommand OpenTelegramChannelCommand { get; }
     public ICommand CopyDonationInfoCommand { get; }
+    public ICommand CopyHelpCryptoAddressCommand { get; }
     public ICommand CheckForUpdatesCommand { get; }
     public ICommand OpenLatestReleaseCommand { get; }
     public ICommand ToggleLanguageCommand { get; }
@@ -1096,6 +1299,23 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private static void OpenTelegramChannel()
+    {
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = AppInfo.TelegramChannelDeepLink,
+                UseShellExecute = true
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[UI] Telegram deep link failed, falling back to web URL: {ex.Message}");
+            OpenExternalLink(AppInfo.TelegramChannelUrl);
+        }
+    }
+
     private void CopyDonationInfoToClipboard()
     {
         try
@@ -1114,6 +1334,27 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private void RefreshHelpCryptoWalletRows()
+    {
+        HelpCryptoWalletRows.Clear();
+        foreach (var row in CryptoDonationAddressList.GetAll(LocalizationService.Instance))
+            HelpCryptoWalletRows.Add(row);
+    }
+
+    private static void CopyHelpCryptoAddress(string? address)
+    {
+        if (string.IsNullOrWhiteSpace(address)) return;
+        try
+        {
+            System.Windows.Clipboard.SetText(address.Trim());
+            Logger.Info("[UI] Crypto wallet address copied from Help tab");
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[UI] Copy wallet address failed: {ex.Message}");
+        }
+    }
+
     private async Task CheckForUpdatesAsync(bool silent)
     {
         if (IsCheckingForUpdates) return;
@@ -1122,14 +1363,14 @@ public partial class MainViewModel : INotifyPropertyChanged
         {
             IsCheckingForUpdates = true;
             if (!silent)
-                UpdateStatusText = "در حال بررسی آخرین نسخه در GitHub...";
+                SetUpdateStatus("در حال بررسی آخرین نسخه در GitHub...");
 
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
             var latest = await GitHubReleaseChecker.GetLatestReleaseAsync(cts.Token);
             if (latest == null)
             {
                 if (!silent)
-                    UpdateStatusText = "بررسی نسخه جدید ناموفق بود. اتصال اینترنت یا GitHub را بررسی کنید.";
+                    SetUpdateStatus("بررسی نسخه جدید ناموفق بود. اتصال اینترنت یا GitHub را بررسی کنید.");
                 Logger.Warning("[UPDATE] Latest release check failed");
                 return;
             }
@@ -1142,25 +1383,25 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (latest.Version > current)
             {
                 IsUpdateAvailable = true;
-                UpdateStatusText = LocalizationService.Instance.Format("نسخه جدید آماده است: {0} - برای دانلود از GitHub باز کنید.", latest.TagName);
+                SetUpdateStatus("نسخه جدید آماده است: {0} - برای دانلود از GitHub باز کنید.", latest.TagName);
                 Logger.Info($"[UPDATE] New version available: current={current} latest={latest.TagName}");
                 return;
             }
 
             IsUpdateAvailable = false;
-            UpdateStatusText = LocalizationService.Instance.Format("TunnelX به‌روز است. نسخه فعلی: {0}", AppInfo.VersionText);
+            SetUpdateStatus("TunnelX به‌روز است. نسخه فعلی: {0}", AppInfo.VersionText);
             Logger.Info($"[UPDATE] App is up to date: current={current} latest={latest.TagName}");
         }
         catch (OperationCanceledException)
         {
             if (!silent)
-                UpdateStatusText = "بررسی بروزرسانی به زمان مجاز نرسید.";
+                SetUpdateStatus("بررسی بروزرسانی به زمان مجاز نرسید.");
             Logger.Warning("[UPDATE] Latest release check timed out");
         }
         catch (Exception ex)
         {
             if (!silent)
-                UpdateStatusText = LocalizationService.Instance.Format("بررسی بروزرسانی ناموفق بود: {0}", ex.Message);
+                SetUpdateStatus("بررسی بروزرسانی ناموفق بود: {0}", ex.Message);
             Logger.Warning($"[UPDATE] Latest release check failed: {ex.Message}");
         }
         finally
@@ -1233,6 +1474,11 @@ public partial class MainViewModel : INotifyPropertyChanged
                 var text = System.Windows.Clipboard.GetText().Trim();
                 if (CurrentTunnelType == TunnelType.OpenVpn)
                     SelectedOpenVpnConfig = text;
+                else if (CurrentTunnelType == TunnelType.WireGuard)
+                {
+                    SelectedWireGuardConfig = text;
+                    WarnIfWireGuardMissingAfterConfigAdded();
+                }
                 else
                     SelectedV2RayConfig = text;
             }
@@ -1249,6 +1495,11 @@ public partial class MainViewModel : INotifyPropertyChanged
         {
             SelectedOpenVpnConfig = "";
             SelectedOpenVpnConfigPath = "";
+        }
+        else if (CurrentTunnelType == TunnelType.WireGuard)
+        {
+            SelectedWireGuardConfig = "";
+            SelectedWireGuardConfigPath = "";
         }
         else
             SelectedV2RayConfig = "";
@@ -1270,6 +1521,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         {
             SelectedOpenVpnConfigPath = dialog.FileName;
             SelectedOpenVpnConfig = File.ReadAllText(dialog.FileName);
+            WarnIfOpenVpnMissingAfterConfigAdded();
         }
         catch (Exception ex)
         {
@@ -1277,11 +1529,85 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private void WarnIfOpenVpnMissingAfterConfigAdded()
+    {
+        RefreshOpenVpnInstallStatus();
+        if (IsOpenVpnCommunityInstalled)
+            return;
+
+        ConfigValidationText = LocalizationService.Instance.T("کانفیگ OpenVPN اضافه شد، اما OpenVPN Community نصب نیست. از دکمه دانلود OpenVPN در همین تب استفاده کنید و بعد از نصب دوباره اتصال را بزنید.");
+        ShowOpenVpnInstallGuideDialog();
+    }
+
+    private void ShowOpenVpnInstallGuideDialog()
+    {
+        var openDownload = Helpers.DialogService.Action(
+            "کانفیگ OpenVPN اضافه شد، اما برای اتصال باید OpenVPN Community را نصب کنید.\nدکمه دانلود را بزنید، نصب را کامل کنید، سپس به TunnelX برگردید و اتصال را بزنید.",
+            "راهنمای نصب OpenVPN",
+            "دانلود OpenVPN",
+            "بعداً نصب می‌کنم");
+        if (openDownload)
+            OpenExternalLink(OpenVpnCommunityDownloadUrl);
+    }
+
+    private void BrowseForWireGuardConfig()
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = LocalizationService.Instance.T("انتخاب فایل WireGuard"),
+            Filter = LocalizationService.Instance.T("WireGuard config (*.conf)|*.conf|All files (*.*)|*.*"),
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog() != true) return;
+
+        try
+        {
+            SelectedWireGuardConfigPath = dialog.FileName;
+            SelectedWireGuardConfig = File.ReadAllText(dialog.FileName);
+            WarnIfWireGuardMissingAfterConfigAdded();
+        }
+        catch (Exception ex)
+        {
+            ConfigValidationText = LocalizationService.Instance.Format("خواندن فایل WireGuard ناموفق بود: {0}", ex.Message);
+        }
+    }
+
+    private void WarnIfWireGuardMissingAfterConfigAdded()
+    {
+        RefreshWireGuardInstallStatus();
+        if (IsWireGuardInstalled)
+            return;
+
+        ConfigValidationText = LocalizationService.Instance.T("کانفیگ WireGuard اضافه شد، اما WireGuard رسمی ویندوز نصب نیست. از دکمه دانلود WireGuard در همین تب استفاده کنید و بعد از نصب دوباره اتصال را بزنید.");
+        ShowWireGuardInstallGuideDialog();
+    }
+
+    private void ShowWireGuardInstallGuideDialog()
+    {
+        var openDownload = Helpers.DialogService.Action(
+            "کانفیگ WireGuard اضافه شد، اما برای اتصال باید WireGuard رسمی ویندوز را نصب کنید.\nدکمه دانلود را بزنید، نصب را کامل کنید، سپس به TunnelX برگردید و اتصال را بزنید.",
+            "راهنمای نصب WireGuard",
+            "دانلود WireGuard",
+            "بعداً نصب می‌کنم");
+        if (openDownload)
+            OpenExternalLink(WireGuardDownloadUrl);
+    }
+
     private void RefreshOpenVpnInstallStatus()
     {
         var path = OpenVpnTunnelProvider.FindOpenVpnExecutable();
         IsOpenVpnCommunityInstalled = !string.IsNullOrWhiteSpace(path);
         OpenVpnDetectedPath = path ?? "";
+        UpdateConfigDiagnostics();
+    }
+
+    private void RefreshWireGuardInstallStatus()
+    {
+        var path = WireGuardTunnelProvider.FindWireGuardExecutable();
+        IsWireGuardInstalled = !string.IsNullOrWhiteSpace(path);
+        WireGuardDetectedPath = path ?? "";
         UpdateConfigDiagnostics();
     }
 
@@ -1300,12 +1626,12 @@ public partial class MainViewModel : INotifyPropertyChanged
         {
             ConfigCoreHint = "OpenVPN";
             ConfigValidationText = !IsOpenVpnCommunityInstalled
-                ? "OpenVPN Community نصب نیست؛ ابتدا آن را از لینک رسمی نصب کنید"
+                ? LocalizationService.Instance.T("OpenVPN Community نصب نیست؛ ابتدا آن را از لینک رسمی نصب کنید")
                 : string.IsNullOrWhiteSpace(SelectedOpenVpnConfig)
-                ? "فایل .ovpn را انتخاب کنید؛ TunnelX آن را در حالت split-compatible اجرا می‌کند"
+                ? LocalizationService.Instance.T("فایل .ovpn را انتخاب کنید؛ TunnelX آن را در حالت split-compatible اجرا می‌کند")
                 : string.IsNullOrWhiteSpace(OpenVpnUsername)
-                    ? "کانفیگ انتخاب شد؛ اگر سرور احراز هویت دارد نام کاربری را وارد کنید"
-                    : "کانفیگ و نام کاربری OpenVPN آماده است";
+                    ? LocalizationService.Instance.T("کانفیگ انتخاب شد؛ اگر سرور احراز هویت دارد نام کاربری را وارد کنید")
+                    : LocalizationService.Instance.T("کانفیگ و نام کاربری OpenVPN آماده است");
             return;
         }
 
@@ -1315,6 +1641,17 @@ public partial class MainViewModel : INotifyPropertyChanged
             ConfigValidationText = ValidateProxySettings(out var proxyMessage)
                 ? BuildProxyValidationText()
                 : proxyMessage;
+            return;
+        }
+
+        if (CurrentTunnelType == TunnelType.WireGuard)
+        {
+            ConfigCoreHint = "WireGuard / Windows Adapter";
+            ConfigValidationText = !IsWireGuardInstalled
+                ? LocalizationService.Instance.T("WireGuard رسمی ویندوز نصب نیست؛ ابتدا آن را از لینک رسمی نصب کنید")
+                : WireGuardConfigParser.TryParse(SelectedWireGuardConfig, out var profile, out var wireGuardError)
+                ? LocalizationService.Instance.Format("Endpoint WireGuard: {0}:{1}", profile.EndpointHost, profile.EndpointPort)
+                : wireGuardError;
             return;
         }
 
@@ -1481,11 +1818,77 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HealthRoutesText));
     }
 
+    private void QueueAutoConnectToLastProfile()
+    {
+        if (!_appSettings.AutoConnectOnStartup)
+            return;
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            _ = AutoConnectToLastProfileAsync();
+            return;
+        }
+
+        _ = dispatcher.BeginInvoke(
+            new Action(() => _ = AutoConnectToLastProfileAsync()),
+            DispatcherPriority.ApplicationIdle);
+    }
+
+    private ConnectionProfile? ResolveAutoConnectProfile()
+    {
+        if (!string.IsNullOrWhiteSpace(_appSettings.LastActiveProfileId))
+        {
+            var savedProfile = Profiles.FirstOrDefault(p => p.Id == _appSettings.LastActiveProfileId);
+            if (savedProfile != null)
+                return savedProfile;
+
+            Logger.Warning($"[AUTO-CONNECT] Last profile id '{_appSettings.LastActiveProfileId}' was not found; falling back to most recently used profile.");
+        }
+
+        return Profiles
+            .Where(p => p.LastUsedAt > DateTime.MinValue)
+            .OrderByDescending(p => p.LastUsedAt)
+            .FirstOrDefault();
+    }
+
+    private async Task AutoConnectToLastProfileAsync()
+    {
+        if (!_appSettings.AutoConnectOnStartup)
+            return;
+
+        if (_connectionState != ConnectionState.Disconnected || IsBusy)
+        {
+            Logger.Warning($"[AUTO-CONNECT] Skipped because connection state is {_connectionState} (busy={IsBusy}).");
+            return;
+        }
+
+        var profile = ResolveAutoConnectProfile();
+        if (profile == null)
+        {
+            StatusText = "اتصال خودکار فعال است، اما اتصال موفق قبلی پیدا نشد";
+            Logger.Warning("[AUTO-CONNECT] Enabled but no previously connected profile was found.");
+            return;
+        }
+
+        try
+        {
+            SelectedProfile = profile;
+            StatusText = LocalizationService.Instance.Format("اتصال خودکار به «{0}»...", profile.Name);
+            await ToggleConnectionAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.Error("[AUTO-CONNECT] Failed", ex);
+            StatusText = LocalizationService.Instance.Format("خطای اتصال خودکار: {0}", ex.Message);
+        }
+    }
+
     private void LoadAppSettings()
     {
         _appSettings = _profileService.LoadAppSettings();
         LocalizationService.Instance.Initialize(_appSettings.Language);
-        _startWithWindows = _appSettings.StartWithWindows;
+        SyncStartupRegistryFromSettings();
         _autoConnectOnStartup = _appSettings.AutoConnectOnStartup;
         _githubInstallCount = _appSettings.GitHubAppDownloadCount;
         OnPropertyChanged(nameof(StartWithWindows));
@@ -1499,6 +1902,27 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AppTextAlignment));
         OnPropertyChanged(nameof(AppStartHorizontalAlignment));
         OnPropertyChanged(nameof(AppEndHorizontalAlignment));
+    }
+
+    private void SyncStartupRegistryFromSettings()
+    {
+        if (_appSettings.StartWithWindows)
+        {
+            if (!TryUpdateStartupRegistry(true, out var error))
+                Logger.Warning($"[STARTUP] Failed to repair startup registry value: {error}");
+        }
+        else if (IsStartupRegistryEnabledForCurrentExecutable())
+        {
+            if (!TryUpdateStartupRegistry(false, out var error))
+                Logger.Warning($"[STARTUP] Failed to remove disabled startup registry value: {error}");
+        }
+
+        _startWithWindows = IsStartupRegistryEnabledForCurrentExecutable();
+        if (_appSettings.StartWithWindows != _startWithWindows)
+        {
+            _appSettings.StartWithWindows = _startWithWindows;
+            _profileService.SaveAppSettings(_appSettings);
+        }
     }
 
     private void ToggleLanguage()
@@ -1520,14 +1944,43 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AppTextAlignment));
         OnPropertyChanged(nameof(AppStartHorizontalAlignment));
         OnPropertyChanged(nameof(AppEndHorizontalAlignment));
+        OnPropertyChanged(nameof(StatusText));
+        OnPropertyChanged(nameof(ConfigValidationText));
         OnPropertyChanged(nameof(GameModeStatusText));
         OnPropertyChanged(nameof(OpenVpnPrerequisiteText));
+        OnPropertyChanged(nameof(OpenVpnIntroText));
+        OnPropertyChanged(nameof(OpenVpnInstallGuideText));
+        OnPropertyChanged(nameof(OpenVpnConnectWarningText));
+        OnPropertyChanged(nameof(DownloadOpenVpnText));
+        OnPropertyChanged(nameof(WireGuardPrerequisiteText));
+        OnPropertyChanged(nameof(WireGuardIntroText));
+        OnPropertyChanged(nameof(WireGuardInstallGuideText));
+        OnPropertyChanged(nameof(DownloadWireGuardText));
+        OnPropertyChanged(nameof(WireGuardFileLabelText));
+        OnPropertyChanged(nameof(WireGuardConfigLabelText));
+        OnPropertyChanged(nameof(ChooseFileText));
+        OnPropertyChanged(nameof(RemoveFileText));
         OnPropertyChanged(nameof(DonatePayPalText));
         OnPropertyChanged(nameof(CryptoDonationText));
+        RefreshHelpCryptoWalletRows();
+        OnPropertyChanged(nameof(HelpProjectCardTitleText));
+        OnPropertyChanged(nameof(HelpProjectMissionText));
+        OnPropertyChanged(nameof(HelpSupportCardTitleText));
+        OnPropertyChanged(nameof(HelpSupportCtaText));
+        OnPropertyChanged(nameof(HelpGitHubButtonText));
+        OnPropertyChanged(nameof(HelpGitHubButtonToolTipText));
+        OnPropertyChanged(nameof(HelpDonatePayPalButtonText));
+        OnPropertyChanged(nameof(HelpCopyCryptoAddressButtonText));
+        OnPropertyChanged(nameof(HelpCopyCryptoAddressToolTipText));
         OnPropertyChanged(nameof(AppCreatorText));
         OnPropertyChanged(nameof(AdPlaceholderTitleText));
         OnPropertyChanged(nameof(AdRequestButtonText));
         OnPropertyChanged(nameof(AdAudienceText));
+        OnPropertyChanged(nameof(TelegramChannelJoinButtonText));
+        OnPropertyChanged(nameof(TelegramChannelToolTipText));
+        OnPropertyChanged(nameof(FooterTelegramButtonText));
+        OnPropertyChanged(nameof(FooterTelegramToolTipText));
+        OnPropertyChanged(nameof(FooterMadeByText));
         OnPropertyChanged(nameof(LogClearButtonText));
         OnPropertyChanged(nameof(LogCopyErrorButtonText));
         OnPropertyChanged(nameof(LogCopyAllButtonText));
@@ -1539,6 +1992,15 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(GitHubInstallCountText));
         OnPropertyChanged(nameof(ConnectButtonText));
         OnPropertyChanged(nameof(ConnectButtonToolTip));
+        OnPropertyChanged(nameof(ConnectingTitleText));
+        OnPropertyChanged(nameof(ConnectingHelpText));
+        OnPropertyChanged(nameof(CancelConnectionButtonText));
+        OnPropertyChanged(nameof(CancelConnectionToolTipText));
+        OnPropertyChanged(nameof(ConnectionStagesHeaderText));
+        OnPropertyChanged(nameof(ConnectionErrorHeaderText));
+        OnPropertyChanged(nameof(ConnectionErrorDetail));
+        OnPropertyChanged(nameof(ShowConnectionErrorPanel));
+        RefreshConnectionProgressLocalization();
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(MixedProxyPortStatusText));
         OnPropertyChanged(nameof(AppLicenseDisplayText));
@@ -1558,6 +2020,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HealthIpv6Text));
         OnPropertyChanged(nameof(HealthRoutesText));
         OnPropertyChanged(nameof(ConnectedBadgeText));
+        OnPropertyChanged(nameof(ConnectedCardToolTipText));
         OnPropertyChanged(nameof(ConnectedProfileName));
         OnPropertyChanged(nameof(SelectedProfileSummaryText));
         OnPropertyChanged(nameof(PingButtonText));
@@ -1565,6 +2028,19 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ServerPingButtonText));
         OnPropertyChanged(nameof(PingResult));
         OnPropertyChanged(nameof(ServerPingResult));
+        OnPropertyChanged(nameof(ServerPingSectionTitleText));
+        OnPropertyChanged(nameof(ServerPingToolTipText));
+        OnPropertyChanged(nameof(RouteTestSectionTitleText));
+        OnPropertyChanged(nameof(FullRouteCardTitleText));
+        OnPropertyChanged(nameof(ManualProxyCardTitleText));
+        OnPropertyChanged(nameof(ConnectionDurationLabelText));
+        OnPropertyChanged(nameof(TunnelTrafficLabelText));
+        OnPropertyChanged(nameof(DirectTrafficLabelText));
+        OnPropertyChanged(nameof(RouteTestHelpText));
+        OnPropertyChanged(nameof(ManualProxyCardToolTipText));
+        OnPropertyChanged(nameof(PingTargetToolTipText));
+        OnPropertyChanged(nameof(PingTargetButtonToolTipText));
+        OnPropertyChanged(nameof(ConnectedServerPingToolTipText));
         OnPropertyChanged(nameof(ProfileCountText));
         OnPropertyChanged(nameof(ActiveProfileTypeText));
         OnPropertyChanged(nameof(ActiveProfileEndpointText));
@@ -1573,38 +2049,84 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(Profiles));
     }
 
-    private static void UpdateStartupRegistry(bool enable)
+    private static bool TryUpdateStartupRegistry(bool enable, out string? error)
     {
-        const string runKey = "Software\\Microsoft\\Windows\\CurrentVersion\\Run";
-        const string appName = "TunnelX";
+        error = null;
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(runKey, writable: true);
-            if (key == null) return;
+            using var key = Registry.CurrentUser.CreateSubKey(StartupRegistryRunKey, writable: true);
+            if (key == null)
+            {
+                error = "دسترسی به تنظیمات اجرای خودکار ویندوز ممکن نیست";
+                return false;
+            }
 
             if (enable)
             {
-                var exePath = Environment.ProcessPath ??
-                              Process.GetCurrentProcess().MainModule?.FileName ??
-                              System.IO.Path.Combine(AppContext.BaseDirectory, "TunnelX.exe");
-                key.SetValue(appName, $"\"{exePath}\"");
+                var exePath = GetCurrentExecutablePath();
+                if (string.IsNullOrWhiteSpace(exePath) || !File.Exists(exePath))
+                {
+                    error = "مسیر فایل اجرایی TunnelX پیدا نشد";
+                    return false;
+                }
 
-                System.Windows.MessageBox.Show(
-                    "استارت‌آپ فعال شد.\n\n⚠️ برای کارکرد صحیح، پس از این نباید محل فایل اجرایی TunnelX را تغییر دهید.",
-                    "TunnelX — استارت‌آپ",
-                    MessageBoxButton.OK,
-                    MessageBoxImage.Information);
+                key.SetValue(StartupRegistryValueName, $"\"{exePath}\"", RegistryValueKind.String);
             }
-            else
+            else if (key.GetValue(StartupRegistryValueName) != null)
             {
-                if (key.GetValue(appName) != null)
-                    key.DeleteValue(appName);
+                key.DeleteValue(StartupRegistryValueName);
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             Logger.Warning($"[STARTUP] Registry update failed: {ex.Message}");
+            error = LocalizationService.Instance.Format("تغییر تنظیم اجرای خودکار ویندوز ناموفق بود: {0}", ex.Message);
+            return false;
         }
+    }
+
+    private static bool IsStartupRegistryEnabledForCurrentExecutable()
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryRunKey, writable: false);
+            var value = key?.GetValue(StartupRegistryValueName)?.ToString();
+            if (string.IsNullOrWhiteSpace(value))
+                return false;
+
+            var registeredPath = ExtractExecutablePath(value);
+            var currentPath = GetCurrentExecutablePath();
+            return !string.IsNullOrWhiteSpace(currentPath) &&
+                   string.Equals(registeredPath, currentPath, StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[STARTUP] Registry read failed: {ex.Message}");
+            return false;
+        }
+    }
+
+    private static string GetCurrentExecutablePath()
+        => Environment.ProcessPath ??
+           Process.GetCurrentProcess().MainModule?.FileName ??
+           Path.Combine(AppContext.BaseDirectory, "TunnelX.exe");
+
+    private static string ExtractExecutablePath(string registryValue)
+    {
+        var value = registryValue.Trim();
+        if (value.Length == 0)
+            return "";
+
+        if (value[0] == '"')
+        {
+            var closingQuote = value.IndexOf('"', 1);
+            return closingQuote > 1 ? value[1..closingQuote] : value.Trim('"');
+        }
+
+        var exeIndex = value.IndexOf(".exe", StringComparison.OrdinalIgnoreCase);
+        return exeIndex >= 0 ? value[..(exeIndex + 4)] : value;
     }
 
     #endregion

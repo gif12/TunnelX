@@ -6,6 +6,14 @@
 
 <span dir="ltr">TunnelX</span> یک نرم‌افزار آزاد و رایگان برای ویندوز است که توسط **<span dir="ltr">MaxFan</span>** ساخته شده و برای مدیریت تونل، وی‌پی‌ان و <span dir="ltr">Split Tunneling</span> استفاده می‌شود. این برنامه می‌تواند ترافیک برنامه‌های انتخاب‌شده، مقصدهای مشخص، یا کل سیستم را از تونل عبور دهد و هم‌زمان مسیر عادی شبکه را برای مقصدهای محلی یا مستثنی‌شده حفظ کند. رابط برنامه دو‌زبانه است، زبان سیستم را تشخیص می‌دهد و چینش راست‌به‌چپ/چپ‌به‌راست را برای فارسی و انگلیسی رعایت می‌کند.
 
+## اطلاع‌رسانی در تلگرام
+
+برای دریافت اخبار آپدیت، اعلان نسخه‌های جدید و اطلاعیه‌های پروژه، در کانال رسمی تلگرام عضو شوید:
+
+**[<span dir="ltr">@tunnelxx</span> — عضویت در کانال تلگرام](https://t.me/tunnelxx)**
+
+در خود برنامه، دکمه تلگرام در فوتر و دعوت عضویت در باکس تبلیغات (پس از اتصال) با افکت ضربان نمایش داده می‌شود و در صورت نصب بودن تلگرام، کانال را مستقیماً در اپ باز می‌کند.
+
 ## کاربرد برنامه
 
 <span dir="ltr">TunnelX</span> برای زمانی ساخته شده که کاربر نمی‌خواهد تمام ترافیک سیستم از وی‌پی‌ان عبور کند. با این برنامه می‌توان فقط برنامه‌هایی مثل مرورگر، تلگرام، ابزارهای توسعه یا برنامه‌های مشخص دیگر را وارد تونل کرد و بقیه ترافیک سیستم را روی اینترنت عادی نگه داشت. همچنین در صورت نیاز، حالت <span dir="ltr">Full-route</span> برای عبور کل سیستم از تونل در دسترس است.
@@ -18,6 +26,7 @@
 - پشتیبانی از جریان‌های <span dir="ltr">V2Ray</span> بر پایه <span dir="ltr">Xray-core</span> و <span dir="ltr">sing-box</span>
 - پشتیبانی از پروفایل‌های اختصاصی <span dir="ltr">SOCKS5/HTTP Proxy</span> با سرور، پورت، نام کاربری و رمز عبور جداگانه
 - پشتیبانی از <span dir="ltr">OpenVPN Community</span> با فایل‌های <span dir="ltr">`.ovpn`</span> برای <span dir="ltr">Split tunneling</span> برنامه‌های انتخاب‌شده
+- پشتیبانی از <span dir="ltr">WireGuard</span> با فایل‌های تک-peer <span dir="ltr">`.conf`</span> از طریق <span dir="ltr">sing-box</span>
 - پروکسی <span dir="ltr">SOCKS5</span> محلی روی <span dir="ltr">`127.0.0.1`</span> برای ابزارهایی که تنظیم پروکسی داخلی دارند
 - تغییر مسیر <span dir="ltr">DNS</span>، مسدودسازی <span dir="ltr">IPv6</span>، محافظ نشت، عیب‌یابی <span dir="ltr">route</span> و تاریخچه مصرف تونل
 - مدیریت چند پروفایل، کپی/ویرایش کانفیگ‌ها، تست سرور، تشخیص <span dir="ltr">IP</span> خروجی و اعلان بروزرسانی
@@ -29,7 +38,7 @@
 1. آخرین فایل <span dir="ltr">standalone</span> را از بخش <span dir="ltr">GitHub Releases</span> دانلود کنید.
 2. برنامه را با دسترسی <span dir="ltr">Administrator</span> اجرا کنید؛ قابلیت‌های تغییر مسیر، <span dir="ltr">WinDivert</span> و مدیریت ترافیک به سطح دسترسی بالا نیاز دارند.
 3. از تب اتصال، یک کانفیگ جدید بسازید یا کانفیگ موجود را انتخاب کنید.
-4. نوع اتصال را انتخاب کنید: <span dir="ltr">L2TP/IPsec</span>، <span dir="ltr">V2Ray/Xray</span>، <span dir="ltr">SOCKS5/HTTP Proxy</span> یا <span dir="ltr">OpenVPN</span>.
+4. نوع اتصال را انتخاب کنید: <span dir="ltr">L2TP/IPsec</span>، <span dir="ltr">V2Ray/Xray</span>، <span dir="ltr">SOCKS5/HTTP Proxy</span>، <span dir="ltr">OpenVPN</span> یا <span dir="ltr">WireGuard</span>.
 5. قبل از اتصال، تست سرور را اجرا کنید و سپس برنامه‌هایی را که باید از تونل عبور کنند در تب برنامه‌ها فعال کنید.
 6. در صورت نیاز، مقصدهای لزومی یا استثنا را اضافه کنید و بعد از اتصال کارت سلامت ترافیک، <span dir="ltr">DNS</span>، <span dir="ltr">IPv6</span> و <span dir="ltr">Route</span> را بررسی کنید.
 
@@ -46,6 +55,12 @@
 ### <span dir="ltr">SOCKS5/HTTP Proxy</span>
 
 اگر از پراکسی آماده استفاده می‌کنید، نوع پروفایل <span dir="ltr">SOCKS5/HTTP Proxy</span> را انتخاب کنید و سرور، پورت و در صورت نیاز نام کاربری و رمز عبور را وارد کنید. این حالت برای عبور برنامه‌های انتخاب‌شده از یک پراکسی خارجی مناسب است و با پراکسی محلی <span dir="ltr">`127.0.0.1`</span> تفاوت دارد.
+
+### <span dir="ltr">WireGuard</span>
+
+یک فایل استاندارد <span dir="ltr">`.conf`</span> وایرگارد را انتخاب کنید یا متن آن را داخل پروفایل پیست کنید. <span dir="ltr">TunnelX</span> کانفیگ <span dir="ltr">WireGuard</span> را از طریق <span dir="ltr">sing-box</span> اجرا می‌کند و مدیریت مسیرهای ویندوز را خودش انجام می‌دهد؛ بنابراین <span dir="ltr">Split tunneling</span> برنامه‌ها، قوانین <span dir="ltr">Include/Exclude</span>، تغییر مسیر <span dir="ltr">DNS</span>، محافظ <span dir="ltr">IPv6</span> و حالت <span dir="ltr">Full-route</span> با همان موتور مسیر فعلی کار می‌کنند.
+
+نسخه اول فقط یک بخش <span dir="ltr">`[Peer]`</span> را در هر پروفایل پشتیبانی می‌کند. تست endpoint در این حالت فقط عیب‌یابی best-effort برای <span dir="ltr">UDP</span> است و تضمین handshake نیست. کلید خصوصی نیز مثل سایر داده‌های پروفایل روی دستگاه کاربر ذخیره می‌شود.
 
 ## پشتیبانی از <span dir="ltr">OpenVPN</span>
 
@@ -131,6 +146,8 @@ dotnet publish AppTunnel\AppTunnel.csproj -c Release -r win-x64 --self-contained
 ## پشتیبانی، سفارشی‌سازی و حمایت مالی
 
 <span dir="ltr">TunnelX</span> آزاد و رایگان است. حمایت مالی کاملا اختیاری است و فقط به نگهداری و توسعه پروژه کمک می‌کند.
+
+برای اخبار آپدیت و اطلاع‌رسانی نسخه‌های جدید، در کانال رسمی تلگرام عضو شوید: <span dir="ltr">[t.me/tunnelxx](https://t.me/tunnelxx)</span>
 
 برای ارتباط مستقیم، درخواست پشتیبانی، سفارشی‌سازی خصوصی یا سفارش توسعه، از طریق تلگرام پیام بدهید: <span dir="ltr">[t.me/maxifaan](https://t.me/maxifaan)</span>
 

@@ -126,6 +126,8 @@ public class ProfileService
                     : (s.OpenVpnExePath.EndsWith(".ovpn", StringComparison.OrdinalIgnoreCase) ? s.OpenVpnExePath : ""),
                 OpenVpnUsername = s.OpenVpnUsername,
                 OpenVpnPassword = DecryptString(s.EncryptedOpenVpnPassword),
+                WireGuardConfig = s.WireGuardConfig,
+                WireGuardConfigPath = s.WireGuardConfigPath,
                 ProxyProtocol = s.ProxyProtocol,
                 ProxyServerAddress = s.ProxyServerAddress,
                 ProxyPort = s.ProxyPort > 0 ? s.ProxyPort : 1080,
@@ -167,6 +169,8 @@ public class ProfileService
             OpenVpnConfigPath = p.OpenVpnConfigPath,
             OpenVpnUsername = p.OpenVpnUsername,
             EncryptedOpenVpnPassword = EncryptString(p.OpenVpnPassword),
+            WireGuardConfig = p.WireGuardConfig,
+            WireGuardConfigPath = p.WireGuardConfigPath,
             ProxyProtocol = p.ProxyProtocol,
             ProxyServerAddress = p.ProxyServerAddress,
             ProxyPort = p.ProxyPort,
@@ -235,6 +239,8 @@ public class ProfileService
         public string OpenVpnExePath { get; set; } = "";
         public string OpenVpnUsername { get; set; } = "";
         public string EncryptedOpenVpnPassword { get; set; } = "";
+        public string WireGuardConfig { get; set; } = "";
+        public string WireGuardConfigPath { get; set; } = "";
         public ProxyProtocol ProxyProtocol { get; set; } = ProxyProtocol.Socks5;
         public string ProxyServerAddress { get; set; } = "";
         public int ProxyPort { get; set; } = 1080;

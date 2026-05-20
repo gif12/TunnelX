@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Windows;
+using AppTunnel.Models;
 using AppTunnel.Services;
 
 namespace AppTunnel.Views;
@@ -10,22 +11,9 @@ public partial class DonationDialog : Window
     public DonationDialog()
     {
         InitializeComponent();
-        CryptoItemsControl.ItemsSource = CreateDonationAddresses();
+        CryptoItemsControl.ItemsSource =
+            new ObservableCollection<CryptoDonationAddress>(CryptoDonationAddressList.GetAll(LocalizationService.Instance));
         Loaded += (_, _) => LocalizationService.Instance.ApplyTo(this);
-    }
-
-    private static ObservableCollection<CryptoDonationAddress> CreateDonationAddresses()
-    {
-        var t = LocalizationService.Instance.T;
-        return
-        [
-            new(t("ترون / USDT روی TRC20"), "TNWV867fQDT6zpLunHgbeMjrN6ic63LQSu"),
-            new(t("بیت‌کوین"), "bc1qgx3g47c458fu6smnpqpu0l05hha82rq2xjet4y"),
-            new(t("اتریوم / USDT روی ERC20"), "0x72d94Bb250E8802441a0ED05686Ee925BC99Fef5"),
-            new("TON", "UQD65oL2Vu2OJDSrwQ0wLLSw3g668SREMJ3VPW9k8b6Sy-Yf"),
-            new("BNB Smart Chain", "0xE2a5b01cE2b3713D435Bc16d92eAdd88A82159f0"),
-            new("Dogecoin", "DSZRNY65yF679uvjAh6sUAt6YiEEQHwKGb")
-        ];
     }
 
     private void OnPayPalClick(object sender, RoutedEventArgs e)
@@ -64,5 +52,3 @@ public partial class DonationDialog : Window
         Close();
     }
 }
-
-public sealed record CryptoDonationAddress(string Label, string Address);

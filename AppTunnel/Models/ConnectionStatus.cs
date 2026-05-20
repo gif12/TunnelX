@@ -20,6 +20,7 @@ public class ConnectionStatus
     public int VpnServerPort { get; set; }
     public string VpnGatewayIp { get; set; } = string.Empty;
     public int VpnInterfaceIndex { get; set; } = -1;
+    public string DnsRedirectIp { get; set; } = string.Empty;
 
     /// <summary>
     /// Port of the sing-box mixed (SOCKS5/HTTP) inbound, used for accurate

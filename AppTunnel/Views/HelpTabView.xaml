@@ -1,6 +1,7 @@
 <UserControl x:Class="AppTunnel.Views.HelpTabView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:models="clr-namespace:AppTunnel.Models"
              xmlns:services="clr-namespace:AppTunnel.Services">
 
     <UserControl.Resources>
@@ -29,9 +30,11 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="9"/>
             <Setter Property="Padding" Value="10,8"/>
+            <Setter Property="Cursor" Value="Arrow"/>
         </Style>
 
         <Style x:Key="HelpExpander" TargetType="Expander">
+            <Setter Property="Cursor" Value="Arrow"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="Background" Value="Transparent"/>
             <Setter Property="BorderBrush" Value="#14FFFFFF"/>
@@ -40,6 +43,46 @@
             <Setter Property="Margin" Value="0,4,0,0"/>
             <Setter Property="FontSize" Value="12"/>
         </Style>
+
+        <DataTemplate x:Key="HelpCryptoWalletRowTemplate" DataType="{x:Type models:CryptoDonationAddress}">
+            <Grid Margin="0,0,0,5">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="6"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+                <TextBlock Grid.Column="0"
+                           Text="{Binding Label}"
+                           FontSize="9"
+                           FontWeight="SemiBold"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           VerticalAlignment="Center"
+                           Margin="0,0,8,0"
+                           TextWrapping="NoWrap"
+                           ToolTip="{Binding Label}"/>
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Address}"
+                           FontSize="9"
+                           FontFamily="Consolas"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           FlowDirection="LeftToRight"
+                           VerticalAlignment="Center"
+                           TextTrimming="CharacterEllipsis"
+                           ToolTip="{Binding Address}"/>
+                <Button Grid.Column="3"
+                        Content="{Binding DataContext.HelpCopyCryptoAddressButtonText, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        Command="{Binding DataContext.CopyHelpCryptoAddressCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                        CommandParameter="{Binding Address}"
+                        Style="{StaticResource SecondaryButton}"
+                        Padding="6,2"
+                        FontSize="9"
+                        MinWidth="0"
+                        MinHeight="0"
+                        VerticalAlignment="Center"
+                        ToolTip="{Binding DataContext.HelpCopyCryptoAddressToolTipText, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <ScrollViewer FlowDirection="{Binding AppFlowDirection}"
@@ -80,50 +123,86 @@
                 </Grid>
             </Border>
 
-            <!-- Primary Actions -->
-            <Border Style="{StaticResource HelpCard}">
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
-                        <ColumnDefinition Width="Auto"/>
-                    </Grid.ColumnDefinitions>
+            <!-- Project + Support (two columns; support wider) -->
+            <Grid Margin="0,0,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="0.78*"/>
+                    <ColumnDefinition Width="10"/>
+                    <ColumnDefinition Width="1.22*"/>
+                </Grid.ColumnDefinitions>
 
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="پروژه و بروزرسانی" Style="{StaticResource HelpTitle}"/>
-                        <TextBlock Text="{Binding UpdateStatusText}"
-                                   Style="{StaticResource HelpBody}"/>
-                        <TextBlock Text="{Binding AppLicenseDisplayText}"
+                <Border Grid.Column="0" Style="{StaticResource HelpCard}" Margin="0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding HelpProjectCardTitleText}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding HelpProjectMissionText}"
                                    FontSize="10"
+                                   LineHeight="15"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,6"/>
+                        <TextBlock Text="{Binding UpdateStatusText}"
+                                   FontSize="10"
+                                   LineHeight="15"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding AppLicenseDisplayText}"
+                                   FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FlowDirection="LeftToRight"
-                                   Margin="0,5,0,0"/>
-                    </StackPanel>
-
-                    <StackPanel Grid.Column="2"
-                                Orientation="Vertical"
-                                MinWidth="145"
-                                VerticalAlignment="Center">
+                                   Margin="0,0,0,8"/>
                         <Button Style="{StaticResource PrimaryButton}"
                                 Content="{Binding UpdateButtonText}"
                                 Command="{Binding CheckForUpdatesCommand}"
-                                FontSize="11"
-                                Padding="12,7"/>
+                                FontSize="12"
+                                FontWeight="SemiBold"
+                                Padding="14,9"
+                                HorizontalAlignment="Stretch"
+                                MinHeight="38"
+                                Margin="0,0,0,6"/>
                         <Button Style="{StaticResource SecondaryButton}"
-                                Content="صفحه انتشار"
-                                Command="{Binding OpenLatestReleaseCommand}"
-                                FontSize="11"
-                                Padding="12,7"
-                                Margin="0,6,0,0"/>
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Content="GitHub"
+                                Content="{Binding HelpGitHubButtonText}"
                                 Command="{Binding OpenGitHubCommand}"
-                                FontSize="11"
-                                Padding="12,7"
-                                Margin="0,6,0,0"/>
+                                FontSize="10"
+                                Padding="10,6"
+                                HorizontalAlignment="Stretch"
+                                ToolTip="{Binding HelpGitHubButtonToolTipText}"/>
                     </StackPanel>
-                </Grid>
-            </Border>
+                </Border>
+
+                <Border Grid.Column="2" Style="{StaticResource HelpCard}" Margin="0">
+                    <StackPanel>
+                        <TextBlock Text="{Binding HelpSupportCardTitleText}"
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   Margin="0,0,0,4"/>
+                        <TextBlock Text="{Binding HelpSupportCtaText}"
+                                   FontSize="10"
+                                   LineHeight="15"
+                                   TextWrapping="Wrap"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,0,0,8"/>
+                        <Button Style="{StaticResource SecondaryButton}"
+                                Content="{Binding HelpDonatePayPalButtonText}"
+                                Command="{Binding OpenDonateCommand}"
+                                FontSize="10"
+                                Padding="10,6"
+                                HorizontalAlignment="Stretch"
+                                Margin="0,0,0,8"/>
+                        <ScrollViewer MaxHeight="200"
+                                      VerticalScrollBarVisibility="Auto"
+                                      HorizontalScrollBarVisibility="Disabled">
+                            <ItemsControl ItemsSource="{Binding HelpCryptoWalletRows}"
+                                          ItemTemplate="{StaticResource HelpCryptoWalletRowTemplate}"/>
+                        </ScrollViewer>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <!-- Quick Start -->
             <Border Style="{StaticResource HelpCard}">
@@ -304,33 +383,6 @@
                         <TextBlock Text="یک بار قطع و وصل کنید تا مسیرها و قوانین DNS دوباره ساخته شوند. اگر مشکل ماند، لاگ‌های DNS و Route را بررسی کنید."
                                    Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
                     </Expander>
-                </StackPanel>
-            </Border>
-
-            <!-- Support -->
-            <Border Style="{StaticResource HelpCard}">
-                <StackPanel>
-                    <TextBlock Text="حمایت و تماس" Style="{StaticResource HelpTitle}"/>
-                    <TextBlock Text="{Binding AppCreatorText}" Style="{StaticResource HelpBody}"/>
-                    <TextBlock Text="{Binding AppGitHubUrl}"
-                               FontSize="10"
-                               Foreground="{StaticResource AccentBrush}"
-                               FlowDirection="LeftToRight"
-                               TextWrapping="Wrap"
-                               Margin="0,5,0,0"/>
-                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0">
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Content="حمایت با پی‌پل"
-                                Command="{Binding OpenDonateCommand}"
-                                FontSize="11"
-                                Padding="12,7"/>
-                        <Button Style="{StaticResource SecondaryButton}"
-                                Content="کپی اطلاعات حمایت"
-                                Command="{Binding CopyDonationInfoCommand}"
-                                FontSize="11"
-                                Padding="12,7"
-                                Margin="8,0,0,0"/>
-                    </StackPanel>
                 </StackPanel>
             </Border>
 

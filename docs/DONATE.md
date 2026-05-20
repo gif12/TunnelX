@@ -22,8 +22,12 @@ For paid work or customization requests, contact: `gallafan@gmail.com`
 
 ## PayPal
 
+Voluntary support only — not a purchase. The maintainer uses a **personal** PayPal account.
+
 - PayPal email: `gallafan@gmail.com`
-- Donation link: https://www.paypal.com/donate/?business=gallafan%40gmail.com&currency_code=USD
+- Donation link (opens PayPal with this recipient; supporter chooses the amount): https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gallafan%40gmail.com&item_name=TunnelX%20support&currency_code=USD&no_shipping=1
+
+If PayPal shows payment type options, **Friends and Family** is preferred when available (the link cannot force it).
 
 
 

@@ -12,7 +12,39 @@ public partial class TrafficRouterService
         public required string Host { get; init; }
         public required bool Excluded { get; init; }
         public required bool Included { get; init; }
+        public string? TargetOwner { get; init; }
         public DateTime LastSeenUtc { get; init; } = DateTime.UtcNow;
+    }
+
+    private void LearnTargetDnsQueryFromOutboundPacket(byte[] buffer, uint readLen, string owner)
+    {
+        if (string.IsNullOrWhiteSpace(owner))
+            return;
+        if (!TryGetUdpPayload(buffer, readLen, out var payloadOffset, out var payloadLength, out var srcPort, out var dstPort))
+            return;
+        if (dstPort != 53 || payloadLength < 12)
+            return;
+
+        ushort txId = ReadUInt16(buffer, payloadOffset);
+        if (!TryReadDnsQuestionHost(buffer, payloadOffset, payloadLength, out var host))
+            return;
+
+        uint dnsServerNbo = BitConverter.ToUInt32(buffer, 16);
+        var key = BuildDnsRuleKey(txId, srcPort, dnsServerNbo);
+        _dnsRuleQueries.AddOrUpdate(key, _ => new DnsRuleQuery
+        {
+            Host = host,
+            Excluded = false,
+            Included = false,
+            TargetOwner = owner
+        }, (_, existing) => new DnsRuleQuery
+        {
+            Host = existing.Host,
+            Excluded = existing.Excluded,
+            Included = existing.Included,
+            TargetOwner = owner,
+            LastSeenUtc = existing.LastSeenUtc
+        });
     }
 
     private void LearnDnsRuleFromOutboundPacket(byte[] buffer, uint readLen)
@@ -69,7 +101,9 @@ public partial class TrafficRouterService
             }
         }
 
-        var learnedIps = ReadDnsAAnswers(buffer, payloadOffset, payloadLength).ToList();
+        var learnedIps = ReadDnsAAnswers(buffer, payloadOffset, payloadLength)
+            .Where(IsUsableRouteIpv4)
+            .ToList();
         foreach (var ip in learnedIps)
         {
             var nbo = BitConverter.ToUInt32(ip.GetAddressBytes(), 0);
@@ -85,12 +119,22 @@ public partial class TrafficRouterService
                 _includedIps[nbo] = true;
                 _ipToProcess[nbo] = "[INCLUDE]";
                 EnsureHostRouteViaVpn(nbo, ip);
+                continue;
+            }
+
+            if (!string.IsNullOrWhiteSpace(query.TargetOwner) &&
+                IsExecutableTargeted(query.TargetOwner) &&
+                !IsExcludedDestination(nbo))
+            {
+                _ipToProcess[nbo] = query.TargetOwner;
+                EnsureHostRouteViaVpn(nbo, ip);
             }
         }
 
         if (learnedIps.Count > 0 && Interlocked.Increment(ref _dnsRuleApplyLogCount) <= 20)
         {
-            var policy = query.Excluded ? "EXCLUDE" : "INCLUDE";
+            var policy = query.Excluded ? "EXCLUDE" :
+                query.Included ? "INCLUDE" : $"TARGET-DNS/{query.TargetOwner}";
             Logger.Info($"[DNS-RULE] Applied {policy} for '{query.Host}' → {string.Join(", ", learnedIps.Select(ip => ip.ToString()))}");
         }
 

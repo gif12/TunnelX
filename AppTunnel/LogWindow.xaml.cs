@@ -1,13 +1,23 @@
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using AppTunnel.Services;
-using AppTunnel.Helpers;
 using Clipboard = System.Windows.Clipboard;
 
 namespace AppTunnel;
 
 public partial class LogWindow : Window
 {
+    private CancellationTokenSource? _logToastCts;
+
+    private enum LogToastKind
+    {
+        Success,
+        Info,
+        Warning
+    }
+
     public LogWindow()
     {
         InitializeComponent();
@@ -57,7 +67,7 @@ public partial class LogWindow : Window
     {
         Logger.Clear();
         LogTextBox.Clear();
-        DialogService.Success(LocalizationService.Instance.T("لاگ‌ها پاک شدند"));
+        ShowLogToast(LocalizationService.Instance.T("لاگ‌ها پاک شدند"), LogToastKind.Success);
     }
 
     private void OnCopyClick(object sender, RoutedEventArgs e)
@@ -66,17 +76,68 @@ public partial class LogWindow : Window
         {
             if (string.IsNullOrWhiteSpace(LogTextBox.Text))
             {
-                DialogService.Info(LocalizationService.Instance.T("لاگی برای کپی وجود ندارد"), "TunnelX");
+                ShowLogToast(LocalizationService.Instance.T("لاگی برای کپی وجود ندارد"), LogToastKind.Info);
                 return;
             }
 
             Clipboard.SetText(LogTextBox.Text);
-            DialogService.ShowCopied(LocalizationService.Instance.T("لاگ‌ها"));
+            ShowLogToast(LocalizationService.Instance.T("لاگ کپی شد"), LogToastKind.Success);
         }
         catch (Exception ex)
         {
             Logger.Error($"Failed to copy logs: {ex}");
-            DialogService.Error(LocalizationService.Instance.Format("خطا در کپی کردن:\n{0}", ex.Message), "خطا");
+            ShowLogToast(LocalizationService.Instance.T("کپی لاگ ناموفق بود"), LogToastKind.Warning);
         }
+    }
+
+    private void ShowLogToast(string message, LogToastKind kind = LogToastKind.Success, int durationMs = 2800)
+    {
+        _logToastCts?.Cancel();
+        _logToastCts = new CancellationTokenSource();
+        var token = _logToastCts.Token;
+
+        ApplyLogToastStyle(kind);
+        LogToastIcon.Text = kind switch
+        {
+            LogToastKind.Success => "✓",
+            LogToastKind.Info => "ℹ",
+            LogToastKind.Warning => "⚠",
+            _ => "•"
+        };
+        LogToastMessage.Text = message;
+        LogToastPanel.Visibility = Visibility.Visible;
+        LogToastPanel.Opacity = 1;
+        LogToastPanel.BeginAnimation(OpacityProperty, null);
+
+        Task.Delay(durationMs, token).ContinueWith(_ =>
+        {
+            if (token.IsCancellationRequested)
+                return;
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                var fadeOut = new DoubleAnimation(1, 0, TimeSpan.FromMilliseconds(280));
+                fadeOut.Completed += (__, ___) => LogToastPanel.Visibility = Visibility.Collapsed;
+                LogToastPanel.BeginAnimation(OpacityProperty, fadeOut);
+            });
+        }, TaskScheduler.Default);
+    }
+
+    private void ApplyLogToastStyle(LogToastKind kind)
+    {
+        LogToastPanel.Background = TryFindResource("CardBrush") as System.Windows.Media.Brush
+            ?? new SolidColorBrush(System.Windows.Media.Color.FromRgb(0x2D, 0x2D, 0x2D));
+        LogToastMessage.Foreground = TryFindResource("TextPrimaryBrush") as System.Windows.Media.Brush
+            ?? System.Windows.Media.Brushes.White;
+
+        var accent = kind switch
+        {
+            LogToastKind.Info => TryFindResource("AccentBrush"),
+            LogToastKind.Warning => TryFindResource("WarningBrush"),
+            _ => TryFindResource("SuccessBrush")
+        } as System.Windows.Media.Brush ?? TryFindResource("AccentBrush") as System.Windows.Media.Brush;
+
+        LogToastPanel.BorderBrush = accent ?? System.Windows.Media.Brushes.Orange;
+        LogToastIcon.Foreground = accent ?? LogToastMessage.Foreground;
     }
 }

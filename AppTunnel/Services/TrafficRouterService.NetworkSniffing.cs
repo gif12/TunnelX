@@ -119,6 +119,16 @@ public partial class TrafficRouterService
                 if (!ok) { if (ct.IsCancellationRequested || !_isRunning) break; continue; }
                 if (readLen < 20) continue;
 
+                Interlocked.Increment(ref _statVpnIngressSniffed);
+                if (_vpnLocalIpBytes != null &&
+                    buffer[16] == _vpnLocalIpBytes[0] &&
+                    buffer[17] == _vpnLocalIpBytes[1] &&
+                    buffer[18] == _vpnLocalIpBytes[2] &&
+                    buffer[19] == _vpnLocalIpBytes[3])
+                {
+                    Interlocked.Increment(ref _statVpnIngressToOurIp);
+                }
+
                 // Count every inbound VPN byte toward the total usage.
                 Interlocked.Add(ref _totalVpnBytesReceived, readLen);
 
@@ -200,11 +210,30 @@ public partial class TrafficRouterService
                     _recentLeakByDst[dstNbo] = now;
 
                     // Auto-recover only when current policy still allows this destination.
-                    // This avoids re-adding stale full-route destinations after switching
-                    // back to split mode (which could keep non-target apps tunneled).
+                    // First use live NAT / flow ownership. Route GC can remove the coarse
+                    // IP→process entry while retransmits for an existing target-app socket
+                    // are still in flight; if we only consult _ipToProcess here, leak-guard
+                    // drops the retransmits forever and the app appears "connected but dead".
                     bool recovered = false;
-                    if (IsRouteAllowedInCurrentMode(dstNbo))
+                    string? activeOwner = null;
+                    if (TryParseConnectionTuple(buffer, readLen, out var leakTuple))
                     {
+                        if (_natTable.TryGetValue((leakTuple.Protocol, leakTuple.LocalPort, dstNbo), out var natEntry))
+                            activeOwner = natEntry.ProcessName;
+                        else if (_flowOwnerByTuple.TryGetValue((leakTuple.Protocol, leakTuple.LocalPort, dstNbo), out var flowOwner))
+                            activeOwner = flowOwner;
+                    }
+
+                    bool activeTargetFlow =
+                        !string.IsNullOrWhiteSpace(activeOwner) &&
+                        !string.Equals(activeOwner, "[FULL-ROUTE]", StringComparison.OrdinalIgnoreCase) &&
+                        (string.Equals(activeOwner, "[INCLUDE]", StringComparison.OrdinalIgnoreCase) ||
+                         IsExecutableTargeted(activeOwner));
+
+                    if (!IsExcludedDestination(dstNbo) && (activeTargetFlow || IsRouteAllowedInCurrentMode(dstNbo)))
+                    {
+                        if (activeTargetFlow)
+                            _ipToProcess[dstNbo] = activeOwner!;
                         EnsureHostRouteViaVpn(dstNbo, dst);
                         recovered = true;
                     }
@@ -268,11 +297,11 @@ public partial class TrafficRouterService
         try
         {
             const ulong FLAG_SNIFF_READONLY = 0x5;
-            string filter = $"ifIdx == {_physicalInterfaceIndex} and ip and (tcp or udp) " +
-                $"and ip.SrcAddr != {_vpnLocalIp} " +
+            string filter = $"ifIdx == {_physicalInterfaceIndex} and (tcp or udp) and " +
+                $"((ip and ip.SrcAddr != {_vpnLocalIp} " +
                 $"and ip.DstAddr != {_vpnLocalIp} " +
                 $"and ip.SrcAddr != {_vpnServerIp} " +
-                $"and ip.DstAddr != {_vpnServerIp}";
+                $"and ip.DstAddr != {_vpnServerIp}) or ipv6)";
 
             IntPtr h;
             lock (_handleLock)

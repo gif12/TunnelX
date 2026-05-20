@@ -1,5 +1,4 @@
 using System.Windows;
-using System.Windows.Input;
 using AppTunnel.ViewModels;
 
 namespace AppTunnel.Views;
@@ -105,14 +104,10 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
             vm.SaveCurrentState();
     }
 
-    private void OnProfileListPreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    private static void OnProfileItemRequestBringIntoView(object sender, RequestBringIntoViewEventArgs e)
     {
+        // ListBox auto-scroll on selection causes visible jumps while wheel-scrolling.
         e.Handled = true;
-        var parentEvent = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
-        {
-            RoutedEvent = MouseWheelEvent,
-            Source = sender
-        };
-        RaiseEvent(parentEvent);
     }
+
 }

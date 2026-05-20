@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
 using System.Windows.Media.Imaging;
@@ -19,6 +20,32 @@ namespace AppTunnel.Services;
 /// </summary>
 public static class AppDiscoveryService
 {
+    private const uint ShgfiIcon = 0x000000100;
+    private const uint ShgfiLargeIcon = 0x000000000;
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct ShFileInfo
+    {
+        public IntPtr hIcon;
+        public int iIcon;
+        public uint dwAttributes;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 260)]
+        public string szDisplayName;
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 80)]
+        public string szTypeName;
+    }
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    private static extern IntPtr SHGetFileInfo(
+        string pszPath,
+        uint dwFileAttributes,
+        ref ShFileInfo psfi,
+        uint cbFileInfo,
+        uint uFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
+
     public static List<TunnelApp> GetInstalledApps()
     {
         var apps = new Dictionary<string, TunnelApp>(StringComparer.OrdinalIgnoreCase);
@@ -610,6 +637,10 @@ public static class AppDiscoveryService
 
     public static BitmapSource? ExtractIcon(string exePath)
     {
+        var shellIcon = ExtractShellIcon(exePath);
+        if (shellIcon != null)
+            return shellIcon;
+
         try
         {
             using var icon = Icon.ExtractAssociatedIcon(exePath);
@@ -627,6 +658,35 @@ public static class AppDiscoveryService
         catch
         {
             return null;
+        }
+    }
+
+    private static BitmapSource? ExtractShellIcon(string exePath)
+    {
+        var fileInfo = new ShFileInfo();
+        var result = SHGetFileInfo(
+            exePath,
+            0,
+            ref fileInfo,
+            (uint)Marshal.SizeOf<ShFileInfo>(),
+            ShgfiIcon | ShgfiLargeIcon);
+
+        if (result == IntPtr.Zero || fileInfo.hIcon == IntPtr.Zero)
+            return null;
+
+        try
+        {
+            var bitmap = Imaging.CreateBitmapSourceFromHIcon(
+                fileInfo.hIcon,
+                Int32Rect.Empty,
+                BitmapSizeOptions.FromWidthAndHeight(32, 32));
+
+            bitmap.Freeze();
+            return bitmap;
+        }
+        finally
+        {
+            DestroyIcon(fileInfo.hIcon);
         }
     }
 }

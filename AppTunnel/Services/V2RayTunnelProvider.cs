@@ -468,7 +468,7 @@ public class V2RayTunnelProvider : ITunnelProvider
                     ["mtu"]            = TunnelPerformanceTuner.ClampTunMtu(tunMtu),
                     ["auto_route"]     = false,
                     ["strict_route"]   = false,
-                    ["stack"]          = "system"
+                    ["stack"]          = "gvisor"
                 },
                 // Mixed SOCKS5/HTTP proxy inbound — used for accurate end-to-end
                 // ping measurement. Unlike the TUN inbound (which completes the
@@ -916,23 +916,9 @@ public class V2RayTunnelProvider : ITunnelProvider
             }
         }
 
-        // Step 2: taskkill fallback — catches orphans, crashed-and-restarted instances,
-        // or cases where _process was never assigned (e.g. Start() threw).
-        try
-        {
-            var psi = new ProcessStartInfo
-            {
-                FileName               = "taskkill",
-                Arguments              = "/F /IM sing-box.exe",
-                UseShellExecute        = false,
-                CreateNoWindow         = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError  = true
-            };
-            using var p = Process.Start(psi);
-            p?.WaitForExit(3000);
-        }
-        catch { /* sing-box may simply not be running */ }
+        // Stale/orphan sing-box instances are cleaned by TunnelXCleanupService,
+        // scoped to TunnelX command lines. Do not taskkill every sing-box.exe on
+        // the machine; users may run their own clients.
     }
 
     private static Dictionary<string, string> ParseQuery(string query)

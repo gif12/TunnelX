@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+### English
+
+- Added **WireGuard** profile support (single-peer `.conf` via sing-box) alongside L2TP, V2Ray/Xray, OpenVPN, and SOCKS/HTTP proxy modes.
+- Added **Windows tray notifications** (Telegram-style cards): connection errors with guidance, new-version alerts, and optional Telegram channel promo after a successful connect.
+- Added a **connection progress** flow with step-by-step status while connecting or canceling.
+- Redesigned the **Help** tab: project/update and support cards side by side, bilingual copy, crypto wallet list with per-address copy, and clearer update-status localization.
+- Improved the **connected dashboard**: route ping field UX (I-beam cursor, compact Ping button), traffic/health cards, and footer polish.
+- Expanded **Persian/English UI** coverage (notifications, Help, footer, donation dialog) and fixed update-status text not switching language correctly.
+- Routing/DNS/engine work: app discovery refresh, split-tunnel rule learning, WireGuard/TunnelX host lifecycle cleanup, and related stability fixes.
+- Donation: PayPal Donate link targets `gallafan@gmail.com` (supporter enters amount on PayPal).
+
+### فارسی
+
+- پشتیبانی **WireGuard** (فایل `.conf` تک-peer از مسیر sing-box) به‌همراه L2TP، V2Ray/Xray، OpenVPN و پراکسی SOCKS/HTTP اضافه شد.
+- **اعلان‌های tray ویندوز** (کارت شبیه تلگرام): خطای اتصال با راهنما، اعلان نسخه جدید، و پیشنهاد عضویت کانال تلگرام پس از اتصال موفق.
+- **پیشرفت مرحله‌ای اتصال** هنگام وصل شدن یا لغو اتصال اضافه شد.
+- تب **راهنما** بازطراحی شد: کارت پروژه/بروزرسانی و حمایت در دو ستون، متن دوزبانه، لیست کیف پول رمزارز با دکمه کپی، و رفع ناهماهنگی وضعیت بروزرسانی بین زبان‌ها.
+- **داشبورد حالت متصل** بهبود یافت: فیلد پینگ مسیر (نشانگر تایپ، دکمه فشرده Ping)، کارت‌های ترافیک/سلامت، و فوتر مرتب‌تر.
+- پوشش **فارسی/انگلیسی** گسترده‌تر (ناتیف، راهنما، فوتر، دیالوگ حمایت) و اصلاح متن «به‌روز است» هنگام تعویض زبان.
+- بهبودهای مسیریابی/DNS/موتور: بروزرسانی لیست برنامه‌ها، یادگیری قوانین DNS، پاک‌سازی فرایند TunnelX/WireGuard و رفع پایداری مرتبط.
+- حمایت مالی: لینک Donate پی‌پل به `gallafan@gmail.com` (حامی مبلغ را در PayPal وارد می‌کند).
+
 ## 1.2.32 - 2026-05-18
 
 ### English
@@ -34,6 +56,7 @@
 - رابط کاربری دسکتاپ بهبود یافت؛ شامل اندازه‌گیری تطبیقی پنجره، جلوگیری از maximize/fullscreen و منوی Alt+Space، انیمیشن نرم پنل لاگ، دیالوگ‌های تمیزتر، برندینگ و آیکون جدید TunnelX، ردیف‌های فشرده‌تر برنامه‌ها، مودال حمایت مالی و دکمه اعلان بروزرسانی در هدر.
 - پایداری V2Ray/Xray بهتر شد؛ پورت‌های داخلی Xray SOCKS و sing-box mixed proxy دیگر ثابت نیستند و به‌صورت آزاد از سیستم رزرو می‌شوند تا خطای اشغال بودن `2080/2081` تکرار نشود.
 - تجربه اتصال بهتر شد؛ شامل تلاش دوباره برای دریافت IP خروجی، رفتار یکدست فیلدهای متنی، جهت و ترجمه بهتر پنجره لاگ، و استفاده از اسکرین‌شات‌های فارسی/انگلیسی در READMEهای مربوطه.
+
 
 ## 1.2.29 - 2026-05-17
 

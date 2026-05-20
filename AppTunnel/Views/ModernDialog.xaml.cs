@@ -37,6 +37,27 @@ public partial class ModernDialog : Window
         return dialog.Result;
     }
 
+    public static bool ShowAction(
+        string message,
+        string title,
+        string primaryButtonText,
+        string secondaryButtonText,
+        Window? owner = null)
+    {
+        var dialog = new ModernDialog
+        {
+            Owner = owner ?? Application.Current.MainWindow,
+            TitleText = { Text = LocalizationService.Instance.T(title) },
+            MessageText = { Text = LocalizationService.Instance.T(message) },
+            IconText = { Text = "⚠️" },
+            PrimaryButton = { Content = LocalizationService.Instance.T(primaryButtonText), Visibility = Visibility.Visible },
+            SecondaryButton = { Content = LocalizationService.Instance.T(secondaryButtonText), Visibility = Visibility.Visible }
+        };
+
+        dialog.ShowDialog();
+        return dialog.Result;
+    }
+
     /// <summary>
     /// Show an information dialog (OK only)
     /// </summary>

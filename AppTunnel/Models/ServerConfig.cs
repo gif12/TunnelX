@@ -1,7 +1,7 @@
 namespace AppTunnel.Models;
 
 /// <summary>
-/// Server connection configuration (L2TP/IPsec, V2Ray).
+/// Server connection configuration (L2TP/IPsec, V2Ray, OpenVPN, Proxy, WireGuard).
 /// </summary>
 public class ServerConfig
 {
@@ -17,6 +17,8 @@ public class ServerConfig
     public string OpenVpnUsername { get; set; } = "";
     public string OpenVpnPassword { get; set; } = "";
     public string OpenVpnPrivateKeyPassword { get; set; } = "";
+    public string WireGuardConfig { get; set; } = "";
+    public string WireGuardConfigPath { get; set; } = "";
     public ProxyProtocol ProxyProtocol { get; set; } = ProxyProtocol.Socks5;
     public string ProxyServerAddress { get; set; } = "";
     public int ProxyPort { get; set; } = 1080;

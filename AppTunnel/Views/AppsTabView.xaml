@@ -6,6 +6,7 @@
         <Style x:Key="CompactToggleSwitch" TargetType="CheckBox">
             <Setter Property="Width" Value="32"/>
             <Setter Property="Height" Value="18"/>
+            <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="CheckBox">
@@ -14,8 +15,7 @@
                                     Width="32"
                                     Height="18"
                                     CornerRadius="9"
-                                    Background="#555"
-                                    Cursor="Hand"/>
+                                    Background="#555"/>
                             <Border x:Name="thumb"
                                     Width="14"
                                     Height="14"
@@ -56,6 +56,29 @@
             <Setter Property="Margin" Value="0,0,0,6"/>
             <Setter Property="MinHeight" Value="50"/>
             <Setter Property="FlowDirection" Value="LeftToRight"/>
+        </Style>
+
+        <Style x:Key="AppIconFrame" TargetType="Border">
+            <Setter Property="Width" Value="38"/>
+            <Setter Property="Height" Value="38"/>
+            <Setter Property="CornerRadius" Value="9"/>
+            <Setter Property="Background" Value="#14FFFFFF"/>
+            <Setter Property="BorderBrush" Value="#18FFFFFF"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <Style x:Key="AppIconImage" TargetType="Image">
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Stretch" Value="Uniform"/>
+            <Setter Property="HorizontalAlignment" Value="Center"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="UseLayoutRounding" Value="True"/>
+            <Setter Property="RenderOptions.BitmapScalingMode" Value="HighQuality"/>
         </Style>
     </UserControl.Resources>
 
@@ -123,9 +146,9 @@
                                     </Grid.ColumnDefinitions>
 
                                     <!-- App Icon -->
-                                    <Image Grid.Column="0" Source="{Binding Icon}"
-                                           Width="28" Height="28"
-                                           VerticalAlignment="Center"/>
+                                    <Border Grid.Column="0" Style="{StaticResource AppIconFrame}">
+                                        <Image Source="{Binding Icon}" Style="{StaticResource AppIconImage}"/>
+                                    </Border>
 
                                     <!-- App Name & Exe -->
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
@@ -265,9 +288,9 @@
                                         <ColumnDefinition Width="Auto"/>
                                     </Grid.ColumnDefinitions>
 
-                                    <Image Grid.Column="0" Source="{Binding Icon}"
-                                           Width="26" Height="26"
-                                           VerticalAlignment="Center"/>
+                                    <Border Grid.Column="0" Style="{StaticResource AppIconFrame}">
+                                        <Image Source="{Binding Icon}" Style="{StaticResource AppIconImage}"/>
+                                    </Border>
 
                                     <StackPanel Grid.Column="2" VerticalAlignment="Center">
                                         <TextBlock Text="{Binding DisplayName}"

@@ -73,9 +73,20 @@ public partial class TrafficRouterService
                         var procName = ipv6ConnCache.GetProcessName(srcPort, nextHeader);
                         if (procName != null)
                         {
-                            var targetOwner = IsExecutableTargeted(procName) ? procName : null;
+                            var pid = ipv6ConnCache.GetOwningPid(srcPort, nextHeader);
+                            var targetOwner = pid > 0 ? ResolveTargetOwner(pid) : null;
                             if (targetOwner != null)
                             {
+                                if (nextHeader == 17 && readLen >= payloadOffset + 4)
+                                {
+                                    ushort dstPort = (ushort)((buffer[payloadOffset + 2] << 8) | buffer[payloadOffset + 3]);
+                                    if (dstPort == 53)
+                                    {
+                                        RegisterDnsPortOwner(17, srcPort, targetOwner);
+                                        RegisterDnsPidOwner(pid, targetOwner);
+                                    }
+                                }
+
                                 shouldDrop = true;
                                 Interlocked.Increment(ref _statFlowIPv6Blocked);
                                 if (logCount < 3)

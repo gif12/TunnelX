@@ -248,8 +248,12 @@ public partial class TrafficRouterService
                     {
                         uint delHost = addr.Flow_RemoteAddr0;
                         uint delNbo = (uint)System.Net.IPAddress.HostToNetworkOrder((int)delHost);
-                        _flowOwnerByTuple.TryRemove((addr.Flow_Protocol, addr.Flow_LocalPort, delNbo), out _);
-                        if (_ipRefCount.TryGetValue(delNbo, out _))
+                        // Only decrement refcount for flows we previously counted.
+                        // Non-target apps can connect to the same destination IP;
+                        // their FLOW_DELETED event must not tear down the target
+                        // app's route.
+                        if (_flowOwnerByTuple.TryRemove((addr.Flow_Protocol, addr.Flow_LocalPort, delNbo), out _) &&
+                            _ipRefCount.TryGetValue(delNbo, out _))
                         {
                             int newCnt = _ipRefCount.AddOrUpdate(delNbo, 0, (_, v) => v - 1);
                             if (newCnt <= 0)
@@ -273,6 +277,18 @@ public partial class TrafficRouterService
                 // or Telegram helper processes, whose sockets would otherwise be
                 // invisible to us.
                 var targetOwner = ResolveTargetOwner(pid);
+
+                if (addr.Flow_RemotePort == 53)
+                {
+                    if (targetOwner != null)
+                    {
+                        RegisterDnsPortOwner(addr.Flow_Protocol, addr.Flow_LocalPort, targetOwner);
+                        RegisterDnsPidOwner(pid, targetOwner);
+                    }
+                    // DNS is redirected (NET-OUT / WG-OUT); do not add /32 routes to ISP
+                    // resolvers (e.g. 217.x) — that breaks split-tunnel DNS in Iran.
+                    continue;
+                }
 
                 // IPv6 handling: we don't add IPv6 host routes yet, but we DO
                 // want to log target-app IPv6 flows so we can diagnose cases
@@ -305,7 +321,7 @@ public partial class TrafficRouterService
 
                 // Diagnostic: log first N flows regardless of match so we can see
                 // what process names WinDivert is giving us.
-                if (_flowLogCount < 5)
+                if (_flowLogCount < 5 || (_vpnServerIsUdpOnly && _flowLogCount < 10))
                 {
                     Interlocked.Increment(ref _flowLogCount);
                     bool isTarget = targetOwner != null || isIncluded;

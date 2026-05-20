@@ -9,15 +9,26 @@ public partial class TrafficRouterService
     /// <summary>
     /// Replace the entire exclude list. Resolves domains to IPs.
     /// </summary>
-    public void SetExcludedDestinations(IEnumerable<string> entries)
+    public void SetExcludedDestinations(IEnumerable<string> entries, bool resolveDomains = true)
     {
+        List<(uint nbo, IPAddress ip)>? deferredPurge = resolveDomains ? null : new();
         lock (_destinationListLock)
         {
             _excludedIps.Clear();
             _excludedEntries.Clear();
             _excludedDomainRules.Clear();
             foreach (var entry in entries)
-                AddExcludedDestinationCore(entry);
+                AddExcludedDestinationCore(entry, resolveDomains, deferredPurge);
+        }
+
+        if (deferredPurge is { Count: > 0 })
+        {
+            var batch = deferredPurge;
+            _ = Task.Run(() =>
+            {
+                foreach (var (nbo, ip) in batch)
+                    PurgeRouteForExcludedIp(nbo, ip);
+            });
         }
     }
 
@@ -34,17 +45,27 @@ public partial class TrafficRouterService
     public void AddExcludedDestination(string entry)
     {
         lock (_destinationListLock)
-            AddExcludedDestinationCore(entry);
+            AddExcludedDestinationCore(entry, resolveDomains: _isRunning);
     }
 
-    private void AddExcludedDestinationCore(string entry)
+    private void AddExcludedDestinationCore(string entry, bool resolveDomains = true, List<(uint nbo, IPAddress ip)>? deferredPurge = null)
     {
         var originalEntry = entry.Trim();
         entry = NormalizeDestinationEntry(originalEntry);
         if (string.IsNullOrEmpty(entry)) return;
         if (_excludedEntries.ContainsKey(entry)) return;
 
-        var ips = ResolveDestinationEntry(entry, "[EXCLUDE]", out var unsupportedIp);
+        HashSet<uint> ips;
+        if (!resolveDomains && !IPAddress.TryParse(entry, out _))
+        {
+            _excludedDomainRules[entry] = true;
+            ips = new HashSet<uint>();
+            Logger.Info($"[EXCLUDE] Queued domain '*.{entry}' (DNS resolve deferred until router is up)");
+            _excludedEntries[entry] = ips;
+            return;
+        }
+
+        ips = ResolveDestinationEntry(entry, "[EXCLUDE]", out var unsupportedIp);
         if (unsupportedIp)
         {
             _excludedEntries[entry] = ips;
@@ -67,7 +88,11 @@ public partial class TrafficRouterService
         foreach (var nbo in ips)
         {
             _excludedIps[nbo] = true;
-            PurgeRouteForExcludedIp(nbo, new IPAddress(BitConverter.GetBytes(nbo)));
+            var ipAddr = new IPAddress(BitConverter.GetBytes(nbo));
+            if (deferredPurge != null)
+                deferredPurge.Add((nbo, ipAddr));
+            else
+                PurgeRouteForExcludedIp(nbo, ipAddr);
         }
         _excludedEntries[entry] = ips;
     }
@@ -121,7 +146,7 @@ public partial class TrafficRouterService
                 RedirectStandardError = true,
             };
             using var proc = System.Diagnostics.Process.Start(psi);
-            proc?.WaitForExit(1500);
+            proc?.WaitForExit(400);
         }
         catch { }
     }

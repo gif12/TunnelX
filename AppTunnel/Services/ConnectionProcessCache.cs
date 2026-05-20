@@ -11,12 +11,14 @@ namespace AppTunnel.Services;
 internal class ConnectionProcessCache
 {
     private readonly Dictionary<(ushort port, byte protocol), string> _cache = new();
+    private readonly Dictionary<(ushort port, byte protocol), int> _pidCache = new();
     private Dictionary<int, string> _pidNameCache = new();
     private int _refreshCount;
 
     public void Refresh()
     {
         _cache.Clear();
+        _pidCache.Clear();
 
         // Clear PID→name cache every 3 refreshes (~1.5s) to handle PID reuse
         if (++_refreshCount % 3 == 0)
@@ -30,6 +32,12 @@ internal class ConnectionProcessCache
     {
         var key = (tuple.LocalPort, tuple.Protocol);
         return _cache.GetValueOrDefault(key);
+    }
+
+    public int GetOwningPid(ConnectionTuple tuple)
+    {
+        var key = (tuple.LocalPort, tuple.Protocol);
+        return _pidCache.GetValueOrDefault(key);
     }
 
     public string? GetProcessNameByLocalPort(ushort localPort, byte protocol)
@@ -60,7 +68,10 @@ internal class ConnectionProcessCache
                 ushort localPort = (ushort)IPAddress.NetworkToHostOrder((short)row.localPort);
                 var processName = GetProcessName(row.owningPid);
                 if (processName != null)
+                {
                     _cache[(localPort, 6)] = processName;
+                    _pidCache[(localPort, 6)] = row.owningPid;
+                }
             }
         }
         finally
@@ -91,7 +102,10 @@ internal class ConnectionProcessCache
                 ushort localPort = (ushort)IPAddress.NetworkToHostOrder((short)row.localPort);
                 var processName = GetProcessName(row.owningPid);
                 if (processName != null)
+                {
                     _cache[(localPort, 17)] = processName;
+                    _pidCache[(localPort, 17)] = row.owningPid;
+                }
             }
         }
         finally

@@ -165,7 +165,6 @@
                             Margin="0,0,8,0"
                             FontSize="11"
                             FontWeight="SemiBold"
-                            Cursor="Hand"
                             VerticalAlignment="Center"
                             RenderTransformOrigin="0.5,0.5"
                             ToolTip="دانلود نسخه جدید از صفحه Releases در GitHub">
@@ -173,7 +172,8 @@
                             <ScaleTransform ScaleX="1" ScaleY="1"/>
                         </Button.RenderTransform>
                         <Button.Style>
-                            <Style TargetType="Button">
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="Button">
@@ -181,7 +181,8 @@
                                                     BorderBrush="{TemplateBinding BorderBrush}"
                                                     BorderThickness="{TemplateBinding BorderThickness}"
                                                     CornerRadius="9"
-                                                    Padding="{TemplateBinding Padding}">
+                                                    Padding="{TemplateBinding Padding}"
+                                                    Cursor="Hand">
                                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </ControlTemplate>
@@ -223,17 +224,18 @@
                             Padding="11,6"
                             Margin="0,0,8,0"
                             FontSize="11"
-                            Cursor="Hand"
                             VerticalAlignment="Center">
                         <Button.Style>
-                            <Style TargetType="Button">
+                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                <Setter Property="Cursor" Value="Hand"/>
                                 <Setter Property="Template">
                                     <Setter.Value>
                                         <ControlTemplate TargetType="Button">
                                             <Border Background="{TemplateBinding Background}"
                                                     BorderBrush="{TemplateBinding BorderBrush}"
                                                     BorderThickness="{TemplateBinding BorderThickness}"
-                                                    CornerRadius="8" Padding="{TemplateBinding Padding}">
+                                                    CornerRadius="8" Padding="{TemplateBinding Padding}"
+                                                    Cursor="Hand">
                                                 <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                                             </Border>
                                         </ControlTemplate>
@@ -699,8 +701,26 @@
                                                     <ColumnDefinition Width="Auto"/>
                                                 </Grid.ColumnDefinitions>
 
-                                                <Image Grid.Column="0" Source="{Binding Icon}"
-                                                       Width="24" Height="24" Margin="0,0,10,0"/>
+                                                <Border Grid.Column="0"
+                                                        Width="34"
+                                                        Height="34"
+                                                        CornerRadius="8"
+                                                        Background="#14FFFFFF"
+                                                        BorderBrush="#18FFFFFF"
+                                                        BorderThickness="1"
+                                                        Margin="0,0,10,0"
+                                                        SnapsToDevicePixels="True"
+                                                        UseLayoutRounding="True">
+                                                    <Image Source="{Binding Icon}"
+                                                           Width="28"
+                                                           Height="28"
+                                                           Stretch="Uniform"
+                                                           HorizontalAlignment="Center"
+                                                           VerticalAlignment="Center"
+                                                           SnapsToDevicePixels="True"
+                                                           UseLayoutRounding="True"
+                                                           RenderOptions.BitmapScalingMode="HighQuality"/>
+                                                </Border>
 
                                                 <StackPanel Grid.Column="1" VerticalAlignment="Center">
                                                     <TextBlock Text="{Binding DisplayName}"
@@ -754,9 +774,9 @@
             </TabItem>
 
             <!-- ███ TAB 6: HELP ███ -->
-            <TabItem Style="{StaticResource ModernTabItem}" ToolTip="راهنما و عیب‌یابی">
+            <TabItem Style="{StaticResource ModernTabItem}">
                 <TabItem.Header>
-                    <StackPanel>
+                    <StackPanel ToolTip="راهنما و عیب‌یابی">
                         <TextBlock Text="❔" FontSize="12" HorizontalAlignment="Center"/>
                         <TextBlock Text="راهنما" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
                     </StackPanel>
@@ -789,11 +809,13 @@
                                 FlowDirection="{Binding AppFlowDirection}"
                                 HorizontalAlignment="{Binding AppStartHorizontalAlignment}"
                                 VerticalAlignment="Center">
-                        <TextBlock Text="ساخته شده توسط Maxifan"
-                                   FontSize="10"
+                        <TextBlock Text="{Binding FooterMadeByText}"
+                                   FontSize="12"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center"/>
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   VerticalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextTrimming="CharacterEllipsis"/>
                         <Border Background="#18E8803A"
                                 CornerRadius="8"
                                 Padding="7,2"
@@ -804,12 +826,6 @@
                                        Foreground="{StaticResource AccentBrush}"
                                        VerticalAlignment="Center"/>
                         </Border>
-                        <TextBlock Text="TunnelX"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontSize="10"
-                                   TextTrimming="CharacterEllipsis"
-                                   VerticalAlignment="Center"
-                                   Margin="8,0,0,0"/>
                     </StackPanel>
 
                     <TextBlock Grid.Column="1"
@@ -837,6 +853,14 @@
                                 Margin="0,0,0,0"
                                 VerticalAlignment="Center"
                                 ToolTip="تغییر زبان"/>
+                        <Button Content="{Binding FooterTelegramButtonText}"
+                                Command="{Binding OpenTelegramChannelCommand}"
+                                Style="{StaticResource SecondaryButton}"
+                                Padding="9,4"
+                                FontSize="10"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="{Binding FooterTelegramToolTipText}"/>
                         <Button Content="حمایت"
                                 Click="OnDonateClick"
                                 Style="{StaticResource SecondaryButton}"
@@ -928,6 +952,39 @@
                              FlowDirection="LeftToRight"
                              TextAlignment="Left"
                              VerticalScrollBarVisibility="Auto"/>
+
+                    <!-- In-panel toast (copy / clear feedback) -->
+                    <Border x:Name="LogToastPanel"
+                            Grid.Row="1"
+                            Panel.ZIndex="20"
+                            VerticalAlignment="Bottom"
+                            HorizontalAlignment="Stretch"
+                            Margin="10,0,10,10"
+                            Padding="10,8"
+                            CornerRadius="8"
+                            BorderThickness="1"
+                            Visibility="Collapsed"
+                            IsHitTestVisible="False">
+                        <Border.Effect>
+                            <DropShadowEffect Color="Black" BlurRadius="10" Opacity="0.55" ShadowDepth="2"/>
+                        </Border.Effect>
+                        <StackPanel Orientation="Horizontal"
+                                    FlowDirection="{Binding AppFlowDirection}">
+                            <TextBlock x:Name="LogToastIcon"
+                                       Text="✓"
+                                       FontSize="15"
+                                       FontWeight="Bold"
+                                       VerticalAlignment="Center"
+                                       Margin="0,0,8,0"/>
+                            <TextBlock x:Name="LogToastMessage"
+                                       Text=""
+                                       FontSize="12"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap"
+                                       VerticalAlignment="Center"
+                                       MaxWidth="300"/>
+                        </StackPanel>
+                    </Border>
                 </Grid>
             </Border>
 
@@ -939,7 +996,11 @@
                 Padding="14,8" Margin="0,0,0,16"
                 HorizontalAlignment="Center" VerticalAlignment="Bottom"
                 Visibility="Collapsed"
-                IsHitTestVisible="False">
+                IsHitTestVisible="False"
+                RenderTransformOrigin="0.5,1">
+            <Border.RenderTransform>
+                <TranslateTransform x:Name="ToastSlideTransform"/>
+            </Border.RenderTransform>
             <Border.Effect>
                 <DropShadowEffect Color="Black" BlurRadius="12" Opacity="0.4" ShadowDepth="2"/>
             </Border.Effect>
@@ -947,6 +1008,27 @@
                 <TextBlock x:Name="ToastIcon" Text="✅" FontSize="14" VerticalAlignment="Center" Margin="0,0,8,0"/>
                 <TextBlock x:Name="ToastMessage" Text="" FontSize="12"
                            Foreground="{StaticResource TextPrimaryBrush}" VerticalAlignment="Center"/>
+            </StackPanel>
+        </Border>
+
+        <!-- Shutdown overlay — shown while processes are cleaned up before exit. -->
+        <Border x:Name="ShutdownOverlay" CornerRadius="12"
+                Background="{StaticResource BackgroundBrush}"
+                Visibility="Collapsed"
+                FlowDirection="{Binding AppFlowDirection}">
+            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                <ProgressBar IsIndeterminate="True" Width="220" Height="3"
+                             BorderThickness="0"
+                             Foreground="{StaticResource AccentBrush}"
+                             Background="#22FFFFFF"/>
+                <TextBlock x:Name="ShutdownStatusText"
+                           Text="در حال بستن پروسس‌ها و خروج..."
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           MaxWidth="320"
+                           FontSize="12" HorizontalAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}"
+                           Margin="0,14,0,0"/>
             </StackPanel>
         </Border>
 

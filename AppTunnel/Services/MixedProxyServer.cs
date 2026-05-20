@@ -416,12 +416,24 @@ internal sealed class MixedProxyServer
             }
             catch (Exception dex)
             {
-                Logger.Warning($"[MIXED #{connId}] connect {remoteIp}:{port} failed: {dex.Message}");
+                if (!IsBenignCanceledConnect(dex))
+                    Logger.Warning($"[MIXED #{connId}] connect {remoteIp}:{port} failed: {dex.Message}");
                 client.Dispose();
                 return null;
             }
         }
         return null;
+    }
+
+    private static bool IsBenignCanceledConnect(Exception ex)
+    {
+        if (ex is OperationCanceledException || ex is TaskCanceledException)
+            return true;
+        if (ex is SocketException sx &&
+            (sx.SocketErrorCode == SocketError.OperationAborted ||
+             sx.SocketErrorCode == SocketError.TimedOut))
+            return true;
+        return ex.Message.Contains("operation was canceled", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task RelayAsync(NetworkStream clientStream, NetworkStream upstreamStream, CancellationToken ct)

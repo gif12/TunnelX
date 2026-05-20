@@ -57,6 +57,7 @@ public class XrayTunnelProvider : ITunnelProvider
 
         try
         {
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Active, "راه‌اندازی هسته تونل (Xray/V2Ray)");
             Directory.CreateDirectory(_workDir);
             await EnsureEmbeddedExeExtractedAsync("xray.exe", _xrayExe, ct);
             await EnsureEmbeddedExeExtractedAsync("sing-box.exe", _singBoxExe, ct);
@@ -109,7 +110,9 @@ public class XrayTunnelProvider : ITunnelProvider
                 "[xray stderr]");
 
             Logger.Info($"xray started (PID {_xrayProcess.Id})");
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Complete, "راه‌اندازی هسته تونل (Xray/V2Ray)");
 
+            ConnectionProgressService.Report("tun_bridge", ConnectionProgressPhase.Active, "راه‌اندازی پل TUN (sing-box)");
             _singBoxProcess = StartProcess(
                 _singBoxExe,
                 $"run -c \"{_singBoxConfigPath}\"",
@@ -117,14 +120,26 @@ public class XrayTunnelProvider : ITunnelProvider
                 "[sing-box bridge stderr]");
 
             Logger.Info($"sing-box TUN bridge started (PID {_singBoxProcess.Id})");
+            ConnectionProgressService.Report("tun_bridge", ConnectionProgressPhase.Complete, "راه‌اندازی پل TUN (sing-box)");
+
+            ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Active, "شناسایی آداپتر مجازی");
             Status.Message = LocalizationService.Instance.T("در حال انتظار برای interface TunnelX-V2Ray...");
 
             var interfaceIndex = await WaitForTunInterfaceAsync(ct);
             if (interfaceIndex <= 0)
             {
                 await KillProcessAsync();
+                ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail,
+                    "interface TunnelX-V2Ray ظاهر نشد (timeout 10s)");
                 return Fail(LocalizationService.Instance.T("interface TunnelX-V2Ray ظاهر نشد (timeout 10s)"));
             }
+
+            ConnectionProgressService.Report(
+                "tun_interface",
+                ConnectionProgressPhase.Complete,
+                "شناسایی آداپتر مجازی",
+                "آداپتر TunnelX-V2Ray آماده شد (شماره {0})",
+                interfaceIndex.ToString());
 
             _vpnInterfaceIndex = interfaceIndex;
             Status.State = ConnectionState.Connected;
@@ -292,7 +307,7 @@ public class XrayTunnelProvider : ITunnelProvider
                     ["mtu"] = TunnelPerformanceTuner.ClampTunMtu(tunMtu),
                     ["auto_route"] = false,
                     ["strict_route"] = false,
-                    ["stack"] = "system"
+                    ["stack"] = "gvisor"
                 },
                 new JsonObject
                 {
@@ -558,25 +573,6 @@ public class XrayTunnelProvider : ITunnelProvider
         KillByImageName("xray.exe");
     }
 
-    private static async Task KillTrackedProcessAsync(Process? process)
-    {
-        if (process == null) return;
-        try
-        {
-            if (!process.HasExited)
-            {
-                process.Kill(entireProcessTree: true);
-                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-                try { await process.WaitForExitAsync(cts.Token); } catch { }
-            }
-        }
-        catch { }
-        finally
-        {
-            process.Dispose();
-        }
-    }
-
     private static void KillByImageName(string imageName)
     {
         try
@@ -594,6 +590,25 @@ public class XrayTunnelProvider : ITunnelProvider
             p?.WaitForExit(3000);
         }
         catch { }
+    }
+
+    private static async Task KillTrackedProcessAsync(Process? process)
+    {
+        if (process == null) return;
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+                try { await process.WaitForExitAsync(cts.Token); } catch { }
+            }
+        }
+        catch { }
+        finally
+        {
+            process.Dispose();
+        }
     }
 
     private static async Task EnsureEmbeddedExeExtractedAsync(string resourceName, string targetPath, CancellationToken ct)

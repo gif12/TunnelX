@@ -23,6 +23,21 @@ public static class DialogService
         return ModernDialog.ShowConfirm(LocalizationService.Instance.T(message), LocalizationService.Instance.T(title), owner);
     }
 
+    public static bool Action(
+        string message,
+        string title,
+        string primaryButtonText,
+        string secondaryButtonText,
+        Window? owner = null)
+    {
+        return ModernDialog.ShowAction(
+            LocalizationService.Instance.T(message),
+            LocalizationService.Instance.T(title),
+            LocalizationService.Instance.T(primaryButtonText),
+            LocalizationService.Instance.T(secondaryButtonText),
+            owner);
+    }
+
     /// <summary>
     /// Show an information message
     /// </summary>

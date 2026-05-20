@@ -208,6 +208,10 @@ public partial class TrafficRouterService
     /// </summary>
     private bool EnsureHostRouteViaVpn(uint dstIpNbo, IPAddress dstIpForLog)
     {
+        // Exclude = direct outside tunnel (never install a VPN /32 for excluded IPs).
+        if (IsExcludedDestination(dstIpNbo))
+            return false;
+
         // Skip private/multicast/broadcast ranges that should not be routed via VPN.
         byte b0 = (byte)(dstIpNbo & 0xFF);
         if (b0 == 127 || b0 >= 224) return false;
@@ -295,12 +299,24 @@ public partial class TrafficRouterService
             {
                 if (!_pendingRouteRemoval.TryRemove(dstIpNbo, out var removed)) return;
 
+                if (IsIncludedDestination(dstIpNbo) || IsPinnedWireGuardInfrastructureRoute(dstIpNbo))
+                {
+                    if (IsIncludedDestination(dstIpNbo))
+                        _ipToProcess[dstIpNbo] = "[INCLUDE]";
+                    return;
+                }
+
                 // Defer removal if NAT still has a recently-active entry for
                 // this destination. Otherwise route GC races against TCP
                 // retransmits / lingering target-app connections, causing
                 // a transient LEAK (packet exits physical NIC with VPN srcIP
                 // before the LEAK handler restores the route).
-                var recentCutoff = DateTime.UtcNow.AddSeconds(-RouteRemovalGraceSeconds);
+                // Keep routes longer than the user-visible GC grace if NAT still
+                // has a live mapping. WireGuard retransmits can arrive after the
+                // FLOW_DELETED event for short-lived sockets; removing the route
+                // too eagerly sends VPN-source packets toward the physical NIC
+                // where leak-guard has to drop them.
+                var recentCutoff = DateTime.UtcNow.AddSeconds(-Math.Max(RouteRemovalGraceSeconds, 180));
                 bool natActive = false;
                 foreach (var kv in _natTable)
                 {
@@ -328,6 +344,23 @@ public partial class TrafficRouterService
                     Logger.Info($"[ROUTE-GC] Removed delayed route for {new IPAddress(ipBytes)}");
                 }
             }, TaskContinuationOptions.OnlyOnRanToCompletion);
+    }
+
+    private bool IsPinnedWireGuardInfrastructureRoute(uint dstIpNbo)
+    {
+        if (!_vpnServerIsUdpOnly)
+            return false;
+
+        if (dstIpNbo == _dnsRedirectIpNbo)
+            return true;
+
+        foreach (var resolver in DnsResolverCache.DohBootstrapResolvers)
+        {
+            if (BitConverter.ToUInt32(resolver.GetAddressBytes(), 0) == dstIpNbo)
+                return true;
+        }
+
+        return false;
     }
 
     private void TryRemoveHostRoute(uint dstIpNbo)

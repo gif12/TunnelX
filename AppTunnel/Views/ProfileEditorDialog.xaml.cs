@@ -59,6 +59,29 @@ public partial class ProfileEditorDialog : Window
         }
     }
 
+    private void OnBrowseWireGuardClick(object sender, RoutedEventArgs e)
+    {
+        var dialog = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = LocalizationService.Instance.T("انتخاب فایل WireGuard"),
+            Filter = LocalizationService.Instance.T("WireGuard config (*.conf)|*.conf|All files (*.*)|*.*"),
+            CheckFileExists = true,
+            Multiselect = false
+        };
+
+        if (dialog.ShowDialog(this) != true) return;
+
+        try
+        {
+            _profile.WireGuardConfigPath = dialog.FileName;
+            _profile.WireGuardConfig = File.ReadAllText(dialog.FileName);
+        }
+        catch (Exception ex)
+        {
+            ValidationText.Text = LocalizationService.Instance.Format("خواندن فایل WireGuard ناموفق بود: {0}", ex.Message);
+        }
+    }
+
     private void OnPasteV2RayClick(object sender, RoutedEventArgs e)
     {
         try
@@ -75,6 +98,25 @@ public partial class ProfileEditorDialog : Window
     private void OnClearV2RayClick(object sender, RoutedEventArgs e)
     {
         _profile.V2RayConfig = "";
+    }
+
+    private void OnPasteWireGuardClick(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            if (System.Windows.Clipboard.ContainsText())
+                _profile.WireGuardConfig = System.Windows.Clipboard.GetText().Trim();
+        }
+        catch (Exception ex)
+        {
+            ValidationText.Text = LocalizationService.Instance.Format("خواندن کلیپ‌بورد ناموفق بود: {0}", ex.Message);
+        }
+    }
+
+    private void OnClearWireGuardClick(object sender, RoutedEventArgs e)
+    {
+        _profile.WireGuardConfig = "";
+        _profile.WireGuardConfigPath = "";
     }
 
     private void OnSaveClick(object sender, RoutedEventArgs e)
@@ -125,6 +167,9 @@ public partial class ProfileEditorDialog : Window
                 return false;
             case TunnelType.SocksProxy when _profile.ProxyPort <= 0 || _profile.ProxyPort > 65535:
                 message = LocalizationService.Instance.T("پورت پراکسی باید بین 1 تا 65535 باشد");
+                return false;
+            case TunnelType.WireGuard when !WireGuardConfigParser.TryParse(_profile.WireGuardConfig, out _, out var wireGuardError):
+                message = wireGuardError;
                 return false;
         }
 

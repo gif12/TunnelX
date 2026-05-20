@@ -11,7 +11,7 @@ public partial class TrafficRouterService
     /// <summary>
     /// Replace the entire include list. Resolves domains to IPs.
     /// </summary>
-    public void SetIncludedDestinations(IEnumerable<string> entries)
+    public void SetIncludedDestinations(IEnumerable<string> entries, bool resolveDomains = true)
     {
         lock (_destinationListLock)
         {
@@ -19,7 +19,7 @@ public partial class TrafficRouterService
             _includedEntries.Clear();
             _includedDomainRules.Clear();
             foreach (var entry in entries)
-                AddIncludedDestinationCore(entry, installRoutes: _isRunning);
+                AddIncludedDestinationCore(entry, installRoutes: _isRunning && resolveDomains, resolveDomains);
         }
     }
 
@@ -31,17 +31,27 @@ public partial class TrafficRouterService
     public void AddIncludedDestination(string entry)
     {
         lock (_destinationListLock)
-            AddIncludedDestinationCore(entry, installRoutes: _isRunning);
+            AddIncludedDestinationCore(entry, installRoutes: _isRunning, resolveDomains: _isRunning);
     }
 
-    private void AddIncludedDestinationCore(string entry, bool installRoutes)
+    private void AddIncludedDestinationCore(string entry, bool installRoutes, bool resolveDomains = true)
     {
         var originalEntry = entry.Trim();
         entry = NormalizeDestinationEntry(originalEntry);
         if (string.IsNullOrEmpty(entry)) return;
         if (_includedEntries.ContainsKey(entry)) return;
 
-        var ips = ResolveDestinationEntry(entry, "[INCLUDE]", out var unsupportedIp);
+        HashSet<uint> ips;
+        if (!resolveDomains && !IPAddress.TryParse(entry, out _))
+        {
+            _includedDomainRules[entry] = true;
+            ips = new HashSet<uint>();
+            Logger.Info($"[INCLUDE] Queued domain '*.{entry}' (DNS resolve deferred until router is up)");
+            _includedEntries[entry] = ips;
+            return;
+        }
+
+        ips = ResolveDestinationEntry(entry, "[INCLUDE]", out var unsupportedIp);
         if (unsupportedIp)
         {
             _includedEntries[entry] = ips;
@@ -115,6 +125,19 @@ public partial class TrafficRouterService
                     ? existing
                     : new HashSet<uint>();
                 var newIps = ResolveDestinationEntry(entry, "[INCLUDE]", out _);
+                if (newIps.Count == 0 &&
+                    oldIps.Count > 0 &&
+                    !IPAddress.TryParse(entry, out _))
+                {
+                    // Resolver timeouts must not delete still-valid CDN routes.
+                    // In filtered networks this creates app-visible cutoffs for
+                    // hosts such as githubusercontent.com.
+                    _includedEntries[entry] = oldIps;
+                    if (installRoutes)
+                        InstallIncludedRoutes(oldIps);
+                    Logger.Warning($"[INCLUDE] Keeping previous IPs for '{entry}' because refresh returned no IPv4 addresses");
+                    continue;
+                }
 
                 foreach (var nbo in oldIps.Except(newIps).ToList())
                 {
@@ -179,7 +202,11 @@ public partial class TrafficRouterService
         try
         {
             foreach (var addr in DnsResolverCache.ResolveIpv4(entry))
+            {
+                if (!IsUsableRouteIpv4(addr))
+                    continue;
                 ips.Add(BitConverter.ToUInt32(addr.GetAddressBytes(), 0));
+            }
         }
         catch (Exception ex)
         {
@@ -193,6 +220,21 @@ public partial class TrafficRouterService
         ConcurrentDictionary<string, HashSet<uint>> entries,
         uint ip)
         => entries.Values.Any(set => set.Contains(ip));
+
+    private static bool IsUsableRouteIpv4(IPAddress ip)
+    {
+        if (ip.AddressFamily != AddressFamily.InterNetwork)
+            return false;
+
+        var b = ip.GetAddressBytes();
+        return b[0] != 0 &&
+               b[0] != 10 &&
+               b[0] != 127 &&
+               b[0] < 224 &&
+               !(b[0] == 169 && b[1] == 254) &&
+               !(b[0] == 172 && b[1] >= 16 && b[1] <= 31) &&
+               !(b[0] == 192 && b[1] == 168);
+    }
 
     private static bool IsDomainRuleMatch(
         ConcurrentDictionary<string, bool> domainRules,

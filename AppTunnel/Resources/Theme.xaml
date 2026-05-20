@@ -56,9 +56,13 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8">
-                        <Grid>
-                            <ScrollViewer x:Name="PART_ContentHost" Margin="0" VerticalAlignment="Center"/>
+                            CornerRadius="8"
+                            Cursor="{TemplateBinding Cursor}">
+                        <Grid Cursor="{TemplateBinding Cursor}">
+                            <ScrollViewer x:Name="PART_ContentHost"
+                                          Margin="0"
+                                          VerticalAlignment="Center"
+                                          Cursor="{TemplateBinding Cursor}"/>
                             <!-- Placeholder text (shown when empty and not focused) -->
                             <TextBlock x:Name="placeholder"
                                        Text="{TemplateBinding Tag}"
@@ -113,8 +117,11 @@
                     <Border Background="{TemplateBinding Background}"
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
-                            CornerRadius="8">
-                        <ScrollViewer x:Name="PART_ContentHost" Margin="0"/>
+                            CornerRadius="8"
+                            Cursor="{TemplateBinding Cursor}">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="0"
+                                      Cursor="{TemplateBinding Cursor}"/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsFocused" Value="True">
@@ -145,7 +152,8 @@
                     <Border x:Name="border"
                             Background="{TemplateBinding Background}"
                             CornerRadius="10"
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            Cursor="Hand">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -183,7 +191,8 @@
                             BorderBrush="{TemplateBinding BorderBrush}"
                             BorderThickness="{TemplateBinding BorderThickness}"
                             CornerRadius="8"
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            Cursor="Hand">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -200,7 +209,103 @@
         </Setter>
     </Style>
 
-    <!-- Danger Button -->
+    <!-- Telegram channel CTA -->
+    <Color x:Key="TelegramBlueColor">#24A1DE</Color>
+    <Color x:Key="TelegramBlueHoverColor">#1E96D1</Color>
+    <Color x:Key="TelegramBluePressedColor">#1884BE</Color>
+    <SolidColorBrush x:Key="TelegramBlueBrush" Color="{StaticResource TelegramBlueColor}"/>
+    <SolidColorBrush x:Key="TelegramBlueHoverBrush" Color="{StaticResource TelegramBlueHoverColor}"/>
+    <SolidColorBrush x:Key="TelegramBluePressedBrush" Color="{StaticResource TelegramBluePressedColor}"/>
+
+    <Style x:Key="TelegramChannelButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+        <Setter Property="Background" Value="{StaticResource TelegramBlueBrush}"/>
+        <Setter Property="Foreground" Value="#FFFFFF"/>
+        <Setter Property="BorderBrush" Value="{StaticResource TelegramBlueHoverBrush}"/>
+        <Setter Property="BorderThickness" Value="1"/>
+        <Setter Property="Padding" Value="14,9"/>
+        <Setter Property="FontSize" Value="12"/>
+        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Grid Cursor="Hand" ClipToBounds="False">
+                        <Border x:Name="attentionRing"
+                                Margin="-2"
+                                CornerRadius="12"
+                                BorderThickness="1.5"
+                                BorderBrush="#78FFFFFF"
+                                Opacity="0"
+                                IsHitTestVisible="False"/>
+                        <Border x:Name="border"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="10"
+                                Padding="{TemplateBinding Padding}">
+                            <Grid ClipToBounds="True">
+                                <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <Border x:Name="attentionSheen"
+                                        Width="34"
+                                        HorizontalAlignment="Left"
+                                        Background="#22FFFFFF"
+                                        Opacity="0"
+                                        IsHitTestVisible="False">
+                                    <Border.RenderTransform>
+                                        <TranslateTransform X="-42"/>
+                                    </Border.RenderTransform>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource TelegramBlueHoverBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="{StaticResource TelegramBluePressedBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsVisible" Value="True">
+                            <Trigger.EnterActions>
+                                <BeginStoryboard x:Name="TelegramPulseStoryboard">
+                                    <Storyboard RepeatBehavior="Forever" Timeline.DesiredFrameRate="24">
+                                        <DoubleAnimation Storyboard.TargetName="attentionRing"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="0.68"
+                                                         Duration="0:0:0.55"
+                                                         AutoReverse="True"
+                                                         BeginTime="0:0:0.15"/>
+                                        <DoubleAnimation Storyboard.TargetName="attentionSheen"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         From="0" To="1"
+                                                         Duration="0:0:0.28"
+                                                         AutoReverse="True"
+                                                         BeginTime="0:0:0.35"/>
+                                        <DoubleAnimation Storyboard.TargetName="attentionSheen"
+                                                         Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.X)"
+                                                         From="-42" To="620"
+                                                         Duration="0:0:1.15"
+                                                         BeginTime="0:0:0.35"/>
+                                        <DoubleAnimation Storyboard.TargetName="attentionRing"
+                                                         Storyboard.TargetProperty="Opacity"
+                                                         To="0"
+                                                         BeginTime="0:0:2.2"
+                                                         Duration="0:0:0.01"/>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <StopStoryboard BeginStoryboardName="TelegramPulseStoryboard"/>
+                            </Trigger.ExitActions>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Danger Button (text-like, for compact actions e.g. delete) -->
     <Style x:Key="DangerButton" TargetType="Button">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
         <Setter Property="Background" Value="Transparent"/>
@@ -216,7 +321,8 @@
             <Setter.Value>
                 <ControlTemplate TargetType="Button">
                     <Border x:Name="border" Background="{TemplateBinding Background}"
-                            CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            CornerRadius="4" Padding="{TemplateBinding Padding}"
+                            Cursor="Hand">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                     <ControlTemplate.Triggers>
@@ -226,6 +332,54 @@
                                     <SolidColorBrush Color="{StaticResource ErrorColor}" Opacity="0.15"/>
                                 </Setter.Value>
                             </Setter>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Danger solid button (prominent cancel / destructive primary action) -->
+    <Style x:Key="DangerSolidButton" TargetType="Button">
+        <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
+        <Setter Property="Background" Value="#DC2626"/>
+        <Setter Property="Foreground" Value="White"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="20,12"/>
+        <Setter Property="FontSize" Value="14"/>
+        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="MinHeight" Value="38"/>
+        <Setter Property="HorizontalAlignment" Value="Left"/>
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="TextOptions.TextFormattingMode" Value="Ideal"/>
+        <Setter Property="TextOptions.TextRenderingMode" Value="Auto"/>
+        <Setter Property="TextOptions.TextHintingMode" Value="Fixed"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="Button">
+                    <Border x:Name="border"
+                            Background="{TemplateBinding Background}"
+                            CornerRadius="12"
+                            Padding="{TemplateBinding Padding}"
+                            Cursor="Hand">
+                        <Border.Effect>
+                            <DropShadowEffect Color="#991B1B"
+                                              BlurRadius="14"
+                                              Opacity="0.35"
+                                              ShadowDepth="0"/>
+                        </Border.Effect>
+                        <ContentPresenter HorizontalAlignment="Center"
+                                          VerticalAlignment="Center"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#B91C1C"/>
+                        </Trigger>
+                        <Trigger Property="IsPressed" Value="True">
+                            <Setter TargetName="border" Property="Background" Value="#991B1B"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="border" Property="Opacity" Value="0.55"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -261,12 +415,13 @@
 
     <!-- Toggle Switch Style (using CheckBox) -->
     <Style x:Key="ToggleSwitch" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="CheckBox">
                     <Grid>
                         <Border x:Name="track" Width="44" Height="24" CornerRadius="12"
-                                Background="#555" Cursor="Hand"/>
+                                Background="#555"/>
                         <Border x:Name="thumb" Width="20" Height="20" CornerRadius="10"
                                 Background="White" HorizontalAlignment="Left" Margin="2,0,0,0"
                                 VerticalAlignment="Center"/>
@@ -302,8 +457,8 @@
                                 Padding="4,4,4,3">
                             <TabPanel IsItemsHost="True" HorizontalAlignment="Center"/>
                         </Border>
-                        <!-- Tab content -->
-                        <ContentPresenter Grid.Row="1" ContentSource="SelectedContent"/>
+                        <!-- Tab content (Arrow default; Hand only on tab headers) -->
+                        <ContentPresenter Grid.Row="1" ContentSource="SelectedContent" Cursor="Arrow"/>
                     </Grid>
                 </ControlTemplate>
             </Setter.Value>
@@ -332,7 +487,8 @@
                             BorderThickness="1"
                             CornerRadius="8"
                             Padding="{TemplateBinding Padding}"
-                            Margin="2,0,2,2">
+                            Margin="2,0,2,2"
+                            Cursor="Hand">
                         <Grid>
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="*"/>
@@ -410,7 +566,8 @@
                 <ControlTemplate TargetType="Button">
                     <Border Background="{TemplateBinding Background}" 
                             CornerRadius="4" 
-                            Padding="{TemplateBinding Padding}">
+                            Padding="{TemplateBinding Padding}"
+                            Cursor="Hand">
                         <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
                     </Border>
                 </ControlTemplate>
@@ -510,6 +667,20 @@
         </Setter>
     </Style>
 
+    <!-- Passive containers: Arrow unless a child control sets its own cursor -->
+    <Style TargetType="ScrollViewer">
+        <Setter Property="Cursor" Value="Arrow"/>
+    </Style>
+    <Style TargetType="ItemsControl">
+        <Setter Property="Cursor" Value="Arrow"/>
+    </Style>
+    <Style TargetType="ListBox">
+        <Setter Property="Cursor" Value="Arrow"/>
+    </Style>
+    <Style TargetType="ListView">
+        <Setter Property="Cursor" Value="Arrow"/>
+    </Style>
+
     <!-- ComboBoxItem Dark Style -->
     <Style TargetType="ComboBoxItem">
         <Setter Property="FontFamily" Value="{StaticResource AppFont}"/>
@@ -526,7 +697,8 @@
                     <Border x:Name="Bd"
                             Background="{TemplateBinding Background}"
                             Padding="{TemplateBinding Padding}"
-                            CornerRadius="6">
+                            CornerRadius="6"
+                            Cursor="Hand">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>

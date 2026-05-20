@@ -57,7 +57,7 @@
             </Border>
 
             <!-- Log Content -->
-            <Border Grid.Row="1" Margin="12">
+            <Grid Grid.Row="1" Margin="12">
                 <TextBox x:Name="LogTextBox"
                          Background="{StaticResource SurfaceBrush}"
                          Foreground="{StaticResource TextPrimaryBrush}"
@@ -70,7 +70,38 @@
                          FlowDirection="LeftToRight"
                          TextAlignment="Left"
                          VerticalScrollBarVisibility="Auto"/>
-            </Border>
+
+                <Border x:Name="LogToastPanel"
+                        Panel.ZIndex="20"
+                        VerticalAlignment="Bottom"
+                        HorizontalAlignment="Stretch"
+                        Margin="8,0,8,8"
+                        Padding="10,8"
+                        CornerRadius="8"
+                        BorderThickness="1"
+                        Visibility="Collapsed"
+                        IsHitTestVisible="False">
+                    <Border.Effect>
+                        <DropShadowEffect Color="Black" BlurRadius="10" Opacity="0.55" ShadowDepth="2"/>
+                    </Border.Effect>
+                    <StackPanel Orientation="Horizontal"
+                                FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}">
+                        <TextBlock x:Name="LogToastIcon"
+                                   Text="✓"
+                                   FontSize="15"
+                                   FontWeight="Bold"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0"/>
+                        <TextBlock x:Name="LogToastMessage"
+                                   Text=""
+                                   FontSize="12"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap"
+                                   VerticalAlignment="Center"
+                                   MaxWidth="300"/>
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <!-- Footer Actions -->
             <Border Grid.Row="2" Background="{StaticResource SurfaceBrush}" 

@@ -11,7 +11,8 @@ public enum TunnelType
     L2tpIpsec,
     V2Ray,
     OpenVpn,
-    SocksProxy
+    SocksProxy,
+    WireGuard
 }
 
 public enum ProxyProtocol
@@ -42,6 +43,8 @@ public class ConnectionProfile : INotifyPropertyChanged
     private string _openVpnConfigPath = "";
     private string _openVpnUsername = "";
     private string _openVpnPassword = "";
+    private string _wireGuardConfig = "";
+    private string _wireGuardConfigPath = "";
     private ProxyProtocol _proxyProtocol = ProxyProtocol.Socks5;
     private string _proxyServerAddress = "";
     private int _proxyPort = 1080;
@@ -163,6 +166,18 @@ public class ConnectionProfile : INotifyPropertyChanged
         set => SetField(ref _openVpnPassword, value);
     }
 
+    public string WireGuardConfig
+    {
+        get => _wireGuardConfig;
+        set => SetField(ref _wireGuardConfig, value);
+    }
+
+    public string WireGuardConfigPath
+    {
+        get => _wireGuardConfigPath;
+        set => SetField(ref _wireGuardConfigPath, value);
+    }
+
     public ProxyProtocol ProxyProtocol
     {
         get => _proxyProtocol;
@@ -228,6 +243,7 @@ public class ConnectionProfile : INotifyPropertyChanged
         TunnelType.V2Ray => "V2Ray / Xray",
         TunnelType.OpenVpn => "OpenVPN",
         TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy",
+        TunnelType.WireGuard => "WireGuard",
         _ => LocalizationService.Instance.T("نامشخص")
     };
 
@@ -238,6 +254,7 @@ public class ConnectionProfile : INotifyPropertyChanged
         TunnelType.V2Ray => string.IsNullOrWhiteSpace(V2RayConfig) ? LocalizationService.Instance.T("کانفیگ وارد نشده") : LocalizationService.Instance.T("کانفیگ آماده"),
         TunnelType.OpenVpn => string.IsNullOrWhiteSpace(OpenVpnConfigPath) ? LocalizationService.Instance.T("فایل .ovpn انتخاب نشده") : Path.GetFileName(OpenVpnConfigPath),
         TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress) ? LocalizationService.Instance.T("آدرس پراکسی وارد نشده") : $"{ProxyServerAddress}:{ProxyPort}",
+        TunnelType.WireGuard => string.IsNullOrWhiteSpace(WireGuardConfigPath) ? (string.IsNullOrWhiteSpace(WireGuardConfig) ? LocalizationService.Instance.T("کانفیگ WireGuard وارد نشده") : LocalizationService.Instance.T("کانفیگ WireGuard آماده")) : Path.GetFileName(WireGuardConfigPath),
         _ => ""
     };
 
@@ -248,6 +265,7 @@ public class ConnectionProfile : INotifyPropertyChanged
         TunnelType.V2Ray => !string.IsNullOrWhiteSpace(V2RayConfig),
         TunnelType.OpenVpn => !string.IsNullOrWhiteSpace(OpenVpnConfig),
         TunnelType.SocksProxy => !string.IsNullOrWhiteSpace(ProxyServerAddress) && ProxyPort is > 0 and <= 65535,
+        TunnelType.WireGuard => !string.IsNullOrWhiteSpace(WireGuardConfig),
         _ => false
     };
 
@@ -269,6 +287,8 @@ public class ConnectionProfile : INotifyPropertyChanged
         OpenVpnConfig = OpenVpnConfig,
         OpenVpnUsername = OpenVpnUsername,
         OpenVpnPassword = OpenVpnPassword,
+        WireGuardConfig = WireGuardConfig,
+        WireGuardConfigPath = WireGuardConfigPath,
         ProxyProtocol = ProxyProtocol,
         ProxyServerAddress = ProxyServerAddress,
         ProxyPort = ProxyPort,

@@ -100,6 +100,8 @@
                                               Tag="{x:Static models:TunnelType.OpenVpn}"/>
                                 <ComboBoxItem Content="SOCKS / Proxy"
                                               Tag="{x:Static models:TunnelType.SocksProxy}"/>
+                                <ComboBoxItem Content="WireGuard"
+                                              Tag="{x:Static models:TunnelType.WireGuard}"/>
                             </ComboBox>
                         </StackPanel>
                     </Border>
@@ -277,6 +279,56 @@
                                                      FlowDirection="LeftToRight"/>
                                     </StackPanel>
                                 </Grid>
+                            </StackPanel>
+
+                            <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=WireGuard}">
+                                <TextBlock Text="فایل .conf وایرگارد را وارد کنید. در این نسخه فقط کانفیگ‌های تک-peer پشتیبانی می‌شوند و مسیرها توسط TunnelX مدیریت می‌شوند."
+                                           TextWrapping="Wrap"
+                                           FontSize="11"
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           Margin="0,0,0,8"/>
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="فایل WireGuard (.conf)"/>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox Grid.Column="0"
+                                             Style="{StaticResource ModernTextBox}"
+                                             Text="{Binding WireGuardConfigPath}"
+                                             IsReadOnly="True"
+                                             FlowDirection="LeftToRight"/>
+                                    <Button Grid.Column="2"
+                                            Style="{StaticResource SecondaryButton}"
+                                            Content="انتخاب فایل"
+                                            FontSize="11"
+                                            Padding="12,7"
+                                            Click="OnBrowseWireGuardClick"/>
+                                </Grid>
+
+                                <TextBlock Style="{StaticResource FieldLabel}" Text="کانفیگ WireGuard" Margin="0,8,0,3"/>
+                                <TextBox Style="{StaticResource ModernTextBox}"
+                                         Text="{Binding WireGuardConfig, UpdateSourceTrigger=PropertyChanged}"
+                                         AcceptsReturn="True"
+                                         MinHeight="112"
+                                         FontFamily="Consolas"
+                                         FlowDirection="LeftToRight"
+                                         VerticalScrollBarVisibility="Auto"
+                                         TextWrapping="Wrap"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Content="پیست از کلیپ‌بورد"
+                                            FontSize="11"
+                                            Padding="12,6"
+                                            Click="OnPasteWireGuardClick"/>
+                                    <Button Style="{StaticResource SecondaryButton}"
+                                            Content="پاک کردن"
+                                            FontSize="11"
+                                            Padding="12,6"
+                                            Margin="6,0,0,0"
+                                            Click="OnClearWireGuardClick"/>
+                                </StackPanel>
                             </StackPanel>
                         </StackPanel>
                     </Border>

@@ -44,6 +44,7 @@ public partial class MainViewModel
         TunnelType.V2Ray => TunnelProviderFactory.RequiresXray(SelectedV2RayConfig) ? "V2Ray / Xray" : "V2Ray / sing-box",
         TunnelType.OpenVpn => "OpenVPN",
         TunnelType.SocksProxy => ProxyProtocol == ProxyProtocol.Http ? "HTTP Proxy" : "SOCKS5 Proxy",
+        TunnelType.WireGuard => "WireGuard / Windows Adapter",
         _ => LocalizationService.Instance.T("نوع اتصال نامشخص")
     };
 
@@ -59,6 +60,9 @@ public partial class MainViewModel
         TunnelType.SocksProxy => string.IsNullOrWhiteSpace(ProxyServerAddress)
             ? LocalizationService.Instance.T("آدرس پراکسی هنوز وارد نشده")
             : $"{ProxyServerAddress.Trim()}:{ProxyPort}",
+        TunnelType.WireGuard => WireGuardConfigParser.TryParse(SelectedWireGuardConfig, out var wg, out _)
+            ? $"{wg.EndpointHost}:{wg.EndpointPort}"
+            : LocalizationService.Instance.T("کانفیگ WireGuard آماده نمایش نیست"),
         _ => ""
     };
 
@@ -157,6 +161,8 @@ public partial class MainViewModel
         _selectedProfile.OpenVpnConfigPath = SelectedOpenVpnConfigPath;
         _selectedProfile.OpenVpnUsername = OpenVpnUsername;
         _selectedProfile.OpenVpnPassword = OpenVpnPassword;
+        _selectedProfile.WireGuardConfig = SelectedWireGuardConfig;
+        _selectedProfile.WireGuardConfigPath = SelectedWireGuardConfigPath;
         _selectedProfile.ProxyProtocol = ProxyProtocol;
         _selectedProfile.ProxyServerAddress = ProxyServerAddress;
         _selectedProfile.ProxyPort = ProxyPort;
@@ -221,6 +227,8 @@ public partial class MainViewModel
             _selectedV2RayConfig = profile.V2RayConfig;
             _selectedOpenVpnConfig = profile.OpenVpnConfig;
             _selectedOpenVpnConfigPath = profile.OpenVpnConfigPath;
+            _selectedWireGuardConfig = profile.WireGuardConfig;
+            _selectedWireGuardConfigPath = profile.WireGuardConfigPath;
             _openVpnUsername = profile.OpenVpnUsername;
             _openVpnPassword = profile.OpenVpnPassword;
             _proxyProtocol = profile.ProxyProtocol;
@@ -233,6 +241,8 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(SelectedV2RayConfig));
             OnPropertyChanged(nameof(SelectedOpenVpnConfig));
             OnPropertyChanged(nameof(SelectedOpenVpnConfigPath));
+            OnPropertyChanged(nameof(SelectedWireGuardConfig));
+            OnPropertyChanged(nameof(SelectedWireGuardConfigPath));
             OnPropertyChanged(nameof(OpenVpnUsername));
             OnPropertyChanged(nameof(ProxyProtocol));
             OnPropertyChanged(nameof(ProxyServerAddress));
@@ -345,6 +355,8 @@ public partial class MainViewModel
         OpenVpnConfigPath = source.OpenVpnConfigPath,
         OpenVpnUsername = source.OpenVpnUsername,
         OpenVpnPassword = source.OpenVpnPassword,
+        WireGuardConfig = source.WireGuardConfig,
+        WireGuardConfigPath = source.WireGuardConfigPath,
         ProxyProtocol = source.ProxyProtocol,
         ProxyServerAddress = source.ProxyServerAddress,
         ProxyPort = source.ProxyPort,
@@ -369,6 +381,8 @@ public partial class MainViewModel
         target.OpenVpnConfigPath = source.OpenVpnConfigPath;
         target.OpenVpnUsername = source.OpenVpnUsername;
         target.OpenVpnPassword = source.OpenVpnPassword;
+        target.WireGuardConfig = source.WireGuardConfig;
+        target.WireGuardConfigPath = source.WireGuardConfigPath;
         target.ProxyProtocol = source.ProxyProtocol;
         target.ProxyServerAddress = source.ProxyServerAddress;
         target.ProxyPort = source.ProxyPort;

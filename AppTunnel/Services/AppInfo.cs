@@ -7,9 +7,14 @@ public static class AppInfo
     public const string GitHubUrl = "https://github.com/MaxiFan/TunnelX";
     public const string LatestReleaseUrl = GitHubUrl + "/releases/latest";
     public const string TelegramContactUrl = "https://t.me/maxifaan";
+    public const string TelegramChannelUrl = "https://t.me/tunnelxx";
+    public const string TelegramChannelDeepLink = "tg://resolve?domain=tunnelxx";
+    public const string TelegramChannelHandle = "@tunnelxx";
     public const string LicenseName = "GPL-3.0-or-later";
     public const string PayPalEmail = "gallafan@gmail.com";
-    public const string PayPalDonateUrl = "https://www.paypal.com/donate/?business=gallafan%40gmail.com&currency_code=USD";
+    /// <summary>PayPal Donate button — recipient is gallafan@gmail.com; supporter enters amount on PayPal.</summary>
+    public const string PayPalDonateUrl =
+        "https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gallafan%40gmail.com&item_name=TunnelX%20support&currency_code=USD&no_shipping=1";
     public const string CryptoDonationText =
         "ترون / USDT روی TRC20: TNWV867fQDT6zpLunHgbeMjrN6ic63LQSu\n" +
         "بیت‌کوین: bc1qgx3g47c458fu6smnpqpu0l05hha82rq2xjet4y\n" +
