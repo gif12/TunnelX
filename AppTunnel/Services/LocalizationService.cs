@@ -458,6 +458,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["اگر TunnelX برایتان مفید بوده، می‌توانید با PayPal یا کریپتو از توسعه آن حمایت کنید."] = "If TunnelX has been useful, you can support its development with PayPal or crypto.",
         ["حمایت با PayPal"] = "Donate with PayPal",
         ["حمایت داوطلبانه؛ خرید یا پرداخت تجاری نیست."] = "Voluntary support only; not a purchase or commercial payment.",
+        ["گیرنده: gallafan@gmail.com — مبلغ را در PayPal وارد کنید."] = "Recipient: gallafan@gmail.com — enter the amount in PayPal.",
         ["پرداخت با کریپتو"] = "Pay with crypto",
         ["ترون / USDT روی TRC20"] = "Tron / USDT on TRC20",
         ["بیت‌کوین"] = "Bitcoin",

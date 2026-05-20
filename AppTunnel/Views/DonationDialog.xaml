@@ -67,11 +67,12 @@
                         Padding="14,9"
                         ToolTip="حمایت داوطلبانه؛ خرید یا پرداخت تجاری نیست."
                         Click="OnPayPalClick"/>
-                <TextBlock Text="حمایت داوطلبانه؛ خرید یا پرداخت تجاری نیست."
+                <TextBlock Text="گیرنده: gallafan@gmail.com — مبلغ را در PayPal وارد کنید."
                            FontSize="9"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            TextWrapping="Wrap"
-                           Margin="0,6,0,0"/>
+                           Margin="0,6,0,0"
+                           FlowDirection="LeftToRight"/>
             </StackPanel>
 
             <Border Grid.Row="2"

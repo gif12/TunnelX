@@ -22,12 +22,15 @@ For paid work or customization requests, contact: `gallafan@gmail.com`
 
 ## PayPal
 
-Voluntary support only — not a purchase. The maintainer uses a **personal** PayPal account.
+Voluntary support only. The maintainer uses a **personal** PayPal account (`gallafan@gmail.com`).
 
 - PayPal email: `gallafan@gmail.com`
-- Donation link (opens PayPal with this recipient; supporter chooses the amount): https://www.paypal.com/cgi-bin/webscr?cmd=_donations&business=gallafan%40gmail.com&item_name=TunnelX%20support&currency_code=USD&no_shipping=1
+- Support link (personal account; supporter enters the amount): https://www.paypal.com/cgi-bin/webscr?cmd=_xclick&business=gallafan%40gmail.com&item_name=TunnelX%20support&currency_code=USD&no_shipping=1
+- Optional PayPal.Me (create at [paypal.com/paypalme](https://www.paypal.com/paypalme) if you use a custom handle): https://paypal.me/gallafan
 
-If PayPal shows payment type options, **Friends and Family** is preferred when available (the link cannot force it).
+The old `cmd=_donations` URL shows *“organization cannot accept donations”* on personal accounts without a nonprofit donation profile — do not use it.
+
+If PayPal offers **Friends and Family** / **Send to friends**, prefer that when sending manually to the email above.
 
 
 

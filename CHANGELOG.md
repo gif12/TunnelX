@@ -13,7 +13,7 @@
 - Improved the **connected dashboard**: route ping field UX (I-beam cursor, compact Ping button), traffic/health cards, and footer polish.
 - Expanded **Persian/English UI** coverage (notifications, Help, footer, donation dialog) and fixed update-status text not switching language correctly.
 - Routing/DNS/engine work: app discovery refresh, split-tunnel rule learning, WireGuard/TunnelX host lifecycle cleanup, and related stability fixes.
-- Donation: PayPal Donate link targets `gallafan@gmail.com` (supporter enters amount on PayPal).
+- Donation: PayPal support via personal-account link (`_xclick`, optional PayPal.Me) to `gallafan@gmail.com` (supporter enters amount on PayPal).
 
 ### فارسی
 
@@ -24,7 +24,7 @@
 - **داشبورد حالت متصل** بهبود یافت: فیلد پینگ مسیر (نشانگر تایپ، دکمه فشرده Ping)، کارت‌های ترافیک/سلامت، و فوتر مرتب‌تر.
 - پوشش **فارسی/انگلیسی** گسترده‌تر (ناتیف، راهنما، فوتر، دیالوگ حمایت) و اصلاح متن «به‌روز است» هنگام تعویض زبان.
 - بهبودهای مسیریابی/DNS/موتور: بروزرسانی لیست برنامه‌ها، یادگیری قوانین DNS، پاک‌سازی فرایند TunnelX/WireGuard و رفع پایداری مرتبط.
-- حمایت مالی: لینک Donate پی‌پل به `gallafan@gmail.com` (حامی مبلغ را در PayPal وارد می‌کند).
+- حمایت مالی: پی‌پل با لینک حساب شخصی (`_xclick` و PayPal.Me اختیاری) به `gallafan@gmail.com` (حامی مبلغ را در PayPal وارد می‌کند).
 
 ## 1.2.32 - 2026-05-18
 
