@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.1.0 - 2026-05-21
+
 ### English
 
 - **Connection health check** before showing the connected screen: end-to-end TCP probes to `google.com` and `cloudflare.com` through the tunnel SOCKS path; expired or quota-exhausted configs no longer appear as “connected” when only the local adapter is up.
@@ -186,6 +188,7 @@
 - Added in-app GitHub and donation links.
 - Added project metadata for MaxFan and GPL-3.0-or-later licensing.
 - Improved leak logging and traffic accounting in recent internal builds.
+
 
 
 
