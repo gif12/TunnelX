@@ -75,6 +75,7 @@ public partial class MainViewModel
     /// </summary>
     public event Action<string, string>? PasswordChanged;
     public event Action<string>? OpenVpnPasswordChanged;
+    public event Action<string>? OpenVpnPrivateKeyPasswordChanged;
     public event Action<string>? ProxyPasswordChanged;
 
     private void LoadProfiles()
@@ -161,6 +162,7 @@ public partial class MainViewModel
         _selectedProfile.OpenVpnConfigPath = SelectedOpenVpnConfigPath;
         _selectedProfile.OpenVpnUsername = OpenVpnUsername;
         _selectedProfile.OpenVpnPassword = OpenVpnPassword;
+        _selectedProfile.OpenVpnPrivateKeyPassword = OpenVpnPrivateKeyPassword;
         _selectedProfile.WireGuardConfig = SelectedWireGuardConfig;
         _selectedProfile.WireGuardConfigPath = SelectedWireGuardConfigPath;
         _selectedProfile.ProxyProtocol = ProxyProtocol;
@@ -231,6 +233,7 @@ public partial class MainViewModel
             _selectedWireGuardConfigPath = profile.WireGuardConfigPath;
             _openVpnUsername = profile.OpenVpnUsername;
             _openVpnPassword = profile.OpenVpnPassword;
+            _openVpnPrivateKeyPassword = profile.OpenVpnPrivateKeyPassword;
             _proxyProtocol = profile.ProxyProtocol;
             _proxyServerAddress = profile.ProxyServerAddress;
             _proxyPort = profile.ProxyPort > 0 ? profile.ProxyPort : 1080;
@@ -244,6 +247,7 @@ public partial class MainViewModel
             OnPropertyChanged(nameof(SelectedWireGuardConfig));
             OnPropertyChanged(nameof(SelectedWireGuardConfigPath));
             OnPropertyChanged(nameof(OpenVpnUsername));
+            OnPropertyChanged(nameof(OpenVpnPrivateKeyPassword));
             OnPropertyChanged(nameof(ProxyProtocol));
             OnPropertyChanged(nameof(ProxyServerAddress));
             OnPropertyChanged(nameof(ProxyPort));
@@ -254,6 +258,7 @@ public partial class MainViewModel
 
             PasswordChanged?.Invoke(profile.Password, profile.PreSharedKey);
             OpenVpnPasswordChanged?.Invoke(profile.OpenVpnPassword);
+            OpenVpnPrivateKeyPasswordChanged?.Invoke(profile.OpenVpnPrivateKeyPassword);
             ProxyPasswordChanged?.Invoke(profile.ProxyPassword);
         }
         finally
@@ -355,6 +360,7 @@ public partial class MainViewModel
         OpenVpnConfigPath = source.OpenVpnConfigPath,
         OpenVpnUsername = source.OpenVpnUsername,
         OpenVpnPassword = source.OpenVpnPassword,
+        OpenVpnPrivateKeyPassword = source.OpenVpnPrivateKeyPassword,
         WireGuardConfig = source.WireGuardConfig,
         WireGuardConfigPath = source.WireGuardConfigPath,
         ProxyProtocol = source.ProxyProtocol,
@@ -381,6 +387,7 @@ public partial class MainViewModel
         target.OpenVpnConfigPath = source.OpenVpnConfigPath;
         target.OpenVpnUsername = source.OpenVpnUsername;
         target.OpenVpnPassword = source.OpenVpnPassword;
+        target.OpenVpnPrivateKeyPassword = source.OpenVpnPrivateKeyPassword;
         target.WireGuardConfig = source.WireGuardConfig;
         target.WireGuardConfigPath = source.WireGuardConfigPath;
         target.ProxyProtocol = source.ProxyProtocol;

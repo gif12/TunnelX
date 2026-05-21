@@ -147,6 +147,7 @@ public partial class MainViewModel
             OpenVpnConfig = _selectedOpenVpnConfig,
             OpenVpnUsername = OpenVpnUsername,
             OpenVpnPassword = OpenVpnPassword,
+            OpenVpnPrivateKeyPassword = OpenVpnPrivateKeyPassword,
             WireGuardConfig = SelectedWireGuardConfig,
             WireGuardConfigPath = SelectedWireGuardConfigPath,
             ProxyProtocol = ProxyProtocol,

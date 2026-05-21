@@ -20,17 +20,20 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
         PasswordField.PasswordChanged += OnPasswordFieldChanged;
         PskField.PasswordChanged += OnPskFieldChanged;
         OpenVpnPasswordField.PasswordChanged += OnOpenVpnPasswordFieldChanged;
+        OpenVpnPrivateKeyPasswordField.PasswordChanged += OnOpenVpnPrivateKeyPasswordFieldChanged;
         ProxyPasswordField.PasswordChanged += OnProxyPasswordFieldChanged;
 
         // When profile changes, update PasswordBox fields
         vm.PasswordChanged += OnViewModelPasswordChanged;
         vm.OpenVpnPasswordChanged += OnViewModelOpenVpnPasswordChanged;
+        vm.OpenVpnPrivateKeyPasswordChanged += OnViewModelOpenVpnPrivateKeyPasswordChanged;
         vm.ProxyPasswordChanged += OnViewModelProxyPasswordChanged;
 
         // Load initial values
         PasswordField.Password = vm.Password;
         PskField.Password = vm.PreSharedKey;
         OpenVpnPasswordField.Password = vm.OpenVpnPassword;
+        OpenVpnPrivateKeyPasswordField.Password = vm.OpenVpnPrivateKeyPassword;
         ProxyPasswordField.Password = vm.ProxyPassword;
     }
 
@@ -39,12 +42,14 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
         PasswordField.PasswordChanged -= OnPasswordFieldChanged;
         PskField.PasswordChanged -= OnPskFieldChanged;
         OpenVpnPasswordField.PasswordChanged -= OnOpenVpnPasswordFieldChanged;
+        OpenVpnPrivateKeyPasswordField.PasswordChanged -= OnOpenVpnPrivateKeyPasswordFieldChanged;
         ProxyPasswordField.PasswordChanged -= OnProxyPasswordFieldChanged;
 
         if (DataContext is MainViewModel vm)
         {
             vm.PasswordChanged -= OnViewModelPasswordChanged;
             vm.OpenVpnPasswordChanged -= OnViewModelOpenVpnPasswordChanged;
+            vm.OpenVpnPrivateKeyPasswordChanged -= OnViewModelOpenVpnPrivateKeyPasswordChanged;
             vm.ProxyPasswordChanged -= OnViewModelProxyPasswordChanged;
         }
     }
@@ -73,6 +78,12 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
             vm.OpenVpnPassword = OpenVpnPasswordField.Password;
     }
 
+    private void OnOpenVpnPrivateKeyPasswordFieldChanged(object sender, RoutedEventArgs e)
+    {
+        if (DataContext is MainViewModel vm && vm.OpenVpnPrivateKeyPassword != OpenVpnPrivateKeyPasswordField.Password)
+            vm.OpenVpnPrivateKeyPassword = OpenVpnPrivateKeyPasswordField.Password;
+    }
+
     private void OnProxyPasswordFieldChanged(object sender, RoutedEventArgs e)
     {
         if (DataContext is MainViewModel vm && vm.ProxyPassword != ProxyPasswordField.Password)
@@ -91,6 +102,11 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
     private void OnViewModelOpenVpnPasswordChanged(string password)
     {
         Dispatcher.Invoke(() => OpenVpnPasswordField.Password = password);
+    }
+
+    private void OnViewModelOpenVpnPrivateKeyPasswordChanged(string password)
+    {
+        Dispatcher.Invoke(() => OpenVpnPrivateKeyPasswordField.Password = password);
     }
 
     private void OnViewModelProxyPasswordChanged(string password)

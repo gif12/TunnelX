@@ -4,7 +4,8 @@ using Application = System.Windows.Application;
 namespace AppTunnel.Services;
 
 /// <summary>
-/// Shows a persistent tray promo for the TunnelX Telegram channel ~15s after each successful connect.
+/// Promotional tray card (always shown): Telegram channel ~15s after each successful connect.
+/// Not gated by informational-notification settings.
 /// </summary>
 public static class TelegramChannelPromoService
 {

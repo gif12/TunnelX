@@ -92,6 +92,8 @@ public class ProfileService
         public string? LastActiveProfileId { get; set; } = null;
         public string Language { get; set; } = LocalizationService.AutoLanguage;
         public long? GitHubAppDownloadCount { get; set; } = null;
+        /// <summary>Tray toasts for connection/app status (not updates or Telegram promos).</summary>
+        public bool EnableInformationalNotifications { get; set; } = true;
     }
 
     /// <summary>
@@ -126,6 +128,7 @@ public class ProfileService
                     : (s.OpenVpnExePath.EndsWith(".ovpn", StringComparison.OrdinalIgnoreCase) ? s.OpenVpnExePath : ""),
                 OpenVpnUsername = s.OpenVpnUsername,
                 OpenVpnPassword = DecryptString(s.EncryptedOpenVpnPassword),
+                OpenVpnPrivateKeyPassword = DecryptString(s.EncryptedOpenVpnPrivateKeyPassword),
                 WireGuardConfig = s.WireGuardConfig,
                 WireGuardConfigPath = s.WireGuardConfigPath,
                 ProxyProtocol = s.ProxyProtocol,
@@ -169,6 +172,7 @@ public class ProfileService
             OpenVpnConfigPath = p.OpenVpnConfigPath,
             OpenVpnUsername = p.OpenVpnUsername,
             EncryptedOpenVpnPassword = EncryptString(p.OpenVpnPassword),
+            EncryptedOpenVpnPrivateKeyPassword = EncryptString(p.OpenVpnPrivateKeyPassword),
             WireGuardConfig = p.WireGuardConfig,
             WireGuardConfigPath = p.WireGuardConfigPath,
             ProxyProtocol = p.ProxyProtocol,
@@ -239,6 +243,7 @@ public class ProfileService
         public string OpenVpnExePath { get; set; } = "";
         public string OpenVpnUsername { get; set; } = "";
         public string EncryptedOpenVpnPassword { get; set; } = "";
+        public string EncryptedOpenVpnPrivateKeyPassword { get; set; } = "";
         public string WireGuardConfig { get; set; } = "";
         public string WireGuardConfigPath { get; set; } = "";
         public ProxyProtocol ProxyProtocol { get; set; } = ProxyProtocol.Socks5;

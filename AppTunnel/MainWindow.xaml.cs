@@ -237,6 +237,7 @@ public partial class MainWindow : Window
                             "تونل فعال شد",
                             "پروفایل «{0}» فعال است و ترافیک انتخاب‌شده از تونل عبور می‌کند.",
                             AppNotificationKind.Success,
+                            AppNotificationChannel.Informational,
                             profileName);
                     }
                     else
@@ -273,7 +274,7 @@ public partial class MainWindow : Window
             return;
 
         _updateNotificationShown = true;
-        AppNotificationService.ShowTrayPersistent(
+        AppNotificationService.ShowPromotionalTrayPersistent(
             "نسخه جدید آماده است",
             "از منوی System Tray یا بخش بروزرسانی، صفحه دانلود TunnelX را باز کنید.",
             AppNotificationKind.Info);

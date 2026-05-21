@@ -16,6 +16,13 @@ namespace AppTunnel.Services;
 /// </summary>
 public class OpenVpnTunnelProvider : ITunnelProvider
 {
+    /// <summary>True when the .ovpn likely needs an OpenVPN <c>askpass</c> passphrase (encrypted private key).</summary>
+    public static bool ConfigLikelyNeedsPrivateKeyPassphrase(string? config) =>
+        !string.IsNullOrWhiteSpace(config) &&
+        (config.Contains("BEGIN ENCRYPTED PRIVATE KEY", StringComparison.OrdinalIgnoreCase) ||
+         config.Contains("Proc-Type: 4,ENCRYPTED", StringComparison.OrdinalIgnoreCase) ||
+         config.Contains("askpass", StringComparison.OrdinalIgnoreCase));
+
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static string OpenVpnWorkDir => Path.Combine(AppTunnel.App.AppDataDir, "openvpn");
     private static string TunnelXOpenVpnPidPath => Path.Combine(OpenVpnWorkDir, "tunnelx-openvpn.pid");
@@ -25,6 +32,9 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     private string _connectedRemoteIp = "";
     private int _connectedRemotePort;
     private string _assignedLocalIp = "";
+    private bool _initSequenceCompleted;
+    private string _fallbackRemoteHost = "";
+    private int _fallbackRemotePort;
     private readonly ConcurrentQueue<string> _recentOpenVpnOutput = new();
 
     public ConnectionStatus Status { get; } = new();
@@ -36,6 +46,9 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         _connectedRemoteIp = "";
         _connectedRemotePort = 0;
         _assignedLocalIp = "";
+        _initSequenceCompleted = false;
+        _fallbackRemoteHost = "";
+        _fallbackRemotePort = 0;
         while (_recentOpenVpnOutput.TryDequeue(out _)) { }
         Status.State = ConnectionState.Connecting;
         Status.Message = LocalizationService.Instance.T("در حال اجرای OpenVPN در حالت Split...");
@@ -66,11 +79,31 @@ public class OpenVpnTunnelProvider : ITunnelProvider
 
             await KillStaleTunnelXOpenVpnProcessAsync();
 
-            var preparedConfigPath = PrepareSplitCompatibleConfig(config.OpenVpnConfig, config.OpenVpnUsername, config.OpenVpnPassword);
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Active, "راه‌اندازی OpenVPN");
+
+            var preparedConfigPath = PrepareSplitCompatibleConfig(
+                config.OpenVpnConfig,
+                config.OpenVpnUsername,
+                config.OpenVpnPassword,
+                config.OpenVpnPrivateKeyPassword);
+            var preparedRemotes = ExtractRemoteCandidates(File.ReadAllText(preparedConfigPath)).ToList();
+            if (preparedRemotes.Count == 0)
+            {
+                Status.State = ConnectionState.Error;
+                Status.Message = LocalizationService.Instance.T("هیچ سرور remote قابل استفاده در فایل .ovpn باقی نمانده است. آدرس سرور، DNS یا نصب OpenVPN Community را بررسی کنید.");
+                ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Fail, Status.Message);
+                Logger.Error("[OpenVPN] Prepared config has no remote lines (all may have been skipped as private/local).");
+                return false;
+            }
+
+            var firstRemote = preparedRemotes[0];
+            _fallbackRemoteHost = firstRemote.host;
+            _fallbackRemotePort = int.TryParse(firstRemote.port, out var fallbackPort) ? fallbackPort : 1194;
+
             var remoteHost = TryExtractRemoteHost(config.OpenVpnConfig);
             LogRemoteCandidates(config.OpenVpnConfig);
             Logger.Info($"[OpenVPN] Launching: {openVpnExe}");
-            Logger.Info($"[OpenVPN] Prepared split config: {preparedConfigPath}");
+            Logger.Info($"[OpenVPN] Prepared split config: {preparedConfigPath} (remotes={preparedRemotes.Count})");
 
             _process = new Process
             {
@@ -91,6 +124,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             _ = Task.Run(() => PumpOpenVpnOutputAsync(_process.StandardOutput, ct));
             _ = Task.Run(() => PumpOpenVpnOutputAsync(_process.StandardError, ct));
             Logger.Info($"[OpenVPN] Process started PID={_process.Id}");
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Complete, "راه‌اندازی OpenVPN");
 
             Status.Message = LocalizationService.Instance.T("OpenVPN در حال اتصال است؛ مسیرهای پیش‌فرض آن برای Split Tunnel نادیده گرفته می‌شوند...");
             Logger.Info("[OpenVPN] Waiting up to 180s for VPN adapter to come Up...");
@@ -98,24 +132,26 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             var deadline = DateTime.UtcNow.AddSeconds(180);
             while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
             {
-                var idx = !string.IsNullOrWhiteSpace(_assignedLocalIp)
-                    ? FindOpenVpnInterfaceIndex(_assignedLocalIp)
-                    : -1;
-                if (idx > 0 &&
-                    !string.IsNullOrWhiteSpace(_routeGatewayIp) &&
-                    !string.IsNullOrWhiteSpace(_connectedRemoteIp) &&
-                    _connectedRemotePort > 0)
+                var remaining = Math.Max(0, (int)(deadline - DateTime.UtcNow).TotalSeconds);
+                ConnectionProgressService.Report(
+                    "tun_interface",
+                    ConnectionProgressPhase.Active,
+                    "منتظر بالا آمدن آداپتر OpenVPN... ({0}s)",
+                    detailFormatArg: remaining.ToString());
+
+                if (TryResolveVpnInterface(out var idx))
                 {
-                    Logger.Info($"[OpenVPN] Adapter came Up: index={idx}");
+                    Logger.Info($"[OpenVPN] Adapter ready: index={idx} init={_initSequenceCompleted} local={_assignedLocalIp}");
                     _vpnInterfaceIndex = idx;
                     break;
                 }
 
-                var remaining = (int)(deadline - DateTime.UtcNow).TotalSeconds;
                 if (_process.HasExited)
                 {
+                    LogRecentOpenVpnOutput();
                     Status.State = ConnectionState.Error;
                     Status.Message = LocalizationService.Instance.Format("OpenVPN زودتر از اتصال بسته شد (exit={0})", _process.ExitCode);
+                    ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail, Status.Message);
                     return false;
                 }
 
@@ -131,9 +167,12 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                     Logger.Error($"  name='{nic.Name}' desc='{nic.Description}' status={nic.OperationalStatus}");
                 Status.State = ConnectionState.Error;
                 Status.Message = LocalizationService.Instance.T("آداپتور OpenVPN بالا نیامد. لاگ OpenVPN را بررسی کنید؛ ممکن است ریموت اول پاسخ ندهد یا احراز هویت/شبکه مشکل داشته باشد.");
+                ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail, Status.Message);
                 await KillProcessAsync();
                 return false;
             }
+
+            ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Complete, "آداپتر OpenVPN آماده است");
 
             Status.State = ConnectionState.Connected;
             Status.ConnectedSince = DateTime.Now;
@@ -374,13 +413,18 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     private static bool IsOpenVpnConnectInstalled() =>
         GetOpenVpnConnectPaths().Any(p => Directory.Exists(p) || File.Exists(Path.Combine(p, "OpenVPNConnect.exe")));
 
-    private static string PrepareSplitCompatibleConfig(string originalConfig, string username, string password)
+    private static string PrepareSplitCompatibleConfig(
+        string originalConfig,
+        string username,
+        string password,
+        string privateKeyPassword)
     {
         var dir = OpenVpnWorkDir;
         Directory.CreateDirectory(dir);
 
         var path = Path.Combine(dir, "tunnelx-split.ovpn");
         var authPath = Path.Combine(dir, "tunnelx-auth.txt");
+        var askpassPath = Path.Combine(dir, "tunnelx-askpass.txt");
         var builder = new StringBuilder();
         var splitOptionsInserted = false;
         var lines = originalConfig.Split('\n');
@@ -404,6 +448,13 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 File.WriteAllText(authPath, $"{username.Trim()}{Environment.NewLine}{password}", Utf8NoBom);
                 builder.AppendLine($"auth-user-pass {QuoteOpenVpnPath(authPath)}");
             }
+
+            if (!string.IsNullOrWhiteSpace(privateKeyPassword))
+            {
+                File.WriteAllText(askpassPath, privateKeyPassword.Trim(), Utf8NoBom);
+                builder.AppendLine($"askpass {QuoteOpenVpnPath(askpassPath)}");
+            }
+
             builder.AppendLine();
         }
 
@@ -411,7 +462,8 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         {
             var raw = lines[i].TrimEnd('\r');
             var trimmed = raw.TrimStart();
-            if (trimmed.StartsWith("auth-user-pass", StringComparison.OrdinalIgnoreCase))
+            if (trimmed.StartsWith("auth-user-pass", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("askpass", StringComparison.OrdinalIgnoreCase))
                 continue;
 
             if (trimmed.StartsWith("<connection>", StringComparison.OrdinalIgnoreCase))
@@ -485,22 +537,145 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         return null;
     }
 
+    /// <summary>
+    /// Skip only literal private/local IPs in the .ovpn file. Hostnames are kept even if DNS
+    /// resolves to RFC1918 addresses (common on some networks) so OpenVPN can still try them.
+    /// </summary>
     private static bool ShouldSkipRemote(string host)
     {
-        if (IPAddress.TryParse(host, out var ip))
-            return IsPrivateIpv4(ip);
+        return IPAddress.TryParse(host, out var ip) && IsPrivateIpv4(ip);
+    }
 
+    private bool TryResolveVpnInterface(out int interfaceIndex)
+    {
+        interfaceIndex = -1;
+
+        if (!string.IsNullOrWhiteSpace(_assignedLocalIp))
+        {
+            var byIp = FindOpenVpnInterfaceIndex(_assignedLocalIp);
+            if (byIp > 0 && HasMinimumSessionMetadata())
+            {
+                interfaceIndex = byIp;
+                return true;
+            }
+        }
+
+        var hasSessionSignal = _initSequenceCompleted ||
+            !string.IsNullOrWhiteSpace(_assignedLocalIp) ||
+            !string.IsNullOrWhiteSpace(_routeGatewayIp) ||
+            !string.IsNullOrWhiteSpace(_connectedRemoteIp);
+
+        if (hasSessionSignal &&
+            TryFindReadyOpenVpnAdapter(out interfaceIndex, out var localIp))
+        {
+            if (string.IsNullOrWhiteSpace(_assignedLocalIp))
+                _assignedLocalIp = localIp;
+            EnsureSessionRoutingMetadata(interfaceIndex);
+            return true;
+        }
+
+        return false;
+    }
+
+    private bool HasMinimumSessionMetadata() =>
+        !string.IsNullOrWhiteSpace(_routeGatewayIp) &&
+        !string.IsNullOrWhiteSpace(_connectedRemoteIp) &&
+        _connectedRemotePort > 0;
+
+    private void EnsureSessionRoutingMetadata(int interfaceIndex)
+    {
+        if (_connectedRemotePort <= 0 && _fallbackRemotePort > 0)
+            _connectedRemotePort = _fallbackRemotePort;
+
+        if (string.IsNullOrWhiteSpace(_connectedRemoteIp) && !string.IsNullOrWhiteSpace(_fallbackRemoteHost))
+            _connectedRemoteIp = ResolveRemoteForRouting(_fallbackRemoteHost);
+
+        if (string.IsNullOrWhiteSpace(_routeGatewayIp))
+        {
+            _routeGatewayIp = TryGetInterfaceGateway(interfaceIndex)
+                ?? DeriveLikelyGateway(_assignedLocalIp)
+                ?? _connectedRemoteIp;
+            if (!string.IsNullOrWhiteSpace(_routeGatewayIp))
+                Logger.Info($"[OpenVPN] Inferred route-gateway {_routeGatewayIp}");
+        }
+    }
+
+    private static string? TryGetInterfaceGateway(int interfaceIndex)
+    {
         try
         {
-            var addresses = Dns.GetHostAddresses(host)
-                .Where(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
-                .ToList();
-            return addresses.Count > 0 && addresses.All(IsPrivateIpv4);
+            foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
+            {
+                var ipv4 = nic.GetIPProperties().GetIPv4Properties();
+                if (ipv4 == null || ipv4.Index != interfaceIndex)
+                    continue;
+
+                var gateway = nic.GetIPProperties().GatewayAddresses
+                    .Select(g => g.Address)
+                    .FirstOrDefault(a => a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork);
+                return gateway?.ToString();
+            }
         }
-        catch
+        catch { }
+
+        return null;
+    }
+
+    private static string? DeriveLikelyGateway(string assignedLocalIp)
+    {
+        if (!IPAddress.TryParse(assignedLocalIp, out var ip) ||
+            ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            return null;
+
+        var bytes = ip.GetAddressBytes();
+        if (bytes.Length != 4)
+            return null;
+
+        bytes[3] = 1;
+        return new IPAddress(bytes).ToString();
+    }
+
+    private static bool TryFindReadyOpenVpnAdapter(out int interfaceIndex, out string localIp)
+    {
+        interfaceIndex = -1;
+        localIp = "";
+
+        foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
         {
-            return false;
+            if (nic.OperationalStatus != OperationalStatus.Up)
+                continue;
+
+            var match =
+                nic.Name.Contains("OpenVPN", StringComparison.OrdinalIgnoreCase) ||
+                nic.Name.Contains("TAP", StringComparison.OrdinalIgnoreCase) ||
+                nic.Description.Contains("OpenVPN", StringComparison.OrdinalIgnoreCase) ||
+                nic.Description.Contains("TAP-Windows", StringComparison.OrdinalIgnoreCase) ||
+                nic.Description.Contains("Wintun", StringComparison.OrdinalIgnoreCase) ||
+                nic.Description.Contains("Data Channel Offload", StringComparison.OrdinalIgnoreCase);
+
+            if (!match)
+                continue;
+
+            var address = nic.GetIPProperties().UnicastAddresses
+                .Select(a => a.Address)
+                .FirstOrDefault(a =>
+                    a.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork &&
+                    !IPAddress.IsLoopback(a) &&
+                    !a.ToString().StartsWith("169.254.", StringComparison.Ordinal));
+
+            if (address == null)
+                continue;
+
+            var ipv4 = nic.GetIPProperties().GetIPv4Properties();
+            if (ipv4 == null)
+                continue;
+
+            interfaceIndex = ipv4.Index;
+            localIp = address.ToString();
+            return true;
         }
+
+        return false;
     }
 
     private async Task PumpOpenVpnOutputAsync(StreamReader reader, CancellationToken ct)
@@ -515,6 +690,9 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 {
                     _recentOpenVpnOutput.Enqueue(line);
                     while (_recentOpenVpnOutput.Count > 40 && _recentOpenVpnOutput.TryDequeue(out _)) { }
+                    if (line.Contains("Initialization Sequence Completed", StringComparison.OrdinalIgnoreCase))
+                        _initSequenceCompleted = true;
+
                     TryCaptureRouteGateway(line);
                     TryCaptureConnectedRemote(line);
                     TryCaptureAssignedLocalIp(line);
@@ -548,15 +726,19 @@ public class OpenVpnTunnelProvider : ITunnelProvider
 
     private void TryCaptureConnectedRemote(string line)
     {
-        if (!line.Contains("[AF_INET]", StringComparison.OrdinalIgnoreCase))
-            return;
-
         var isConnectedLine =
             line.Contains("TCP connection established with", StringComparison.OrdinalIgnoreCase) ||
             line.Contains("Peer Connection Initiated with", StringComparison.OrdinalIgnoreCase) ||
+            line.Contains("UDP link remote:", StringComparison.OrdinalIgnoreCase) ||
             line.Contains("link remote:", StringComparison.OrdinalIgnoreCase);
         if (!isConnectedLine)
             return;
+
+        if (!line.Contains("[AF_INET]", StringComparison.OrdinalIgnoreCase))
+        {
+            TryCaptureConnectedRemoteEndpoint(line);
+            return;
+        }
 
         var marker = "[AF_INET]";
         var idx = line.IndexOf(marker, StringComparison.OrdinalIgnoreCase);
@@ -579,6 +761,33 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
             return;
 
+        ApplyConnectedRemote(host, port);
+    }
+
+    private void TryCaptureConnectedRemoteEndpoint(string line)
+    {
+        var colon = line.LastIndexOf(':');
+        if (colon <= 0 || colon >= line.Length - 1)
+            return;
+
+        var hostStart = colon - 1;
+        while (hostStart >= 0 && (char.IsDigit(line[hostStart]) || line[hostStart] == '.'))
+            hostStart--;
+        hostStart++;
+
+        var host = line[hostStart..colon].Trim();
+        if (!int.TryParse(line[(colon + 1)..].Trim().TrimEnd(']', ')'), out var port))
+            return;
+
+        if (!IPAddress.TryParse(host, out var ip) ||
+            ip.AddressFamily != System.Net.Sockets.AddressFamily.InterNetwork)
+            return;
+
+        ApplyConnectedRemote(host, port);
+    }
+
+    private void ApplyConnectedRemote(string host, int port)
+    {
         _connectedRemoteIp = host;
         _connectedRemotePort = port;
         Logger.Info($"[OpenVPN] Captured connected remote {host}:{port}");

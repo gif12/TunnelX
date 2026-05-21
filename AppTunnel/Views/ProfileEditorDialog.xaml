@@ -178,7 +178,7 @@
                             </StackPanel>
 
                             <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=OpenVpn}">
-                                <TextBlock Text="فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. اگر سرور رمز نمی‌خواهد، فیلد رمز را خالی بگذارید."
+                                <TextBlock Text="فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. نام کاربری/رمز برای auth-user-pass و Secret برای کلید خصوصی رمزگذاری‌شده در فایل است."
                                            TextWrapping="Wrap"
                                            FontSize="11"
                                            Foreground="{StaticResource TextSecondaryBrush}"
@@ -208,6 +208,8 @@
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="8"/>
                                         <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="8"/>
+                                        <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
@@ -218,6 +220,12 @@
                                     <StackPanel Grid.Column="2">
                                         <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
                                         <PasswordBox x:Name="OpenVpnPasswordField"
+                                                     Style="{StaticResource ModernPasswordBox}"
+                                                     FlowDirection="LeftToRight"/>
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="4">
+                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Secret (رمز کلید)"/>
+                                        <PasswordBox x:Name="OpenVpnPrivateKeyPasswordField"
                                                      Style="{StaticResource ModernPasswordBox}"
                                                      FlowDirection="LeftToRight"/>
                                     </StackPanel>

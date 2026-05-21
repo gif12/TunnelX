@@ -685,20 +685,27 @@
 
                     <Grid Margin="0,6,0,0">
                         <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="8"/>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="8"/>
                             <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
-                        <StackPanel Grid.Column="1">
+                        <StackPanel Grid.Column="0">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
                             <TextBox Style="{StaticResource ModernTextBox}"
                                      Text="{Binding OpenVpnUsername, UpdateSourceTrigger=PropertyChanged}"
                                      FlowDirection="LeftToRight"/>
                         </StackPanel>
-                        <StackPanel Grid.Column="3">
+                        <StackPanel Grid.Column="2">
                             <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
                             <PasswordBox x:Name="OpenVpnPasswordField"
+                                         Style="{StaticResource ModernPasswordBox}"
+                                         FlowDirection="LeftToRight"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="4">
+                            <TextBlock Style="{StaticResource FieldLabel}" Text="Secret (رمز کلید)"/>
+                            <PasswordBox x:Name="OpenVpnPrivateKeyPasswordField"
                                          Style="{StaticResource ModernPasswordBox}"
                                          FlowDirection="LeftToRight"/>
                         </StackPanel>

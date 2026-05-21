@@ -33,6 +33,7 @@ public partial class ProfileEditorDialog : Window
         L2tpPasswordField.Password = _profile.Password;
         PskField.Password = _profile.PreSharedKey;
         OpenVpnPasswordField.Password = _profile.OpenVpnPassword;
+        OpenVpnPrivateKeyPasswordField.Password = _profile.OpenVpnPrivateKeyPassword;
         ProxyPasswordField.Password = _profile.ProxyPassword;
     }
 
@@ -131,6 +132,7 @@ public partial class ProfileEditorDialog : Window
         _profile.Password = L2tpPasswordField.Password;
         _profile.PreSharedKey = PskField.Password;
         _profile.OpenVpnPassword = OpenVpnPasswordField.Password;
+        _profile.OpenVpnPrivateKeyPassword = OpenVpnPrivateKeyPasswordField.Password;
         _profile.ProxyPassword = ProxyPasswordField.Password;
 
         if (!ValidateProfile(out var message))

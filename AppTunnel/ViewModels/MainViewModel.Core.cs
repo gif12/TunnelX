@@ -296,6 +296,32 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
+    private bool _enableInformationalNotifications = true;
+    public bool EnableInformationalNotifications
+    {
+        get => _enableInformationalNotifications;
+        set
+        {
+            if (_enableInformationalNotifications == value) return;
+            _enableInformationalNotifications = value;
+            OnPropertyChanged();
+            _appSettings.EnableInformationalNotifications = value;
+            _profileService.SaveAppSettings(_appSettings);
+        }
+    }
+
+    public string InformationalNotificationsSectionTitleText =>
+        LocalizationService.Instance.T("🔔 اعلان‌ها");
+
+    public string InformationalNotificationsTitleText =>
+        LocalizationService.Instance.T("اعلان‌های وضعیت اتصال و برنامه");
+
+    public string InformationalNotificationsDescriptionText =>
+        LocalizationService.Instance.T("نمایش اعلان‌های وضعیت اتصال و برنامه. اعلان‌های تبلیغ/به‌روزرسانی با دکمه ✕ بسته می‌شوند.");
+
+    public string HelpSettingsTabBodyText =>
+        LocalizationService.Instance.T("پورت پراکسی محلی، MTU خودکار، DNS Optimization، Game Mode، اعلان‌های وضعیت، اجرای خودکار ویندوز و اتصال خودکار اینجاست.");
+
     public string? LastActiveProfileId
     {
         get => _appSettings.LastActiveProfileId;
@@ -759,6 +785,21 @@ public partial class MainViewModel : INotifyPropertyChanged
             _openVpnPassword = value;
             if (_selectedProfile != null)
                 _selectedProfile.OpenVpnPassword = value;
+            OnPropertyChanged();
+            SaveCurrentState();
+        }
+    }
+
+    private string _openVpnPrivateKeyPassword = "";
+    public string OpenVpnPrivateKeyPassword
+    {
+        get => _openVpnPrivateKeyPassword;
+        set
+        {
+            if (_openVpnPrivateKeyPassword == value) return;
+            _openVpnPrivateKeyPassword = value;
+            if (_selectedProfile != null)
+                _selectedProfile.OpenVpnPrivateKeyPassword = value;
             OnPropertyChanged();
             SaveCurrentState();
         }
@@ -1629,9 +1670,12 @@ public partial class MainViewModel : INotifyPropertyChanged
                 ? LocalizationService.Instance.T("OpenVPN Community نصب نیست؛ ابتدا آن را از لینک رسمی نصب کنید")
                 : string.IsNullOrWhiteSpace(SelectedOpenVpnConfig)
                 ? LocalizationService.Instance.T("فایل .ovpn را انتخاب کنید؛ TunnelX آن را در حالت split-compatible اجرا می‌کند")
-                : string.IsNullOrWhiteSpace(OpenVpnUsername)
-                    ? LocalizationService.Instance.T("کانفیگ انتخاب شد؛ اگر سرور احراز هویت دارد نام کاربری را وارد کنید")
-                    : LocalizationService.Instance.T("کانفیگ و نام کاربری OpenVPN آماده است");
+                : OpenVpnTunnelProvider.ConfigLikelyNeedsPrivateKeyPassphrase(SelectedOpenVpnConfig) &&
+                  string.IsNullOrWhiteSpace(OpenVpnPrivateKeyPassword)
+                    ? LocalizationService.Instance.T("این کانفیگ به Secret (رمز کلید خصوصی) نیاز دارد؛ فیلد Secret را پر کنید")
+                    : string.IsNullOrWhiteSpace(OpenVpnUsername)
+                        ? LocalizationService.Instance.T("کانفیگ انتخاب شد؛ اگر سرور احراز هویت دارد نام کاربری را وارد کنید")
+                        : LocalizationService.Instance.T("کانفیگ و نام کاربری OpenVPN آماده است");
             return;
         }
 
@@ -1890,9 +1934,16 @@ public partial class MainViewModel : INotifyPropertyChanged
         LocalizationService.Instance.Initialize(_appSettings.Language);
         SyncStartupRegistryFromSettings();
         _autoConnectOnStartup = _appSettings.AutoConnectOnStartup;
+        _enableInformationalNotifications = _appSettings.EnableInformationalNotifications;
         _githubInstallCount = _appSettings.GitHubAppDownloadCount;
+        AppNotificationService.Configure(() => _enableInformationalNotifications);
         OnPropertyChanged(nameof(StartWithWindows));
         OnPropertyChanged(nameof(AutoConnectOnStartup));
+        OnPropertyChanged(nameof(EnableInformationalNotifications));
+        OnPropertyChanged(nameof(InformationalNotificationsSectionTitleText));
+        OnPropertyChanged(nameof(InformationalNotificationsTitleText));
+        OnPropertyChanged(nameof(InformationalNotificationsDescriptionText));
+        OnPropertyChanged(nameof(HelpSettingsTabBodyText));
         OnPropertyChanged(nameof(HasGitHubInstallCount));
         OnPropertyChanged(nameof(GitHubInstallCountText));
         OnPropertyChanged(nameof(AdAudienceText));
@@ -1947,6 +1998,10 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(StatusText));
         OnPropertyChanged(nameof(ConfigValidationText));
         OnPropertyChanged(nameof(GameModeStatusText));
+        OnPropertyChanged(nameof(InformationalNotificationsSectionTitleText));
+        OnPropertyChanged(nameof(InformationalNotificationsTitleText));
+        OnPropertyChanged(nameof(InformationalNotificationsDescriptionText));
+        OnPropertyChanged(nameof(HelpSettingsTabBodyText));
         OnPropertyChanged(nameof(OpenVpnPrerequisiteText));
         OnPropertyChanged(nameof(OpenVpnIntroText));
         OnPropertyChanged(nameof(OpenVpnInstallGuideText));

@@ -295,7 +295,7 @@
                     </Expander>
 
                     <Expander Header="تنظیمات" Style="{StaticResource HelpExpander}">
-                        <TextBlock Text="پورت پراکسی محلی، MTU خودکار، DNS Optimization، Game Mode، اجرای خودکار ویندوز و اتصال خودکار اینجاست."
+                        <TextBlock Text="{Binding HelpSettingsTabBodyText}"
                                    Style="{StaticResource HelpBody}" Margin="0,8,0,0"/>
                     </Expander>
 

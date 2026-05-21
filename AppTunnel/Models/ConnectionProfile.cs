@@ -43,6 +43,7 @@ public class ConnectionProfile : INotifyPropertyChanged
     private string _openVpnConfigPath = "";
     private string _openVpnUsername = "";
     private string _openVpnPassword = "";
+    private string _openVpnPrivateKeyPassword = "";
     private string _wireGuardConfig = "";
     private string _wireGuardConfigPath = "";
     private ProxyProtocol _proxyProtocol = ProxyProtocol.Socks5;
@@ -166,6 +167,13 @@ public class ConnectionProfile : INotifyPropertyChanged
         set => SetField(ref _openVpnPassword, value);
     }
 
+    /// <summary>Passphrase for encrypted private key in .ovpn (OpenVPN <c>askpass</c>).</summary>
+    public string OpenVpnPrivateKeyPassword
+    {
+        get => _openVpnPrivateKeyPassword;
+        set => SetField(ref _openVpnPrivateKeyPassword, value);
+    }
+
     public string WireGuardConfig
     {
         get => _wireGuardConfig;
@@ -287,6 +295,7 @@ public class ConnectionProfile : INotifyPropertyChanged
         OpenVpnConfig = OpenVpnConfig,
         OpenVpnUsername = OpenVpnUsername,
         OpenVpnPassword = OpenVpnPassword,
+        OpenVpnPrivateKeyPassword = OpenVpnPrivateKeyPassword,
         WireGuardConfig = WireGuardConfig,
         WireGuardConfigPath = WireGuardConfigPath,
         ProxyProtocol = ProxyProtocol,
