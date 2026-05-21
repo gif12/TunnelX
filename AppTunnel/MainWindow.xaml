@@ -304,7 +304,7 @@
             </TabItem>
 
             <!-- ███ TAB 3: ROUTING RULES ███ -->
-            <TabItem Style="{StaticResource ModernTabItem}" ToolTip="قوانین Include و Exclude مسیرها">
+            <TabItem Style="{StaticResource ModernTabItem}" ToolTip="{Binding RoutingRulesTabToolTipText}">
                 <TabItem.Header>
                     <StackPanel>
                         <TextBlock Text="🧭" FontSize="12" HorizontalAlignment="Center"/>
@@ -318,11 +318,11 @@
                     <Border Background="#121212" BorderBrush="#18FFFFFF" BorderThickness="1"
                             CornerRadius="10" Padding="12,8" Margin="0,0,0,10">
                         <StackPanel>
-                            <TextBlock Text="قوانین مسیر"
+                            <TextBlock Text="{Binding RoutingRulesTitleText}"
                                        FontSize="13"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"/>
-                            <TextBlock Text="مقصدهای مستقیم و مقصدهای اجباری تونل را اینجا مدیریت کنید."
+                            <TextBlock Text="{Binding RoutingRulesSubtitleText}"
                                        TextWrapping="Wrap"
                                        FontSize="10"
                                        Margin="0,2,0,0"
@@ -341,24 +341,25 @@
                     <!-- Info Card -->
                     <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8" BorderBrush="#2247A3F3">
                         <StackPanel>
-                            <TextBlock Text="🚫 مستقیم بماند" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="{Binding ExcludeStayDirectTitleText}" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10"
-                                       Text="این مقصدها از تونل عبور نمی‌کنند."/>
+                                       Text="{Binding ExcludeStayDirectSummaryText}"/>
                         </StackPanel>
                     </Border>
 
-                    <!-- Tip for Excludes -->
+                    <!-- Exclude entry guide -->
                     <Border Background="#1247A3F3" BorderBrush="#2647A3F3" BorderThickness="1"
-                            CornerRadius="9" Padding="10,7" Margin="0,0,0,8">
+                            CornerRadius="9" Padding="10,8" Margin="0,0,0,8">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,3">
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
                                 <TextBlock Text="💡" FontSize="11" Margin="0,0,5,0"/>
-                                <TextBlock Text="نمونه کاربرد" FontSize="10" FontWeight="SemiBold"
+                                <TextBlock Text="{Binding ExcludeRulesGuideTitleText}" FontSize="10" FontWeight="SemiBold"
                                            Foreground="#47A3F3"/>
                             </StackPanel>
-                            <TextBlock Text="سایت‌های داخلی یا سرورهای بازی را مستقیم نگه دارید."
-                                       TextWrapping="Wrap" FontSize="10" LineHeight="15"
+                            <TextBlock Text="{Binding ExcludeRulesGuideBodyText}"
+                                       TextWrapping="Wrap" FontSize="10" LineHeight="16"
+                                       FlowDirection="{Binding AppFlowDirection}"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
@@ -372,7 +373,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0" Style="{StaticResource ModernTextBox}"
                                      Text="{Binding ExcludeInput, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="دامنه یا آی‌پی (مثلاً google.com یا 1.2.3.4)"
+                                     Tag="{Binding ExcludeInputPlaceholderText}"
                                      FlowDirection="LeftToRight"
                                      FontSize="12" Padding="9,6"
                                      Margin="0,0,7,0">
@@ -381,7 +382,7 @@
                                 </TextBox.InputBindings>
                             </TextBox>
                             <Button Grid.Column="1" Style="{StaticResource PrimaryButton}"
-                                    Content="افزودن"
+                                    Content="{Binding AddRoutingRuleButtonText}"
                                     Command="{Binding AddExcludeCommand}"
                                     FontSize="11" Padding="12,6"/>
                         </Grid>
@@ -392,7 +393,7 @@
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"
-                                       Text="آدرس‌های مستقیم"/>
+                                       Text="{Binding ExcludeListHeaderText}"/>
                             <ListView ItemsSource="{Binding ExcludedDestinations}"
                                       Background="Transparent"
                                       BorderThickness="0"
@@ -417,7 +418,9 @@
                                                            FontSize="12" VerticalAlignment="Center"
                                                            FlowDirection="LeftToRight"/>
                                                 <Button Grid.Column="2" Style="{StaticResource DangerButton}"
-                                                        Content="حذف" FontSize="10" Padding="7,3"
+                                                        Content="{Binding DataContext.RemoveRoutingRuleButtonText,
+                                                            RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        FontSize="10" Padding="7,3"
                                                         Command="{Binding DataContext.RemoveExcludeCommand,
                                                             RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
@@ -452,10 +455,26 @@
                     <!-- Include Info -->
                     <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8" BorderBrush="#2233C481">
                         <StackPanel>
-                            <TextBlock Text="✅ از تونل عبور کند" FontSize="13" FontWeight="SemiBold"
+                            <TextBlock Text="{Binding IncludeForceTunnelTitleText}" FontSize="13" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,4"/>
                             <TextBlock TextWrapping="Wrap" Foreground="{StaticResource TextSecondaryBrush}" FontSize="10"
-                                       Text="این مقصدها همیشه از تونل عبور می‌کنند."/>
+                                       Text="{Binding IncludeForceTunnelSummaryText}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Include entry guide -->
+                    <Border Background="#1233C481" BorderBrush="#2633C481" BorderThickness="1"
+                            CornerRadius="9" Padding="10,8" Margin="0,0,0,8">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,4">
+                                <TextBlock Text="💡" FontSize="11" Margin="0,0,5,0"/>
+                                <TextBlock Text="{Binding IncludeRulesGuideTitleText}" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="#33C481"/>
+                            </StackPanel>
+                            <TextBlock Text="{Binding IncludeRulesGuideBodyText}"
+                                       TextWrapping="Wrap" FontSize="10" LineHeight="16"
+                                       FlowDirection="{Binding AppFlowDirection}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
 
@@ -468,7 +487,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBox Grid.Column="0" Style="{StaticResource ModernTextBox}"
                                      Text="{Binding IncludeInput, UpdateSourceTrigger=PropertyChanged}"
-                                     Tag="دامنه یا آی‌پی (مثلاً example.com یا 1.2.3.4)"
+                                     Tag="{Binding IncludeInputPlaceholderText}"
                                      FlowDirection="LeftToRight"
                                      FontSize="12" Padding="9,6"
                                      Margin="0,0,7,0">
@@ -477,7 +496,7 @@
                                 </TextBox.InputBindings>
                             </TextBox>
                             <Button Grid.Column="1" Style="{StaticResource PrimaryButton}"
-                                    Content="افزودن"
+                                    Content="{Binding AddRoutingRuleButtonText}"
                                     Command="{Binding AddIncludeCommand}"
                                     FontSize="11" Padding="12,6"/>
                         </Grid>
@@ -488,7 +507,7 @@
                         <DockPanel>
                             <TextBlock DockPanel.Dock="Top" FontSize="12" FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}" Margin="0,0,0,6"
-                                       Text="آدرس‌های اجباری"/>
+                                       Text="{Binding IncludeListHeaderText}"/>
                             <ListView ItemsSource="{Binding IncludedDestinations}"
                                       Background="Transparent"
                                       BorderThickness="0"
@@ -513,7 +532,9 @@
                                                            FontSize="12" VerticalAlignment="Center"
                                                            FlowDirection="LeftToRight"/>
                                                 <Button Grid.Column="2" Style="{StaticResource DangerButton}"
-                                                        Content="حذف" FontSize="10" Padding="7,3"
+                                                        Content="{Binding DataContext.RemoveRoutingRuleButtonText,
+                                                            RelativeSource={RelativeSource AncestorType=Window}}"
+                                                        FontSize="10" Padding="7,3"
                                                         Command="{Binding DataContext.RemoveIncludeCommand,
                                                             RelativeSource={RelativeSource AncestorType=Window}}"
                                                         CommandParameter="{Binding}"/>
@@ -958,10 +979,12 @@
                             Grid.Row="1"
                             Panel.ZIndex="20"
                             VerticalAlignment="Bottom"
-                            HorizontalAlignment="Stretch"
+                            HorizontalAlignment="Center"
                             Margin="10,0,10,10"
-                            Padding="10,8"
-                            CornerRadius="8"
+                            Padding="14,12"
+                            MinWidth="340"
+                            MinHeight="48"
+                            CornerRadius="10"
                             BorderThickness="1"
                             Visibility="Collapsed"
                             IsHitTestVisible="False">
@@ -982,7 +1005,8 @@
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
                                        VerticalAlignment="Center"
-                                       MaxWidth="300"/>
+                                       MaxWidth="300"
+                                       MinHeight="20"/>
                         </StackPanel>
                     </Border>
                 </Grid>
@@ -992,8 +1016,9 @@
 
         <!-- Toast Notification Overlay -->
         <Border x:Name="ToastPanel" 
-                Background="#E0303030" CornerRadius="8"
-                Padding="14,8" Margin="0,0,0,16"
+                Background="#E0303030" CornerRadius="10"
+                Padding="14,12" Margin="0,0,0,16"
+                MinWidth="340" MinHeight="48"
                 HorizontalAlignment="Center" VerticalAlignment="Bottom"
                 Visibility="Collapsed"
                 IsHitTestVisible="False"

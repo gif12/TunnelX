@@ -1,8 +1,17 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
-                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:helpers="clr-namespace:AppTunnel.Helpers">
 
     <FontFamily x:Key="PersianFont">pack://application:,,,/AppTunnel;component/Fonts/#Vazirmatn</FontFamily>
     <FontFamily x:Key="AppFont">pack://application:,,,/AppTunnel;component/Fonts/#Vazirmatn, Vazirmatn, Vazir, Segoe UI, Tahoma</FontFamily>
+    <!-- Populated at startup from %WINDIR%\Fonts\seguiemj.ttf (see FlagFontFamily). -->
+    <FontFamily x:Key="FlagEmojiFont">Segoe UI Emoji, Segoe UI Symbol</FontFamily>
+
+    <Style x:Key="CountryFlagText" TargetType="TextBlock" BasedOn="{StaticResource {x:Type TextBlock}}">
+        <Setter Property="helpers:TextBlockFlags.UseEmojiFont" Value="True"/>
+        <Setter Property="UseLayoutRounding" Value="True"/>
+        <Setter Property="SnapsToDevicePixels" Value="True"/>
+    </Style>
 
     <!-- Color Palette: Windows 11 Dark Mode + Orange Accent -->
     <Color x:Key="PrimaryColor">#F97316</Color>

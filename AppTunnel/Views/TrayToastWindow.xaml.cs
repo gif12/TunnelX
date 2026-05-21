@@ -13,10 +13,9 @@ public partial class TrayToastWindow : Window
     private const int SlideMs = 280;
     private const int FadeMs = 220;
     /// <summary>Vertical gap between stacked tray toasts (Telegram-style column).</summary>
-    private const double StackGap = 10;
-    /// <summary>Slight horizontal cascade so edges of stacked toasts remain visible.</summary>
-    private const double CascadeStepPx = 10;
-    private const double FallbackToastHeight = 92;
+    private const double StackGap = 8;
+    private const double ToastShadowPadding = 10;
+    private const double FallbackToastHeight = 100;
 
     private static readonly List<TrayToastWindow> ActiveToasts = [];
     private static readonly object ToastLock = new();
@@ -39,7 +38,10 @@ public partial class TrayToastWindow : Window
     private string? _promoTitleKey;
     private string? _promoMessageKey;
     private string? _promoActionKey;
+    private string? _promoSecondaryActionKey;
     private Action? _promoOpenChannel;
+    private Action? _promoSecondaryAction;
+    private bool _updateDualPromoMode;
 
     public TrayToastWindow()
     {
@@ -142,6 +144,33 @@ public partial class TrayToastWindow : Window
         return toast!;
     }
 
+    public static TrayToastWindow ShowPersistentDualAction(
+        string titleKey,
+        string messageKey,
+        string primaryActionKey,
+        string secondaryActionKey,
+        AppNotificationKind kind,
+        Action onPrimary,
+        Action onSecondary,
+        Action onDismissed)
+    {
+        TrayToastWindow? toast = null;
+        Application.Current.Dispatcher.Invoke(() =>
+        {
+            toast = new TrayToastWindow();
+            toast.PresentDualPromoFromKeys(
+                titleKey,
+                messageKey,
+                primaryActionKey,
+                secondaryActionKey,
+                kind,
+                onPrimary,
+                onSecondary,
+                onDismissed);
+        });
+        return toast!;
+    }
+
     private void PresentFromKeys(
         string? titleKey,
         string? messageKey,
@@ -197,6 +226,7 @@ public partial class TrayToastWindow : Window
     {
         _isPersistent = true;
         _promoMode = true;
+        _updateDualPromoMode = false;
         _stickyTrayMode = false;
         _onDismissed = onDismissed;
         _kind = kind;
@@ -204,7 +234,41 @@ public partial class TrayToastWindow : Window
         _promoTitleKey = titleKey;
         _promoMessageKey = messageKey;
         _promoActionKey = actionKey;
+        _promoSecondaryActionKey = null;
         _promoOpenChannel = onOpenChannel;
+        _promoSecondaryAction = null;
+
+        lock (ToastLock)
+            ActiveToasts.Add(this);
+
+        ApplyLocalizedContent();
+
+        AnimateShow();
+    }
+
+    private void PresentDualPromoFromKeys(
+        string titleKey,
+        string messageKey,
+        string primaryActionKey,
+        string secondaryActionKey,
+        AppNotificationKind kind,
+        Action onPrimary,
+        Action onSecondary,
+        Action onDismissed)
+    {
+        _isPersistent = true;
+        _promoMode = true;
+        _updateDualPromoMode = true;
+        _stickyTrayMode = false;
+        _onDismissed = onDismissed;
+        _kind = kind;
+
+        _promoTitleKey = titleKey;
+        _promoMessageKey = messageKey;
+        _promoActionKey = primaryActionKey;
+        _promoSecondaryActionKey = secondaryActionKey;
+        _promoOpenChannel = onPrimary;
+        _promoSecondaryAction = onSecondary;
 
         lock (ToastLock)
             ActiveToasts.Add(this);
@@ -218,7 +282,25 @@ public partial class TrayToastWindow : Window
     {
         FlowDirection = LocalizationService.Instance.FlowDirection;
 
-        if (_promoMode)
+        if (_promoMode && _updateDualPromoMode)
+        {
+            var loc = LocalizationService.Instance;
+            var title = loc.T(_promoTitleKey ?? string.Empty);
+            var message = loc.T(_promoMessageKey ?? string.Empty);
+            var primary = loc.T(_promoActionKey ?? string.Empty);
+            var secondary = loc.T(_promoSecondaryActionKey ?? string.Empty);
+            NotificationCard.SetDualPromoContent(title, message, primary, secondary, _kind);
+
+            NotificationCard.SetCallbacks(
+                onAction: () =>
+                {
+                    _promoOpenChannel?.Invoke();
+                    Dismiss(markDismissed: false);
+                },
+                onClose: () => Dismiss(markDismissed: true),
+                onSecondaryAction: () => _promoSecondaryAction?.Invoke());
+        }
+        else if (_promoMode)
         {
             var loc = LocalizationService.Instance;
             var title = loc.T(_promoTitleKey ?? string.Empty);
@@ -316,13 +398,18 @@ public partial class TrayToastWindow : Window
             {
                 var toast = ActiveToasts[i];
                 toast.UpdateLayout();
-                var h = toast.ActualHeight > 0 ? toast.ActualHeight : FallbackToastHeight;
+                toast.NotificationCard.UpdateLayout();
+                var cardHeight = toast.NotificationCard.ActualHeight;
+                var h = toast.ActualHeight > 0
+                    ? toast.ActualHeight
+                    : cardHeight > 0
+                        ? cardHeight + ToastShadowPadding
+                        : FallbackToastHeight;
                 if (!toast.IsLoaded)
                     h = FallbackToastHeight;
 
                 y -= h;
-                var indexFromBottom = ActiveToasts.Count - 1 - i;
-                var left = right - toast.ActualWidth - indexFromBottom * CascadeStepPx;
+                var left = right - toast.ActualWidth;
                 if (left < workArea.Left + margin)
                     left = workArea.Left + margin;
 

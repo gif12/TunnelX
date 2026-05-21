@@ -271,7 +271,8 @@ public class ConnectionProfile : INotifyPropertyChanged
     {
         TunnelType.L2tpIpsec => !string.IsNullOrWhiteSpace(ServerAddress),
         TunnelType.V2Ray => !string.IsNullOrWhiteSpace(V2RayConfig),
-        TunnelType.OpenVpn => !string.IsNullOrWhiteSpace(OpenVpnConfig),
+        TunnelType.OpenVpn => OpenVpnProfileAnalyzer.IsProfileReady(
+            OpenVpnConfig, OpenVpnUsername, OpenVpnPassword, OpenVpnPrivateKeyPassword),
         TunnelType.SocksProxy => !string.IsNullOrWhiteSpace(ProxyServerAddress) && ProxyPort is > 0 and <= 65535,
         TunnelType.WireGuard => !string.IsNullOrWhiteSpace(WireGuardConfig),
         _ => false

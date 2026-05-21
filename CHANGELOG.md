@@ -2,6 +2,30 @@
 
 ## Unreleased
 
+### English
+
+- **Connection health check** before showing the connected screen: end-to-end TCP probes to `google.com` and `cloudflare.com` through the tunnel SOCKS path; expired or quota-exhausted configs no longer appear as “connected” when only the local adapter is up.
+- Live **ping results** during the health-check step (per-host latency in the connection progress UI).
+- **OpenVPN** split-config improvements: stable remote port ordering (443/80 before 21/53), preserve `<connection>` blocks and `tcp-client` for PFITCP profiles, skip bad `DigiiNet.net` hostnames, tuned `connect-retry` / timeouts.
+- **OpenVPN disconnect insight**: clearer messages when control channel resets or auth fails after unstable sessions.
+- **OpenVPN profile analyzer** refactor; validation and credential handling centralized.
+- Connected dashboard: **exit IP country flag** (Segoe UI Emoji), geo lookup via tunnel, release-notes window, scheduled update check after connect.
+- Tray notifications: richer error guidance, optional **release notes** action on update cards, improved dismiss/overflow layout.
+- Routing/DNS: WireGuard ingress wait before health probe; connectivity checks and INCLUDE refresh stability tweaks.
+- Expanded **Persian/English** strings for health check, OpenVPN, notifications, and profile editor.
+
+### فارسی
+
+- **بررسی سلامت اتصال** قبل از نمایش صفحه متصل: پینگ TCP واقعی به `google.com` و `cloudflare.com` از مسیر SOCKS تونل؛ کانفیگ منقضی یا تمام‌شده دیگر فقط با بالا آمدن آداپتر «متصل» نشان داده نمی‌شود.
+- نمایش **نتیجه پینگ** در مرحله بررسی سلامت (تأخیر هر مقصد در UI مراحل اتصال).
+- بهبود کانفیگ split **OpenVPN**: اولویت پورت پایدار (۴۴۳/۸۰ قبل از ۲۱/۵۳)، حفظ بلوک‌های `<connection>` و `tcp-client` برای پروفایل‌های PFITCP، حذف hostnameهای بد `DigiiNet.net`، تنظیم `connect-retry` و timeout.
+- **تحلیل قطع OpenVPN**: پیام‌های واضح‌تر هنگام reset کانال کنترل یا خطای auth پس از ناپایداری.
+- بازآرایی **تحلیلگر پروفایل OpenVPN**؛ اعتبارسنجی و مدیریت اعتبارنامه متمرکز شد.
+- داشبورد متصل: **پرچم کشور IP خروجی** (Segoe UI Emoji)، geo از داخل تونل، پنجره یادداشت انتشار، بررسی بروزرسانی زمان‌بندی‌شده پس از اتصال.
+- اعلان tray: راهنمای بهتر برای خطا، دکمه **یادداشت انتشار** روی کارت بروزرسانی، چیدمان dismiss/overflow بهتر.
+- مسیریابی/DNS: انتظار برای ingress در WireGuard قبل از probe؛ بهبودهای پایداری connectivity check و INCLUDE.
+- گسترش متن‌های **فارسی/انگلیسی** برای بررسی سلامت، OpenVPN، اعلان‌ها و ویرایشگر پروفایل.
+
 ## 2.0.1 - 2026-05-21
 
 - fix: OpenVPN reliability, secret field, and notification controls

@@ -40,6 +40,8 @@ public class VpnService
             v2r.OnTunnelFailed = OnTunnelFailed;
         else if (_activeProvider is WireGuardTunnelProvider wg)
             wg.OnTunnelFailed = OnTunnelFailed;
+        else if (_activeProvider is OpenVpnTunnelProvider ovpn)
+            ovpn.OnTunnelFailed = OnTunnelFailed;
 
         return await _activeProvider.ConnectAsync(config, ct);
     }
@@ -54,4 +56,15 @@ public class VpnService
     }
 
     public bool IsInterfaceUp() => _activeProvider?.IsInterfaceUp() ?? false;
+
+    public void PrepareOpenVpnDropMessageIfNeeded() =>
+        (_activeProvider as OpenVpnTunnelProvider)?.PrepareDropStatusIfNeeded();
+
+    public string? GetOpenVpnDisconnectDialogTitle() =>
+        (_activeProvider as OpenVpnTunnelProvider)?.GetDisconnectDialogTitle();
+
+    public string? GetOpenVpnDisconnectShortStatus() =>
+        _activeProvider is OpenVpnTunnelProvider o
+            ? OpenVpnDisconnectInsight.BuildShortStatus(o.LastDisconnectReason)
+            : null;
 }

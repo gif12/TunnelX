@@ -252,6 +252,9 @@ public partial class MainWindow : Window
                 }
                 break;
             case ConnectionState.Disconnected:
+                _updateNotificationShown = false;
+                UpdateCheckSchedulerService.OnDisconnected();
+                AppNotificationService.DismissUpdateToast();
                 TelegramChannelPromoService.OnDisconnected();
                 AppNotificationService.ShowTray(
                     "تونل خاموش شد",
@@ -259,6 +262,9 @@ public partial class MainWindow : Window
                     AppNotificationKind.Info);
                 break;
             case ConnectionState.Error:
+                _updateNotificationShown = false;
+                UpdateCheckSchedulerService.OnDisconnected();
+                AppNotificationService.DismissUpdateToast();
                 TelegramChannelPromoService.OnDisconnected();
                 AppNotificationService.ShowTrayLiteralBody(
                     "اتصال برقرار نشد",
@@ -274,10 +280,13 @@ public partial class MainWindow : Window
             return;
 
         _updateNotificationShown = true;
-        AppNotificationService.ShowPromotionalTrayPersistent(
-            "نسخه جدید آماده است",
-            "از منوی System Tray یا بخش بروزرسانی، صفحه دانلود TunnelX را باز کنید.",
-            AppNotificationKind.Info);
+        AppNotificationService.ShowUpdateAvailableTrayPersistent(
+            () =>
+            {
+                if (_viewModel.OpenLatestReleaseCommand.CanExecute(null))
+                    _viewModel.OpenLatestReleaseCommand.Execute(null);
+            },
+            () => _viewModel.ShowLatestReleaseChangelog());
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

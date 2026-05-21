@@ -57,6 +57,7 @@ public partial class TrafficRouterService : IDisposable
     private string _vpnServerHost = "";   // original hostname/IP from config — used for TCP health checks
     private int _vpnServerPort = 443;     // original server port from config — used for TCP health checks
     private bool _vpnServerIsUdpOnly;     // true for WireGuard etc. — skip TCP probe in CONN-CHECK
+    private bool _pinVpnServerOnPhysicalNic; // keep OpenVPN TCP / WireGuard UDP control on physical NIC
     private string _vpnGatewayIp = "";    // optional next hop for TAP/OpenVPN host routes
     private byte[]? _vpnLocalIpBytes;
     private volatile bool _isRunning;
@@ -360,7 +361,8 @@ public partial class TrafficRouterService : IDisposable
         string vpnGatewayIp = "",
         int vpnServerPort = 443,
         bool resetCounters = true,
-        bool serverIsUdpOnly = false)
+        bool serverIsUdpOnly = false,
+        bool pinVpnServerOnPhysicalNic = false)
     {
         if (vpnInterfaceIndex <= 0 || string.IsNullOrWhiteSpace(vpnLocalIp))
         {
@@ -378,6 +380,7 @@ public partial class TrafficRouterService : IDisposable
         _vpnLocalIp = vpnLocalIp;
         _vpnGatewayIp = vpnGatewayIp;
         _vpnServerIsUdpOnly = serverIsUdpOnly;
+        _pinVpnServerOnPhysicalNic = pinVpnServerOnPhysicalNic;
         _vpnLocalIpBytes = IPAddress.TryParse(vpnLocalIp, out var vpnAddr)
             ? vpnAddr.GetAddressBytes()
             : null;
@@ -479,13 +482,17 @@ public partial class TrafficRouterService : IDisposable
         if (PassthroughMode)
             Logger.Warning("DIAGNOSTIC PASSTHROUGH MODE ENABLED — packets will NOT be redirected. For testing only.");
 
+        if (_pinVpnServerOnPhysicalNic)
+        {
+            if (AddVpnServerPhysicalRoute())
+                Logger.Info($"[VPN-ROUTE] VPN server {_vpnServerIp} pinned to physical NIC for tunnel control traffic");
+            else
+                Logger.Warning($"[VPN-ROUTE] Could not pin VPN server {_vpnServerIp} to physical gateway");
+        }
+
         if (_vpnServerIsUdpOnly)
         {
             AutoExcludeSystemDnsServers();
-            if (AddVpnServerPhysicalRoute())
-                Logger.Info($"[WG-ROUTE] VPN server {_vpnServerIp} pinned to physical NIC for WireGuard control traffic");
-            else
-                Logger.Warning($"[WG-ROUTE] Could not pin VPN server {_vpnServerIp} to physical gateway");
             RemoveDefaultRouteOnVpn();
             InstallWireGuardDnsBootstrap();
         }

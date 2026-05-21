@@ -80,6 +80,7 @@ public partial class App : Application
         // Load the language before the main window is created so the first
         // rendered frame follows the saved setting or the system UI language.
         LocalizationService.Instance.Initialize(new ProfileService().LoadAppSettings().Language);
+        Resources["FlagEmojiFont"] = FlagFontFamily.Instance;
         TextInputBehavior.Register();
 
         // Register a resolver so that DllImport("WinDivert.dll") and

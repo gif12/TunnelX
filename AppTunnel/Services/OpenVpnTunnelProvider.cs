@@ -4,6 +4,7 @@ using System.Collections.Concurrent;
 using System.Net;
 using System.Net.NetworkInformation;
 using System.Text;
+using System.Text.RegularExpressions;
 using AppTunnel.Models;
 
 namespace AppTunnel.Services;
@@ -16,12 +17,22 @@ namespace AppTunnel.Services;
 /// </summary>
 public class OpenVpnTunnelProvider : ITunnelProvider
 {
-    /// <summary>True when the .ovpn likely needs an OpenVPN <c>askpass</c> passphrase (encrypted private key).</summary>
     public static bool ConfigLikelyNeedsPrivateKeyPassphrase(string? config) =>
-        !string.IsNullOrWhiteSpace(config) &&
-        (config.Contains("BEGIN ENCRYPTED PRIVATE KEY", StringComparison.OrdinalIgnoreCase) ||
-         config.Contains("Proc-Type: 4,ENCRYPTED", StringComparison.OrdinalIgnoreCase) ||
-         config.Contains("askpass", StringComparison.OrdinalIgnoreCase));
+        OpenVpnProfileAnalyzer.ConfigLikelyNeedsPrivateKeyPassphrase(config);
+
+    public static bool ConfigRequiresAuthUserPass(string? config) =>
+        OpenVpnProfileAnalyzer.ConfigRequiresAuthUserPass(config);
+
+    public static bool IsProfileReady(string? config, string? username, string? password, string? privateKeyPassword) =>
+        OpenVpnProfileAnalyzer.IsProfileReady(config, username, password, privateKeyPassword);
+
+    public static bool TryGetProfileValidationError(
+        string? config,
+        string? username,
+        string? password,
+        string? privateKeyPassword,
+        out string message) =>
+        OpenVpnProfileAnalyzer.TryGetProfileValidationError(config, username, password, privateKeyPassword, out message);
 
     private static readonly UTF8Encoding Utf8NoBom = new(false);
     private static string OpenVpnWorkDir => Path.Combine(AppTunnel.App.AppDataDir, "openvpn");
@@ -35,9 +46,25 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     private bool _initSequenceCompleted;
     private string _fallbackRemoteHost = "";
     private int _fallbackRemotePort;
+    private bool _authFailedDetected;
+    private bool _tlsHandshakeFailed;
+    private int _controlChannelResetCount;
+    private bool _hadWsaEacces;
+    private string _lastAuthUsername = "";
+    private OpenVpnDisconnectReason _lastDisconnectReason = OpenVpnDisconnectReason.Unknown;
+    private int _sessionDropNotified;
+    private int _disconnectDiagnosticsLogged;
     private readonly ConcurrentQueue<string> _recentOpenVpnOutput = new();
 
     public ConnectionStatus Status { get; } = new();
+
+    public OpenVpnDisconnectReason LastDisconnectReason => _lastDisconnectReason;
+
+    public string GetDisconnectDialogTitle() =>
+        OpenVpnDisconnectInsight.BuildDialogTitle(_lastDisconnectReason);
+
+    /// <summary>Raised when OpenVPN exits or auth fails mid-session (split-tunnel cleanup).</summary>
+    public Action? OnTunnelFailed { get; set; }
 
     public async Task<bool> ConnectAsync(ServerConfig config, CancellationToken ct)
     {
@@ -49,6 +76,14 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         _initSequenceCompleted = false;
         _fallbackRemoteHost = "";
         _fallbackRemotePort = 0;
+        _authFailedDetected = false;
+        _tlsHandshakeFailed = false;
+        _controlChannelResetCount = 0;
+        _hadWsaEacces = false;
+        _lastAuthUsername = "";
+        _lastDisconnectReason = OpenVpnDisconnectReason.Unknown;
+        _sessionDropNotified = 0;
+        _disconnectDiagnosticsLogged = 0;
         while (_recentOpenVpnOutput.TryDequeue(out _)) { }
         Status.State = ConnectionState.Connecting;
         Status.Message = LocalizationService.Instance.T("در حال اجرای OpenVPN در حالت Split...");
@@ -74,6 +109,20 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             {
                 Status.State = ConnectionState.Error;
                 Status.Message = LocalizationService.Instance.T("کانفیگ OpenVPN (.ovpn) وارد نشده است.");
+                return false;
+            }
+
+            if (TryGetProfileValidationError(
+                    config.OpenVpnConfig,
+                    config.OpenVpnUsername,
+                    config.OpenVpnPassword,
+                    config.OpenVpnPrivateKeyPassword,
+                    out var profileError))
+            {
+                Status.State = ConnectionState.Error;
+                Status.Message = profileError;
+                Logger.Error($"[OpenVPN] Profile validation failed: {profileError}");
+                ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Fail, Status.Message);
                 return false;
             }
 
@@ -119,6 +168,11 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 EnableRaisingEvents = true
             };
 
+            _process.Exited += (_, _) =>
+            {
+                if (Status.State == ConnectionState.Connected)
+                    NotifySessionDropOnce();
+            };
             _process.Start();
             WriteTunnelXOpenVpnPid(_process.Id);
             _ = Task.Run(() => PumpOpenVpnOutputAsync(_process.StandardOutput, ct));
@@ -166,7 +220,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 foreach (var nic in NetworkInterface.GetAllNetworkInterfaces())
                     Logger.Error($"  name='{nic.Name}' desc='{nic.Description}' status={nic.OperationalStatus}");
                 Status.State = ConnectionState.Error;
-                Status.Message = LocalizationService.Instance.T("آداپتور OpenVPN بالا نیامد. لاگ OpenVPN را بررسی کنید؛ ممکن است ریموت اول پاسخ ندهد یا احراز هویت/شبکه مشکل داشته باشد.");
+                Status.Message = BuildAdapterTimeoutMessage();
                 ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail, Status.Message);
                 await KillProcessAsync();
                 return false;
@@ -425,9 +479,34 @@ public class OpenVpnTunnelProvider : ITunnelProvider
         var path = Path.Combine(dir, "tunnelx-split.ovpn");
         var authPath = Path.Combine(dir, "tunnelx-auth.txt");
         var askpassPath = Path.Combine(dir, "tunnelx-askpass.txt");
+        var analysis = OpenVpnProfileAnalyzer.Analyze(originalConfig);
+        var dataCipherCompat = OpenVpnProfileAnalyzer.GetDataCipherCompatLines(originalConfig);
         var builder = new StringBuilder();
         var splitOptionsInserted = false;
+        var pendingRemotes = new List<(string host, string port, string raw)>();
+        var usesTcpClientConnectionBlocks = ConfigUsesTcpClientConnectionBlocks(originalConfig);
         var lines = originalConfig.Split('\n');
+
+        void FlushSortedRemotes()
+        {
+            if (pendingRemotes.Count == 0)
+                return;
+
+            AppendTunnelXOptions();
+            // Port stability first (443/80 before 21) — preserves DigiNetX-style fixes.
+            // Literal IP before hostname only as tie-breaker (same port, e.g. Vitamin PFITCP on 912).
+            var ordered = pendingRemotes
+                .OrderBy(r => GetRemoteConnectPriority(r.port))
+                .ThenBy(r => IsLiteralRemoteHost(r.host) ? 0 : 1)
+                .ThenBy(r => r.host, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (ordered.Count > 1)
+                Logger.Info("[OpenVPN] Remote order optimized: stable ports first (443/80 before 21/53), then static IP");
+
+            foreach (var entry in ordered)
+                builder.AppendLine(entry.raw);
+            pendingRemotes.Clear();
+        }
 
         void AppendTunnelXOptions()
         {
@@ -435,21 +514,28 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             splitOptionsInserted = true;
             builder.AppendLine();
             builder.AppendLine("# Added by TunnelX for split tunneling:");
+            builder.AppendLine("disable-dco");
             builder.AppendLine("route-nopull");
             builder.AppendLine("pull-filter ignore redirect-gateway");
             builder.AppendLine("pull-filter ignore block-outside-dns");
             builder.AppendLine("pull-filter ignore dhcp-option");
             builder.AppendLine("connect-timeout 10");
             builder.AppendLine("server-poll-timeout 10");
-            builder.AppendLine("connect-retry 2 5");
-            builder.AppendLine("auth-nocache");
-            if (!string.IsNullOrWhiteSpace(username))
+            builder.AppendLine("connect-retry 3 15");
+            // Do not add auth-nocache: it forces re-login on every OpenVPN internal reconnect and
+            // many providers (e.g. DigiNetX) return AUTH_FAILED while the previous session is dying.
+            foreach (var cipherLine in dataCipherCompat)
+                builder.AppendLine(cipherLine);
+
+            if (OpenVpnProfileAnalyzer.ShouldInjectAuthUserPass(originalConfig, username))
             {
                 File.WriteAllText(authPath, $"{username.Trim()}{Environment.NewLine}{password}", Utf8NoBom);
                 builder.AppendLine($"auth-user-pass {QuoteOpenVpnPath(authPath)}");
             }
+            else if (analysis.RequiresTunnelXUsername)
+                Logger.Warning("[OpenVPN] auth-user-pass required by profile but username is empty; validation should have blocked connect.");
 
-            if (!string.IsNullOrWhiteSpace(privateKeyPassword))
+            if (OpenVpnProfileAnalyzer.ShouldInjectAskpass(originalConfig, privateKeyPassword))
             {
                 File.WriteAllText(askpassPath, privateKeyPassword.Trim(), Utf8NoBom);
                 builder.AppendLine($"askpass {QuoteOpenVpnPath(askpassPath)}");
@@ -463,8 +549,29 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             var raw = lines[i].TrimEnd('\r');
             var trimmed = raw.TrimStart();
             if (trimmed.StartsWith("auth-user-pass", StringComparison.OrdinalIgnoreCase) ||
-                trimmed.StartsWith("askpass", StringComparison.OrdinalIgnoreCase))
+                trimmed.StartsWith("askpass", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("redirect-gateway", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("socks-proxy", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("http-proxy", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("connect-retry", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("connect-timeout", StringComparison.OrdinalIgnoreCase) ||
+                trimmed.StartsWith("server-poll-timeout", StringComparison.OrdinalIgnoreCase))
                 continue;
+
+            // PFITCP-style profiles: global "proto udp" + "<connection> remote … tcp-client".
+            // Flattening or keeping proto udp breaks TCP; per-connection proto must win.
+            if (usesTcpClientConnectionBlocks &&
+                trimmed.StartsWith("proto ", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.Contains("tcp-client", StringComparison.OrdinalIgnoreCase))
+            {
+                Logger.Info("[OpenVPN] Omitting global proto directive (profile uses tcp-client connection blocks)");
+                continue;
+            }
+
+            if (trimmed.StartsWith("<", StringComparison.Ordinal) &&
+                !trimmed.StartsWith("</", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.StartsWith("<connection>", StringComparison.OrdinalIgnoreCase))
+                FlushSortedRemotes();
 
             if (trimmed.StartsWith("<connection>", StringComparison.OrdinalIgnoreCase))
             {
@@ -477,10 +584,13 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                         break;
                 }
 
-                var remote = ExtractRemoteFromLines(block);
-                if (remote.HasValue && ShouldSkipRemote(remote.Value.host))
+                var blockRemote = ExtractRemoteFromLines(block);
+                if (!blockRemote.HasValue)
+                    continue;
+
+                if (ShouldSkipRemoteEntry(blockRemote.Value.host))
                 {
-                    Logger.Warning($"[OpenVPN] Skipping unreachable/private remote block {remote.Value.host}:{remote.Value.port}");
+                    Logger.Warning($"[OpenVPN] Skipping connection block {blockRemote.Value.host}:{blockRemote.Value.port}");
                     continue;
                 }
 
@@ -493,18 +603,21 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             if (trimmed.StartsWith("remote ", StringComparison.OrdinalIgnoreCase))
             {
                 var remote = ExtractRemoteFromLines(new[] { raw });
-                if (remote.HasValue && ShouldSkipRemote(remote.Value.host))
+                if (remote.HasValue && ShouldSkipRemoteEntry(remote.Value.host))
                 {
-                    Logger.Warning($"[OpenVPN] Skipping unreachable/private remote {remote.Value.host}:{remote.Value.port}");
+                    Logger.Warning($"[OpenVPN] Skipping remote {remote.Value.host}:{remote.Value.port}");
                     continue;
                 }
 
-                AppendTunnelXOptions();
+                if (remote.HasValue)
+                    pendingRemotes.Add((remote.Value.host, remote.Value.port, raw));
+                continue;
             }
 
             builder.AppendLine(raw);
         }
 
+        FlushSortedRemotes();
         AppendTunnelXOptions();
 
         File.WriteAllText(path, builder.ToString(), Utf8NoBom);
@@ -519,6 +632,48 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     }
 
     private static string QuoteOpenVpnPath(string path) => $"\"{path.Replace('\\', '/')}\"";
+
+    private static bool IsLiteralRemoteHost(string host) =>
+        IPAddress.TryParse(host, out _);
+
+    private static bool ConfigUsesTcpClientConnectionBlocks(string config)
+    {
+        var inBlock = false;
+        foreach (var line in config.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("<connection>", StringComparison.OrdinalIgnoreCase))
+            {
+                inBlock = true;
+                continue;
+            }
+
+            if (trimmed.StartsWith("</connection>", StringComparison.OrdinalIgnoreCase))
+            {
+                inBlock = false;
+                continue;
+            }
+
+            if (!inBlock || !trimmed.StartsWith("remote ", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            if (trimmed.Contains("tcp-client", StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private static string? FindRemoteLineInBlock(IEnumerable<string> block)
+    {
+        foreach (var line in block)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("remote ", StringComparison.OrdinalIgnoreCase))
+                return line.TrimEnd('\r');
+        }
+        return null;
+    }
 
     private static (string host, string port, string proto)? ExtractRemoteFromLines(IEnumerable<string> lines)
     {
@@ -538,12 +693,64 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     }
 
     /// <summary>
-    /// Skip only literal private/local IPs in the .ovpn file. Hostnames are kept even if DNS
-    /// resolves to RFC1918 addresses (common on some networks) so OpenVPN can still try them.
+    /// Skip private/local IPs and hostnames that do not resolve (typos/dead entries in .ovpn).
     /// </summary>
-    private static bool ShouldSkipRemote(string host)
+    private static int GetRemoteConnectPriority(string portText)
     {
-        return IPAddress.TryParse(host, out var ip) && IsPrivateIpv4(ip);
+        if (!int.TryParse(portText, out var port))
+            return 100;
+        return port switch
+        {
+            443 => 0,
+            8443 => 1,
+            80 => 2,
+            8080 => 3,
+            1194 => 4,
+            3389 => 5,
+            1280 => 6,
+            21 => 90,
+            53 => 91,
+            37 => 92,
+            _ => 40
+        };
+    }
+
+    private static bool ShouldSkipRemoteEntry(string host)
+    {
+        if (IPAddress.TryParse(host, out var ip))
+            return IsPrivateIpv4(ip);
+
+        try
+        {
+            _ = Dns.GetHostEntry(host);
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[OpenVPN] Skipping unresolvable remote hostname {host}: {ex.Message}");
+            return true;
+        }
+    }
+
+    private string BuildAdapterTimeoutMessage()
+    {
+        var reason = _authFailedDetected
+            ? OpenVpnDisconnectReason.AuthFailed
+            : _tlsHandshakeFailed
+                ? OpenVpnDisconnectReason.TlsFailed
+                : OpenVpnDisconnectReason.AdapterTimeout;
+        _lastDisconnectReason = reason;
+        return OpenVpnDisconnectInsight.BuildUserMessage(reason, _controlChannelResetCount);
+    }
+
+    /// <summary>Called before UI shows an unexpected drop (VPN monitor) when insight was not set yet.</summary>
+    public void PrepareDropStatusIfNeeded()
+    {
+        if (_authFailedDetected)
+            return;
+
+        UpdateDisconnectInsight();
+        LogDisconnectDiagnosticsOnce();
     }
 
     private bool TryResolveVpnInterface(out int interfaceIndex)
@@ -685,13 +892,34 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             while (!ct.IsCancellationRequested)
             {
                 var line = await reader.ReadLineAsync(ct);
-                if (line == null) break;
+                if (line == null)
+                {
+                    if (Status.State == ConnectionState.Connected)
+                        NotifySessionDropOnce();
+                    break;
+                }
+
                 if (!string.IsNullOrWhiteSpace(line))
                 {
                     _recentOpenVpnOutput.Enqueue(line);
                     while (_recentOpenVpnOutput.Count > 40 && _recentOpenVpnOutput.TryDequeue(out _)) { }
                     if (line.Contains("Initialization Sequence Completed", StringComparison.OrdinalIgnoreCase))
                         _initSequenceCompleted = true;
+
+                    if (line.Contains("AUTH_FAILED", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("authentication failed", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("auth-failure", StringComparison.OrdinalIgnoreCase))
+                        HandleAuthFailure(line);
+
+                    if (line.Contains("connection-reset", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("WSAEACCES", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("Permission denied", StringComparison.OrdinalIgnoreCase))
+                        HandleControlChannelReset(line);
+
+                    if (line.Contains("TLS handshake failed", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("TLS key negotiation failed", StringComparison.OrdinalIgnoreCase) ||
+                        line.Contains("Connection reset", StringComparison.OrdinalIgnoreCase))
+                        _tlsHandshakeFailed = true;
 
                     TryCaptureRouteGateway(line);
                     TryCaptureConnectedRemote(line);
@@ -701,6 +929,108 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             }
         }
         catch { }
+    }
+
+    private void HandleAuthFailure(string line)
+    {
+        _authFailedDetected = true;
+        TryCaptureAuthUsername(line);
+        Status.State = ConnectionState.Error;
+        UpdateDisconnectInsight();
+        Logger.Error($"[OpenVPN] {line}");
+        NotifySessionDropOnce();
+    }
+
+    private void HandleControlChannelReset(string line)
+    {
+        _controlChannelResetCount++;
+        if (line.Contains("WSAEACCES", StringComparison.OrdinalIgnoreCase))
+            _hadWsaEacces = true;
+
+        if (_controlChannelResetCount == 1 || _controlChannelResetCount == 3)
+        {
+            Logger.Warning(
+                $"[OpenVPN] Control TCP reset #{_controlChannelResetCount} (OpenVPN is reconnecting). " +
+                LocalizationService.Instance.T("اگر بعد از آن AUTH_FAILED دیدید، ۳۰–۶۰ ثانیه صبر کنید و دوباره Connect بزنید."));
+        }
+
+        if (_controlChannelResetCount >= 4)
+            Logger.Warning("[OpenVPN] Repeated control-channel resets — provider may be overloaded or limiting concurrent sessions.");
+    }
+
+    private void UpdateDisconnectInsight()
+    {
+        var processExited = _process is { HasExited: true };
+        _lastDisconnectReason = OpenVpnDisconnectInsight.Classify(
+            _authFailedDetected,
+            _controlChannelResetCount,
+            _hadWsaEacces,
+            _tlsHandshakeFailed,
+            processExited);
+        Status.Message = OpenVpnDisconnectInsight.BuildUserMessage(_lastDisconnectReason, _controlChannelResetCount);
+    }
+
+    private void NotifySessionDropOnce()
+    {
+        if (Interlocked.CompareExchange(ref _sessionDropNotified, 1, 0) != 0)
+            return;
+
+        if (!_authFailedDetected)
+        {
+            Status.State = ConnectionState.Error;
+            UpdateDisconnectInsight();
+        }
+
+        LogDisconnectDiagnosticsOnce();
+        try { OnTunnelFailed?.Invoke(); } catch { }
+    }
+
+    private void LogDisconnectDiagnosticsOnce()
+    {
+        if (Interlocked.CompareExchange(ref _disconnectDiagnosticsLogged, 1, 0) != 0)
+            return;
+
+        var remote = !string.IsNullOrWhiteSpace(_connectedRemoteIp) && _connectedRemotePort > 0
+            ? $"{_connectedRemoteIp}:{_connectedRemotePort}"
+            : (!string.IsNullOrWhiteSpace(_fallbackRemoteHost) && _fallbackRemotePort > 0
+                ? $"{_fallbackRemoteHost}:{_fallbackRemotePort}"
+                : "unknown");
+        int? exitCode = _process is { HasExited: true } ? _process.ExitCode : null;
+
+        Logger.Warning(OpenVpnDisconnectInsight.BuildLogLine(
+            _lastDisconnectReason,
+            _controlChannelResetCount,
+            _hadWsaEacces,
+            remote,
+            _assignedLocalIp,
+            exitCode,
+            string.IsNullOrWhiteSpace(_lastAuthUsername) ? null : _lastAuthUsername));
+
+        LogRecentOpenVpnOutputForDrop();
+    }
+
+    private void TryCaptureAuthUsername(string line)
+    {
+        var user = TryParseAuthUsernameFromLine(line);
+        if (!string.IsNullOrWhiteSpace(user))
+            _lastAuthUsername = user;
+    }
+
+    private static string? TryParseAuthUsernameFromLine(string line)
+    {
+        var match = Regex.Match(line, @"user[:\s]+(\S+)", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups[1].Value.Trim(',', ';') : null;
+    }
+
+    private void LogRecentOpenVpnOutputForDrop()
+    {
+        var lines = _recentOpenVpnOutput.ToArray();
+        if (lines.Length == 0)
+            return;
+
+        Logger.Warning("[OpenVPN] Recent output before drop:");
+        foreach (var line in lines.TakeLast(15))
+            Logger.Warning($"[OpenVPN][drop] {line}");
     }
 
     private void TryCaptureRouteGateway(string line)

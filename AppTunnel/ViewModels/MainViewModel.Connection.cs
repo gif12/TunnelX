@@ -21,6 +21,7 @@ public partial class MainViewModel
 
     private volatile bool _applicationExitRequested;
     private Task? _activeConnectTask;
+    private int _exitIpProxyPort;
 
     private async Task ToggleConnectionAsync()
     {
@@ -85,10 +86,17 @@ public partial class MainViewModel
             StatusText = "کانفیگ V2Ray را وارد کنید";
             return;
         }
-        if (tunnelType == TunnelType.OpenVpn && string.IsNullOrWhiteSpace(_selectedProfile?.OpenVpnConfig))
+        if (tunnelType == TunnelType.OpenVpn &&
+            OpenVpnProfileAnalyzer.TryGetProfileValidationError(
+                _selectedProfile?.OpenVpnConfig ?? SelectedOpenVpnConfig,
+                OpenVpnUsername,
+                OpenVpnPassword,
+                OpenVpnPrivateKeyPassword,
+                out var openVpnProfileError))
         {
-            Logger.Warning("ConnectAsync: OpenVPN config is empty");
-            StatusText = "کانفیگ OpenVPN (.ovpn) را وارد کنید";
+            Logger.Warning($"ConnectAsync: OpenVPN profile invalid: {openVpnProfileError}");
+            StatusText = openVpnProfileError;
+            ConfigValidationText = openVpnProfileError;
             return;
         }
         if (tunnelType == TunnelType.WireGuard && !WireGuardConfigParser.TryParse(_selectedProfile?.WireGuardConfig ?? SelectedWireGuardConfig, out _, out var wireGuardError))
@@ -303,10 +311,28 @@ public partial class MainViewModel
                     return;
                 }
 
-                await RunConnectionVerifyStepAsync(_connectionCts?.Token ?? CancellationToken.None);
+                var (verified, verifyError) = await RunConnectionVerifyStepAsync(
+                    tunnelType,
+                    _connectionCts?.Token ?? CancellationToken.None);
 
                 if (_applicationExitRequested)
                 {
+                    IsBusy = false;
+                    return;
+                }
+
+                if (!verified)
+                {
+                    await CleanupAfterFailedConnectionAsync();
+                    var failMessage = verifyError ?? LocalizationService.Instance.T("تأیید مسیر تونل ناموفق بود");
+                    ConnectionProgressService.Report(
+                        "verify",
+                        ConnectionProgressPhase.Fail,
+                        "بررسی سلامت ناموفق",
+                        failMessage);
+                    CompleteConnectionProgress(false, errorDetailRaw: failMessage);
+                    ConnectionState = ConnectionState.Error;
+                    StatusText = failMessage;
                     IsBusy = false;
                     return;
                 }
@@ -319,7 +345,7 @@ public partial class MainViewModel
                     ? "پراکسی متصل شد"
                     : _vpnService.Status.Message ?? "";
                 VpnIp = _vpnService.Status.VpnLocalIp ?? "";
-                ConnectionIpText = "در حال دریافت...";
+                ConnectionIpText = ConnectionIpFetchingKey;
                 VpnAdapterName = ResolveInterfaceName(_vpnService.Status.VpnInterfaceIndex);
                 _currentVpnInterfaceIndex = _vpnService.Status.VpnInterfaceIndex;
                 _currentVpnGatewayIp = _vpnService.Status.VpnGatewayIp ?? "";
@@ -337,6 +363,8 @@ public partial class MainViewModel
                     : _trafficRouter.Socks5Port;
                 _ = RefreshExitIpAsync(exitIpProxyPort);
                 _ = RefreshGitHubInstallCountAsync(exitIpProxyPort);
+                UpdateCheckSchedulerService.ScheduleAfterSuccessfulConnection(() =>
+                    _ = CheckForUpdatesAsync(silent: true, exitIpProxyPort));
             }
             catch (Exception ex)
             {
@@ -392,6 +420,7 @@ public partial class MainViewModel
 
         VpnIp = "";
         ConnectionIpText = "-";
+        _exitIpProxyPort = 0;
         VpnAdapterName = "";
         _currentVpnInterfaceIndex = -1;
         _currentVpnGatewayIp = "";
@@ -466,11 +495,14 @@ public partial class MainViewModel
             snap.GatewayIp,
             snap.ServerPort,
             resetCounters: resetAppCounters,
-            serverIsUdpOnly: CurrentTunnelType == TunnelType.WireGuard);
+            serverIsUdpOnly: CurrentTunnelType == TunnelType.WireGuard,
+            pinVpnServerOnPhysicalNic: CurrentTunnelType is TunnelType.WireGuard or TunnelType.OpenVpn);
     }
 
     private async Task DisconnectAsync()
     {
+        UpdateCheckSchedulerService.OnDisconnected();
+        CancelPendingUpdateCheck();
         IsBusy = true;
         ConnectionState = ConnectionState.Disconnecting;
         StatusText = "در حال قطع اتصال...";
@@ -489,6 +521,7 @@ public partial class MainViewModel
         StatusText = "قطع شد";
         VpnIp = "";
         ConnectionIpText = "-";
+        _exitIpProxyPort = 0;
         VpnAdapterName = "";
         _currentVpnInterfaceIndex = -1;
         _currentVpnGatewayIp = "";
@@ -563,54 +596,169 @@ public partial class MainViewModel
         }
     }
 
-    private async Task RunConnectionVerifyStepAsync(CancellationToken ct)
+    private static readonly (string Host, int Port)[] TunnelVerifyProbeTargets =
+    [
+        ("google.com", 443),
+        ("cloudflare.com", 443)
+    ];
+
+    private async Task ReportVerifyActiveAsync(string? detailKey = null, string? detailFormatArg = null)
     {
-        ConnectionProgressService.Report("verify", ConnectionProgressPhase.Active, "در حال بررسی سلامت اتصال...");
+        ConnectionProgressService.Report(
+            "verify",
+            ConnectionProgressPhase.Active,
+            "بررسی سلامت اتصال",
+            detailKey,
+            detailFormatArg);
         await PumpConnectionProgressUiAsync();
+    }
 
-        var parts = new List<string>();
-        var ok = true;
+    private static string JoinVerifyLines(IEnumerable<string> lines)
+        => string.Join(Environment.NewLine, lines.Where(l => !string.IsNullOrWhiteSpace(l)));
 
-        if (_vpnService.IsInterfaceUp())
-            parts.Add(LocalizationService.Instance.T("آداپتر VPN فعال"));
-        else
+    private async Task<(bool Ok, string? ErrorMessage)> RunConnectionVerifyStepAsync(
+        TunnelType tunnelType,
+        CancellationToken ct)
+    {
+        var loc = LocalizationService.Instance;
+        var uiLines = new List<string>();
+        await ReportVerifyActiveAsync("در حال بررسی سلامت اتصال...");
+
+        if (!_vpnService.IsInterfaceUp())
         {
-            ok = false;
-            parts.Add(LocalizationService.Instance.T("آداپتر VPN شناسایی نشد"));
+            Logger.Warning("[CONN-VERIFY] VPN adapter is not up");
+            return (false, loc.T("آداپتر VPN شناسایی نشد"));
         }
 
-        if (_trafficRouter.IsRunning)
-            parts.Add(LocalizationService.Instance.T("اسپلیت‌تانلینگ فعال"));
-        else
+        if (!_trafficRouter.IsRunning)
         {
-            ok = false;
-            parts.Add(LocalizationService.Instance.T("اسپلیت‌تانلینگ غیرفعال"));
+            Logger.Warning("[CONN-VERIFY] TrafficRouter is not running");
+            return (false, loc.T("اسپلیت‌تانلینگ غیرفعال"));
         }
 
-        if (_trafficRouter.LeakCount == 0)
-            parts.Add(LocalizationService.Instance.T("بدون نشت ترافیک"));
-        else
+        if (_trafficRouter.LeakCount > 0)
         {
-            ok = false;
-            parts.Add(LocalizationService.Instance.Format("نشت ترافیک: {0}", _trafficRouter.LeakCount));
+            Logger.Warning($"[CONN-VERIFY] Leak count={_trafficRouter.LeakCount}");
+            return (false, loc.Format("نشت ترافیک: {0}", _trafficRouter.LeakCount));
         }
 
-        var summary = string.Join(" · ", parts);
-        var detailKey = ok ? "سلامت اتصال تأیید شد — {0}" : "سلامت اتصال با هشدار — {0}";
-        var titleKey = ok ? "سلامت اتصال تأیید شد" : "سلامت اتصال با هشدار";
+        uiLines.Add(loc.T("آداپتر VPN فعال"));
+        uiLines.Add(loc.T("اسپلیت‌تانلینگ فعال"));
+        await ReportVerifyActiveAsync(JoinVerifyLines(uiLines));
 
-        try { await Task.Delay(450, ct); }
-        catch (OperationCanceledException) { return; }
+        var proxyPort = _vpnService.Status.SingBoxMixedPort > 0
+            ? _vpnService.Status.SingBoxMixedPort
+            : _trafficRouter.Socks5Port;
+        if (proxyPort <= 0)
+        {
+            Logger.Warning("[CONN-VERIFY] No SOCKS/mixed proxy port for data-plane probe");
+            return (false, loc.T("پراکسی تونل برای بررسی سلامت آماده نیست"));
+        }
 
+        if (tunnelType == TunnelType.WireGuard)
+        {
+            uiLines.Add(loc.T("در حال انتظار برای پاسخ سرور WireGuard..."));
+            await ReportVerifyActiveAsync(JoinVerifyLines(uiLines));
+
+            var wgReady = await _trafficRouter.WaitForVpnIngressAsync(TimeSpan.FromSeconds(12), ct);
+            if (!wgReady)
+            {
+                Logger.Warning("[CONN-VERIFY] WireGuard adapter is up but handshake/data plane not ready");
+                return (false, loc.T("پاسخی از سرور WireGuard دریافت نشد؛ اتصال تونل هنوز برقرار نشده است"));
+            }
+
+            uiLines[^1] = loc.T("پاسخ سرور WireGuard دریافت شد");
+            await ReportVerifyActiveAsync(JoinVerifyLines(uiLines));
+        }
+
+        uiLines.Add(loc.T("در حال پینگ از داخل تونل..."));
+        await ReportVerifyActiveAsync(JoinVerifyLines(uiLines));
+
+        var probeSuccesses = 0;
+        var pingResultLines = new List<string>();
+
+        for (var round = 1; round <= 2 && probeSuccesses == 0; round++)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (round > 1)
+            {
+                Logger.Info("[CONN-VERIFY] Retrying international probes");
+                pingResultLines.Add(loc.T("تلاش دوباره پینگ..."));
+                await ReportVerifyActiveAsync(JoinVerifyLines(uiLines.Concat(pingResultLines)));
+                await Task.Delay(1500, ct);
+            }
+
+            foreach (var (host, port) in TunnelVerifyProbeTargets)
+            {
+                pingResultLines.Add(loc.Format("در حال پینگ {0}...", host));
+                await ReportVerifyActiveAsync(JoinVerifyLines(uiLines.Concat(pingResultLines)));
+
+                var (probeHost, ok, ms, error) = await ProbeTunnelTargetAsync(host, port, proxyPort, ct);
+                pingResultLines[^1] = ok
+                    ? loc.Format("پینگ {0}: {1} میلی‌ثانیه ✓", probeHost, ms)
+                    : loc.Format("پینگ {0}: بدون پاسخ", probeHost);
+
+                await ReportVerifyActiveAsync(JoinVerifyLines(uiLines.Concat(pingResultLines)));
+
+                if (ok)
+                {
+                    probeSuccesses++;
+                    Logger.Info($"[CONN-VERIFY] {host}:{port} OK ({ms}ms, round {round})");
+                }
+                else
+                {
+                    Logger.Warning($"[CONN-VERIFY] {host}:{port} failed (round {round}): {error}");
+                }
+            }
+        }
+
+        if (probeSuccesses == 0)
+        {
+            Logger.Error("[CONN-VERIFY] Data-plane probe failed for all targets");
+            var failDetail = JoinVerifyLines(uiLines.Concat(pingResultLines));
+            ConnectionProgressService.Report(
+                "verify",
+                ConnectionProgressPhase.Active,
+                "بررسی سلامت اتصال",
+                failDetail);
+            await PumpConnectionProgressUiAsync();
+            return (false, loc.T("تونل روی سیستم بالا آمد، اما از طریق سرور به اینترنت بین‌الملل دسترسی ندارید. کانفیگ، سهمیه حجم یا تاریخ انقضا را بررسی کنید."));
+        }
+
+        var summary = loc.Format(
+            "بررسی سلامت موفق — پینگ {0} از {1} مقصد",
+            probeSuccesses,
+            TunnelVerifyProbeTargets.Length);
+        var completeDetail = JoinVerifyLines(uiLines.Concat(pingResultLines).Append(summary));
         ConnectionProgressService.Report(
             "verify",
             ConnectionProgressPhase.Complete,
-            titleKey,
-            detailKey,
-            summary);
-        StatusText = titleKey;
-
+            "سلامت اتصال تأیید شد",
+            completeDetail);
+        StatusText = loc.T("سلامت اتصال تأیید شد");
         await PumpConnectionProgressUiAsync();
+        return (true, null);
+    }
+
+    private static async Task<(string Host, bool Ok, long Ms, string? Error)> ProbeTunnelTargetAsync(
+        string host,
+        int port,
+        int proxyPort,
+        CancellationToken ct)
+    {
+        try
+        {
+            var ms = await PingViaSocks5Async(host, port, proxyPort, ct, probeTimeoutMs: 8000);
+            return (host, true, ms, null);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            return (host, false, 0, ex.Message);
+        }
     }
 
     private static async Task PumpConnectionProgressUiAsync()
@@ -635,7 +783,11 @@ public partial class MainViewModel
         IsPinging = false;
 
         ConnectionState = ConnectionState.Disconnecting;
-        StatusText = "اتصال VPN قطع شد...";
+        if (CurrentTunnelType == TunnelType.OpenVpn)
+            _vpnService.PrepareOpenVpnDropMessageIfNeeded();
+
+        var dropDetail = (_vpnService.Status.Message ?? "").Trim();
+        StatusText = LocalizationService.Instance.T("اتصال VPN قطع شد...");
 
         SaveConnectionToHistory();
 
@@ -644,9 +796,11 @@ public partial class MainViewModel
         try { await _vpnService.DisconnectAsync(); } catch { }
 
         ConnectionState = ConnectionState.Disconnected;
-        StatusText = "اتصال VPN به‌طور غیرمنتظره قطع شد";
+        StatusText = _vpnService.GetOpenVpnDisconnectShortStatus()
+            ?? LocalizationService.Instance.T("اتصال VPN به‌طور غیرمنتظره قطع شد");
         VpnIp = "";
         ConnectionIpText = "-";
+        _exitIpProxyPort = 0;
         VpnAdapterName = "";
         _currentVpnInterfaceIndex = -1;
         _currentVpnGatewayIp = "";
@@ -675,9 +829,13 @@ public partial class MainViewModel
             mainWin.Activate();
         }
 
-        Helpers.DialogService.Warning(
-            "اتصال VPN به‌طور غیرمنتظره قطع شد.\nلطفاً دوباره متصل شوید.",
-            "قطع اتصال");
+        var dialogBody = !string.IsNullOrWhiteSpace(dropDetail)
+            ? dropDetail + "\n\n" + LocalizationService.Instance.T("لطفاً دوباره متصل شوید.")
+            : LocalizationService.Instance.T("اتصال VPN به‌طور غیرمنتظره قطع شد.\nلطفاً دوباره متصل شوید.");
+        var dialogTitle = CurrentTunnelType == TunnelType.OpenVpn
+            ? _vpnService.GetOpenVpnDisconnectDialogTitle() ?? LocalizationService.Instance.T("قطع اتصال VPN")
+            : LocalizationService.Instance.T("قطع اتصال VPN");
+        Helpers.DialogService.Warning(dialogBody, dialogTitle);
     }
 
     private int _vpnHealthCheckCounter;
@@ -778,7 +936,7 @@ public partial class MainViewModel
             await _trafficRouter.StopAsync(resetCounters: false);
 
             VpnIp = status.VpnLocalIp;
-            ConnectionIpText = "در حال دریافت...";
+            ConnectionIpText = ConnectionIpFetchingKey;
             VpnAdapterName = ResolveInterfaceName(status.VpnInterfaceIndex);
             _currentVpnInterfaceIndex = status.VpnInterfaceIndex;
             _currentVpnGatewayIp = status.VpnGatewayIp;
@@ -866,13 +1024,14 @@ public partial class MainViewModel
 
     private async Task RefreshExitIpAsync(int proxyPort)
     {
+        _exitIpProxyPort = proxyPort;
         if (proxyPort <= 0)
         {
             ConnectionIpText = "-";
             return;
         }
 
-        var hosts = new[] { "api.ipify.org", "ipv4.icanhazip.com" };
+        var hosts = new[] { "ipv4.icanhazip.com", "api.ipify.org", "ifconfig.me" };
         Exception? lastError = null;
 
         for (var attempt = 1; attempt <= 4 && _connectionState == ConnectionState.Connected; attempt++)
@@ -881,11 +1040,22 @@ public partial class MainViewModel
             {
                 try
                 {
-                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
-                    var ip = await QueryPublicIpViaHttpConnectProxyAsync(proxyPort, host, cts.Token);
-                    if (IPAddress.TryParse(ip, out _))
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                    string? ip = null;
+                    try
                     {
-                        ConnectionIpText = ip;
+                        ip = await QueryPublicIpViaHttpConnectProxyAsync(proxyPort, host, cts.Token);
+                    }
+                    catch (Exception httpEx) when (httpEx is IOException or SocketException or AuthenticationException)
+                    {
+                        lastError = httpEx;
+                        ip = await QueryPublicIpViaSocks5Async(proxyPort, host, cts.Token);
+                    }
+
+                    if (TryParsePublicIpFromBody(ip ?? "", out var parsed))
+                    {
+                        ConnectionIpText = parsed;
+                        _ = RefreshExitIpCountryAsync(proxyPort, parsed);
                         return;
                     }
                 }
@@ -903,6 +1073,133 @@ public partial class MainViewModel
 
         if (_connectionState == ConnectionState.Connected)
             ConnectionIpText = "-";
+    }
+
+    private async Task RefreshExitIpCountryAsync(int proxyPort, string ip)
+    {
+        if (proxyPort <= 0)
+        {
+            SetConnectionIpCountryFlagLoading(false);
+            return;
+        }
+
+        SetConnectionIpCountryFlagLoading(true);
+
+        Exception? lastError = null;
+        for (var attempt = 1; attempt <= 3 && _connectionState == ConnectionState.Connected; attempt++)
+        {
+            if (_connectionIpText != ip)
+                return;
+
+            try
+            {
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                var info = await IpGeoLookupService.LookupViaTunnelAsync(proxyPort, ip, cts.Token);
+                if (info != null && _connectionState == ConnectionState.Connected && _connectionIpText == ip)
+                {
+                    SetConnectionIpGeo(info, proxyPort);
+                    return;
+                }
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(900 * attempt));
+        }
+
+        if (lastError != null)
+            Logger.Warning($"[EXIT-IP] Country lookup via tunnel failed: {lastError.Message}");
+
+        if (_connectionState == ConnectionState.Connected && _connectionIpText == ip)
+            SetConnectionIpCountryFlagLoading(false);
+    }
+
+    private static bool TryParsePublicIpFromBody(string body, out string ip)
+    {
+        ip = "";
+        if (string.IsNullOrWhiteSpace(body))
+            return false;
+
+        body = body.Trim();
+        if (IPAddress.TryParse(body, out _))
+        {
+            ip = body;
+            return true;
+        }
+
+        var jsonMatch = System.Text.RegularExpressions.Regex.Match(
+            body,
+            @"""ip""\s*:\s*""([^""]+)""",
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+        if (jsonMatch.Success && IPAddress.TryParse(jsonMatch.Groups[1].Value.Trim(), out _))
+        {
+            ip = jsonMatch.Groups[1].Value.Trim();
+            return true;
+        }
+
+        return false;
+    }
+
+    private static async Task<string> QueryPublicIpViaSocks5Async(int proxyPort, string host, CancellationToken ct)
+    {
+        using var tcp = new TcpClient();
+        tcp.NoDelay = true;
+        await tcp.ConnectAsync("127.0.0.1", proxyPort, ct);
+
+        await using var stream = tcp.GetStream();
+        await stream.WriteAsync(new byte[] { 0x05, 0x01, 0x00 }, ct);
+        var greet = new byte[2];
+        await ReadExactlyAsync(stream, greet, ct);
+        if (greet[0] != 0x05 || greet[1] != 0x00)
+            throw new IOException("SOCKS5 handshake rejected");
+
+        var hostBytes = Encoding.ASCII.GetBytes(host);
+        var req = new byte[7 + hostBytes.Length];
+        req[0] = 0x05;
+        req[1] = 0x01;
+        req[2] = 0x00;
+        req[3] = 0x03;
+        req[4] = (byte)hostBytes.Length;
+        hostBytes.CopyTo(req, 5);
+        req[5 + hostBytes.Length] = 0x01;
+        req[6 + hostBytes.Length] = 0xBB;
+        await stream.WriteAsync(req, ct);
+
+        var resp = new byte[4];
+        await ReadExactlyAsync(stream, resp, ct);
+        if (resp[1] != 0x00)
+            throw new IOException($"SOCKS5 connect failed (code {resp[1]})");
+
+        switch (resp[3])
+        {
+            case 0x01: await ReadExactlyAsync(stream, new byte[6], ct); break;
+            case 0x03:
+                var lenBuf = new byte[1];
+                await ReadExactlyAsync(stream, lenBuf, ct);
+                await ReadExactlyAsync(stream, new byte[lenBuf[0] + 2], ct);
+                break;
+            case 0x04: await ReadExactlyAsync(stream, new byte[18], ct); break;
+        }
+
+        using var ssl = new SslStream(stream, leaveInnerStreamOpen: false, (_, _, _, _) => true);
+        await ssl.AuthenticateAsClientAsync(host, null, SslProtocols.Tls12 | SslProtocols.Tls13, checkCertificateRevocation: false);
+
+        var path = string.Equals(host, "ifconfig.me", StringComparison.OrdinalIgnoreCase) ? "/ip" : "/";
+        var request = Encoding.ASCII.GetBytes(
+            $"GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\nUser-Agent: TunnelX\r\n\r\n");
+        await ssl.WriteAsync(request, ct);
+
+        using var ms = new MemoryStream();
+        var buffer = new byte[2048];
+        int read;
+        while ((read = await ssl.ReadAsync(buffer, ct)) > 0)
+            ms.Write(buffer, 0, read);
+
+        var response = Encoding.UTF8.GetString(ms.ToArray());
+        var split = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
+        return split >= 0 ? response[(split + 4)..] : response;
     }
 
     private static async Task<string> QueryPublicIpViaHttpConnectProxyAsync(int proxyPort, string host, CancellationToken ct)
@@ -937,6 +1234,8 @@ public partial class MainViewModel
         var response = Encoding.UTF8.GetString(ms.ToArray());
         var split = response.IndexOf("\r\n\r\n", StringComparison.Ordinal);
         var body = split >= 0 ? response[(split + 4)..] : response;
+        if (TryParsePublicIpFromBody(body, out var ip))
+            return ip;
         return body.Trim();
     }
 
@@ -1512,7 +1811,7 @@ public partial class MainViewModel
         }
 
         IsPinging = true;
-        SetPingResult("...");
+        SetPingResult("در حال پینگ...");
         _pingCts = new CancellationTokenSource();
 
         // For V2Ray mode, ping through sing-box's own mixed SOCKS5 inbound.
@@ -1524,6 +1823,13 @@ public partial class MainViewModel
         int pingProxyPort = _vpnService.Status.SingBoxMixedPort > 0
             ? _vpnService.Status.SingBoxMixedPort
             : _trafficRouter.Socks5Port;
+
+        if (pingProxyPort <= 0 || !_trafficRouter.IsRunning)
+        {
+            SetPingResult("پراکسی تونل آماده نیست");
+            IsPinging = false;
+            return;
+        }
 
         _ = RunPingLoopAsync(host, raw, pingProxyPort, _pingCts.Token);
     }
@@ -1600,10 +1906,10 @@ public partial class MainViewModel
     /// byte is the real RTT.
     /// </summary>
     private static async Task<long> PingViaSocks5Async(
-        string host, int port, int socks5Port, CancellationToken ct)
+        string host, int port, int socks5Port, CancellationToken ct, int probeTimeoutMs = 5000)
     {
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        cts.CancelAfter(5000);
+        cts.CancelAfter(probeTimeoutMs);
 
         using var tcp = new System.Net.Sockets.TcpClient();
         tcp.NoDelay = true;

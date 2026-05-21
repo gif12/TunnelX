@@ -178,12 +178,27 @@
                             </StackPanel>
 
                             <StackPanel Visibility="{Binding TunnelType, Converter={StaticResource EnumToVis}, ConverterParameter=OpenVpn}">
-                                <TextBlock Text="فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. نام کاربری/رمز برای auth-user-pass و Secret برای کلید خصوصی رمزگذاری‌شده در فایل است."
+                                <TextBlock x:Name="OpenVpnIntroTextBlock"
                                            TextWrapping="Wrap"
                                            FontSize="11"
                                            Foreground="{StaticResource TextSecondaryBrush}"
+                                           FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}"
                                            Margin="0,0,0,8"/>
-                                <TextBlock Style="{StaticResource FieldLabel}" Text="فایل OpenVPN (.ovpn)"/>
+                                <Border Background="#1247A3F3" BorderBrush="#2647A3F3" BorderThickness="1"
+                                        CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
+                                    <StackPanel>
+                                        <TextBlock x:Name="OpenVpnScenarioTitleTextBlock"
+                                                   FontSize="10" FontWeight="SemiBold"
+                                                   Foreground="#47A3F3"
+                                                   TextWrapping="Wrap"/>
+                                        <TextBlock x:Name="OpenVpnScenarioHintTextBlock"
+                                                   FontSize="10" LineHeight="15"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,4,0,0"
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </StackPanel>
+                                </Border>
+                                <TextBlock x:Name="OpenVpnFileLabelTextBlock" Style="{StaticResource FieldLabel}"/>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -195,7 +210,8 @@
                                              Text="{Binding OpenVpnConfigPath}"
                                              IsReadOnly="True"
                                              FlowDirection="LeftToRight"/>
-                                    <Button Grid.Column="2"
+                                    <Button x:Name="OpenVpnBrowseButton"
+                                            Grid.Column="2"
                                             Style="{StaticResource SecondaryButton}"
                                             Content="انتخاب فایل"
                                             FontSize="11"
@@ -203,7 +219,7 @@
                                             Click="OnBrowseOpenVpnClick"/>
                                 </Grid>
 
-                                <Grid Margin="0,8,0,0">
+                                <Grid Margin="0,8,0,0" FlowDirection="LeftToRight">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
                                         <ColumnDefinition Width="8"/>
@@ -212,19 +228,21 @@
                                         <ColumnDefinition Width="*"/>
                                     </Grid.ColumnDefinitions>
                                     <StackPanel Grid.Column="0">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="نام کاربری"/>
+                                        <TextBlock x:Name="OpenVpnUsernameLabelTextBlock" Style="{StaticResource FieldLabel}"/>
                                         <TextBox Style="{StaticResource ModernTextBox}"
                                                  Text="{Binding OpenVpnUsername, UpdateSourceTrigger=PropertyChanged}"
-                                                 FlowDirection="LeftToRight"/>
+                                                 FlowDirection="LeftToRight"
+                                                 TextChanged="OnOpenVpnCredentialChanged"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="2">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="رمز عبور"/>
+                                        <TextBlock x:Name="OpenVpnPasswordLabelTextBlock" Style="{StaticResource FieldLabel}"/>
                                         <PasswordBox x:Name="OpenVpnPasswordField"
                                                      Style="{StaticResource ModernPasswordBox}"
-                                                     FlowDirection="LeftToRight"/>
+                                                     FlowDirection="LeftToRight"
+                                                     PasswordChanged="OnOpenVpnCredentialChanged"/>
                                     </StackPanel>
                                     <StackPanel Grid.Column="4">
-                                        <TextBlock Style="{StaticResource FieldLabel}" Text="Secret (رمز کلید)"/>
+                                        <TextBlock x:Name="OpenVpnSecretLabelTextBlock" Style="{StaticResource FieldLabel}"/>
                                         <PasswordBox x:Name="OpenVpnPrivateKeyPasswordField"
                                                      Style="{StaticResource ModernPasswordBox}"
                                                      FlowDirection="LeftToRight"/>

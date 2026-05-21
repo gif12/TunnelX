@@ -74,10 +74,12 @@
                 <Border x:Name="LogToastPanel"
                         Panel.ZIndex="20"
                         VerticalAlignment="Bottom"
-                        HorizontalAlignment="Stretch"
+                        HorizontalAlignment="Center"
                         Margin="8,0,8,8"
-                        Padding="10,8"
-                        CornerRadius="8"
+                        Padding="14,12"
+                        MinWidth="340"
+                        MinHeight="48"
+                        CornerRadius="10"
                         BorderThickness="1"
                         Visibility="Collapsed"
                         IsHitTestVisible="False">
@@ -98,7 +100,8 @@
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap"
                                    VerticalAlignment="Center"
-                                   MaxWidth="300"/>
+                                   MaxWidth="300"
+                                   MinHeight="20"/>
                     </StackPanel>
                 </Border>
             </Grid>

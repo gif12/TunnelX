@@ -13,9 +13,11 @@ namespace AppTunnel.Views.Controls;
 public partial class AppNotificationCard : UserControl
 {
     private Action? _onAction;
+    private Action? _onSecondaryAction;
     private Action? _onClose;
     private Action? _onPersistentBodyClick;
     private bool _promoMode;
+    private bool _dualPromoMode;
     private bool _persistentInfoMode;
 
     public TranslateTransform SlideTransformElement => SlideTransform;
@@ -32,20 +34,39 @@ public partial class AppNotificationCard : UserControl
         _promoMode = false;
         _persistentInfoMode = false;
         _onPersistentBodyClick = null;
-        MessageText.ClearValue(FrameworkElement.MaxHeightProperty);
-        ConfigureActions(null, showClose: false);
+        ApplyCompactLayout();
+        ConfigureActions(null, secondaryActionText: null, showClose: false);
         ApplyContent(title, message, kind);
     }
 
     public void SetPromoContent(string? title, string message, string actionText, AppNotificationKind kind)
     {
         _promoMode = true;
+        _dualPromoMode = false;
         _persistentInfoMode = false;
         _onPersistentBodyClick = null;
-        MessageText.ClearValue(FrameworkElement.MaxHeightProperty);
-        ConfigureActions(actionText, showClose: true);
+        ApplyActionLayout();
+        ConfigureActions(actionText, secondaryActionText: null, showClose: true, fullWidthPrimary: true);
         ApplyContent(title, message, kind);
-        Cursor = System.Windows.Input.Cursors.Hand;
+        Cursor = System.Windows.Input.Cursors.Arrow;
+    }
+
+    /// <summary>Update notification: download + release notes buttons.</summary>
+    public void SetDualPromoContent(
+        string? title,
+        string message,
+        string primaryActionText,
+        string secondaryActionText,
+        AppNotificationKind kind)
+    {
+        _promoMode = true;
+        _dualPromoMode = true;
+        _persistentInfoMode = false;
+        _onPersistentBodyClick = null;
+        ApplyActionLayout();
+        ConfigureActions(primaryActionText, secondaryActionText, showClose: true);
+        ApplyContent(title, message, kind);
+        Cursor = System.Windows.Input.Cursors.Arrow;
     }
 
     /// <summary>Tray-only: stays until user closes (✕). Optional body click (e.g. bring app to front).</summary>
@@ -54,15 +75,47 @@ public partial class AppNotificationCard : UserControl
         _promoMode = false;
         _persistentInfoMode = true;
         _onPersistentBodyClick = onBodyClick;
-        MessageText.MaxHeight = 120;
-        ConfigureActions(null, showClose: true);
+        ApplyCompactLayout();
+        ConfigureActions(null, secondaryActionText: null, showClose: true);
         ApplyContent(title, message, kind);
         Cursor = onBodyClick != null ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
     }
 
-    public void SetCallbacks(Action? onAction, Action? onClose)
+    private void ApplyCompactLayout()
+    {
+        ActionRow.Height = GridLength.Auto;
+        ActionButtonsHost.Visibility = Visibility.Collapsed;
+        ActionButtonsHost.MinHeight = 0;
+        ActionButtonsHost.Margin = new Thickness(0);
+        ApplyTextDisplay(compact: true);
+    }
+
+    private void ApplyActionLayout()
+    {
+        ActionRow.Height = GridLength.Auto;
+        ActionButtonsHost.Visibility = Visibility.Visible;
+        ActionButtonsHost.MinHeight = 38;
+        ActionButtonsHost.Margin = new Thickness(0, 6, 0, 0);
+        ApplyTextDisplay(compact: false);
+    }
+
+    private void ApplyTextDisplay(bool compact)
+    {
+        TitleText.TextWrapping = TextWrapping.Wrap;
+        TitleText.TextTrimming = TextTrimming.None;
+        TitleText.ClearValue(FrameworkElement.MaxHeightProperty);
+        TitleText.Margin = new Thickness(0, 0, 0, 2);
+
+        MessageText.TextWrapping = TextWrapping.Wrap;
+        MessageText.TextTrimming = TextTrimming.None;
+        MessageText.ClearValue(FrameworkElement.MaxHeightProperty);
+        MessageText.Margin = new Thickness(0, 0, 0, compact ? 0 : 2);
+    }
+
+    public void SetCallbacks(Action? onAction, Action? onClose, Action? onSecondaryAction = null)
     {
         _onAction = onAction;
+        _onSecondaryAction = onSecondaryAction;
         _onClose = onClose;
     }
 
@@ -94,19 +147,64 @@ public partial class AppNotificationCard : UserControl
         };
     }
 
-    private void ConfigureActions(string? actionText, bool showClose)
+    private void ConfigureActions(
+        string? actionText,
+        string? secondaryActionText,
+        bool showClose,
+        bool fullWidthPrimary = false)
     {
-        var hasAction = !string.IsNullOrWhiteSpace(actionText);
+        var hasPrimary = !string.IsNullOrWhiteSpace(actionText);
         ActionButton.Content = actionText ?? string.Empty;
-        ActionButton.Visibility = hasAction ? Visibility.Visible : Visibility.Collapsed;
-        if (hasAction)
+        ActionButton.Visibility = hasPrimary ? Visibility.Visible : Visibility.Collapsed;
+        if (hasPrimary)
             ActionButton.Style = Application.Current.TryFindResource("TelegramChannelButton") as Style;
         else
             ActionButton.ClearValue(FrameworkElement.StyleProperty);
 
+        var hasSecondary = !string.IsNullOrWhiteSpace(secondaryActionText);
+        SecondaryActionButton.Content = secondaryActionText ?? string.Empty;
+        SecondaryActionButton.Visibility = hasSecondary ? Visibility.Visible : Visibility.Collapsed;
+        if (hasSecondary)
+            SecondaryActionButton.Style = Application.Current.TryFindResource("SecondaryButton") as Style;
+        else
+            SecondaryActionButton.ClearValue(FrameworkElement.StyleProperty);
+
+        ActionButtonsHost.Visibility = hasPrimary || hasSecondary
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
+        if (fullWidthPrimary && hasPrimary && !hasSecondary)
+        {
+            Grid.SetColumn(ActionButton, 0);
+            Grid.SetColumnSpan(ActionButton, 3);
+            ActionButton.Padding = new Thickness(14, 8, 14, 8);
+            ActionButton.FontSize = 12;
+            ActionButton.FontWeight = FontWeights.SemiBold;
+            ActionButton.MinHeight = 32;
+            ActionButton.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+        else
+        {
+            Grid.SetColumn(ActionButton, 0);
+            Grid.SetColumnSpan(ActionButton, 1);
+            ActionButton.Padding = new Thickness(10, 6, 10, 6);
+            ActionButton.FontSize = 11;
+            ActionButton.ClearValue(TextBlock.FontWeightProperty);
+            ActionButton.MinHeight = 30;
+            ActionButton.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+
+        if (hasSecondary)
+        {
+            SecondaryActionButton.MinHeight = 30;
+            SecondaryActionButton.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+
         CloseButton.Visibility = showClose ? Visibility.Visible : Visibility.Collapsed;
-        if (!_persistentInfoMode)
-            Cursor = hasAction ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
+        if (!_persistentInfoMode && !_dualPromoMode && !fullWidthPrimary)
+            Cursor = hasPrimary ? System.Windows.Input.Cursors.Hand : System.Windows.Input.Cursors.Arrow;
+        else
+            Cursor = System.Windows.Input.Cursors.Arrow;
     }
 
     private void OnCardAreaClick(object sender, MouseButtonEventArgs e)
@@ -118,6 +216,9 @@ public partial class AppNotificationCard : UserControl
         if (ActionButton.IsVisible && ActionButton.IsMouseOver)
             return;
 
+        if (SecondaryActionButton.IsVisible && SecondaryActionButton.IsMouseOver)
+            return;
+
         if (_persistentInfoMode)
         {
             _onPersistentBodyClick?.Invoke();
@@ -125,10 +226,7 @@ public partial class AppNotificationCard : UserControl
         }
 
         if (_promoMode)
-        {
-            _onAction?.Invoke();
             return;
-        }
 
         if (ActionButton.Visibility == Visibility.Visible)
             _onAction?.Invoke();
@@ -138,6 +236,12 @@ public partial class AppNotificationCard : UserControl
     {
         e.Handled = true;
         _onAction?.Invoke();
+    }
+
+    private void OnSecondaryActionClick(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+        _onSecondaryAction?.Invoke();
     }
 
     private void OnClosePreviewClick(object sender, MouseButtonEventArgs e)

@@ -11,6 +11,8 @@
         SizeToContent="WidthAndHeight"
         ShowActivated="False"
         Focusable="False">
-    <controls:AppNotificationCard x:Name="NotificationCard"
-                                MouseLeftButtonUp="OnCardClick"/>
+    <Border Padding="0,0,10,10" Background="Transparent" ClipToBounds="False">
+        <controls:AppNotificationCard x:Name="NotificationCard"
+                                      MouseLeftButtonUp="OnCardClick"/>
+    </Border>
 </Window>

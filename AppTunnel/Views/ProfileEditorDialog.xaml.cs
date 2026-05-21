@@ -8,15 +8,31 @@ namespace AppTunnel.Views;
 public partial class ProfileEditorDialog : Window
 {
     private readonly ConnectionProfile _profile;
+    private readonly string _titleKey;
 
     public ProfileEditorDialog(ConnectionProfile profile, string title)
     {
         _profile = profile;
+        _titleKey = title;
         InitializeComponent();
         Loaded += (_, _) => LocalizationService.Instance.ApplyTo(this);
         DataContext = profile;
         DialogTitleText.Text = LocalizationService.Instance.T(title);
         Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+        LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
+    }
+
+    private void OnUnloaded(object sender, RoutedEventArgs e)
+    {
+        LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;
+    }
+
+    private void OnLanguageChanged(object? sender, EventArgs e)
+    {
+        DialogTitleText.Text = LocalizationService.Instance.T(_titleKey);
+        LocalizationService.Instance.ApplyTo(this);
+        RefreshOpenVpnProfileUi();
     }
 
     public static bool? Show(ConnectionProfile profile, string title, Window? owner)
@@ -35,6 +51,46 @@ public partial class ProfileEditorDialog : Window
         OpenVpnPasswordField.Password = _profile.OpenVpnPassword;
         OpenVpnPrivateKeyPasswordField.Password = _profile.OpenVpnPrivateKeyPassword;
         ProxyPasswordField.Password = _profile.ProxyPassword;
+        RefreshOpenVpnProfileUi();
+    }
+
+    private void RefreshOpenVpnProfileUi()
+    {
+        var loc = LocalizationService.Instance;
+        var flow = loc.FlowDirection;
+        OpenVpnIntroTextBlock.Text = loc.T("فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. TunnelX بر اساس محتوای فایل مشخص می‌کند کدام فیلدها اجباری است.");
+        OpenVpnFileLabelTextBlock.Text = loc.T("فایل OpenVPN (.ovpn)");
+        OpenVpnBrowseButton.Content = loc.T("انتخاب فایل");
+        OpenVpnScenarioTitleTextBlock.Text = OpenVpnProfileAnalyzer.GetScenarioTitle(_profile.OpenVpnConfig);
+        OpenVpnScenarioHintTextBlock.Text = OpenVpnProfileAnalyzer.GetScenarioHint(_profile.OpenVpnConfig);
+        OpenVpnUsernameLabelTextBlock.Text = OpenVpnProfileAnalyzer.GetUsernameFieldLabel(_profile.OpenVpnConfig);
+        OpenVpnPasswordLabelTextBlock.Text = OpenVpnProfileAnalyzer.GetPasswordFieldLabel(_profile.OpenVpnConfig);
+        OpenVpnSecretLabelTextBlock.Text = OpenVpnProfileAnalyzer.GetSecretFieldLabel(_profile.OpenVpnConfig);
+
+        OpenVpnIntroTextBlock.FlowDirection = flow;
+        OpenVpnFileLabelTextBlock.FlowDirection = flow;
+        OpenVpnScenarioTitleTextBlock.FlowDirection = flow;
+        OpenVpnScenarioHintTextBlock.FlowDirection = flow;
+        OpenVpnUsernameLabelTextBlock.FlowDirection = flow;
+        OpenVpnPasswordLabelTextBlock.FlowDirection = flow;
+        OpenVpnSecretLabelTextBlock.FlowDirection = flow;
+    }
+
+    private void OnOpenVpnCredentialChanged(object sender, RoutedEventArgs e)
+    {
+        if (_profile.TunnelType != TunnelType.OpenVpn)
+            return;
+
+        RefreshOpenVpnProfileUi();
+        if (OpenVpnProfileAnalyzer.TryGetProfileValidationError(
+                _profile.OpenVpnConfig,
+                _profile.OpenVpnUsername,
+                OpenVpnPasswordField.Password,
+                OpenVpnPrivateKeyPasswordField.Password,
+                out var hint))
+            ValidationText.Text = hint;
+        else
+            ValidationText.Text = "";
     }
 
     private void OnBrowseOpenVpnClick(object sender, RoutedEventArgs e)
@@ -53,6 +109,16 @@ public partial class ProfileEditorDialog : Window
         {
             _profile.OpenVpnConfigPath = dialog.FileName;
             _profile.OpenVpnConfig = File.ReadAllText(dialog.FileName);
+            RefreshOpenVpnProfileUi();
+            if (OpenVpnProfileAnalyzer.TryGetProfileValidationError(
+                    _profile.OpenVpnConfig,
+                    _profile.OpenVpnUsername,
+                    OpenVpnPasswordField.Password,
+                    OpenVpnPrivateKeyPasswordField.Password,
+                    out var hint))
+                ValidationText.Text = hint;
+            else
+                ValidationText.Text = "";
         }
         catch (Exception ex)
         {
@@ -161,8 +227,12 @@ public partial class ProfileEditorDialog : Window
             case TunnelType.V2Ray when string.IsNullOrWhiteSpace(_profile.V2RayConfig):
                 message = LocalizationService.Instance.T("کانفیگ V2Ray/Xray را وارد کنید");
                 return false;
-            case TunnelType.OpenVpn when string.IsNullOrWhiteSpace(_profile.OpenVpnConfig):
-                message = LocalizationService.Instance.T("فایل OpenVPN (.ovpn) را انتخاب کنید");
+            case TunnelType.OpenVpn when OpenVpnProfileAnalyzer.TryGetProfileValidationError(
+                _profile.OpenVpnConfig,
+                _profile.OpenVpnUsername,
+                OpenVpnPasswordField.Password,
+                OpenVpnPrivateKeyPasswordField.Password,
+                out message):
                 return false;
             case TunnelType.SocksProxy when string.IsNullOrWhiteSpace(_profile.ProxyServerAddress):
                 message = LocalizationService.Instance.T("آدرس سرور پراکسی را وارد کنید");

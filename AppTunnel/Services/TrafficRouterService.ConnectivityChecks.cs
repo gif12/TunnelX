@@ -127,7 +127,7 @@ public partial class TrafficRouterService
                 try
                 {
                     if (_vpnServerIsUdpOnly &&
-                        !await WaitForWireGuardDataPlaneAsync(TimeSpan.FromSeconds(10)))
+                        !await WaitForVpnIngressAsync(TimeSpan.FromSeconds(10)))
                     {
                         Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN delayed — WireGuard has not observed inbound tunnel traffic yet");
                         return;
@@ -165,16 +165,22 @@ public partial class TrafficRouterService
         catch { }
     }
 
-    private async Task<bool> WaitForWireGuardDataPlaneAsync(TimeSpan timeout)
+    /// <summary>
+    /// Returns true once inbound packets on the VPN adapter have been observed.
+    /// Used for WireGuard (UDP) before end-to-end probes — the TAP/TUN may be Up
+    /// while the data plane is not ready yet.
+    /// </summary>
+    public async Task<bool> WaitForVpnIngressAsync(TimeSpan timeout, CancellationToken ct = default)
     {
         var deadline = DateTime.UtcNow + timeout;
         while (_isRunning && DateTime.UtcNow < deadline)
         {
+            ct.ThrowIfCancellationRequested();
             if (Interlocked.Read(ref _statVpnIngressSniffed) > 0 ||
                 Interlocked.Read(ref _statNetInRewritten) > 0)
                 return true;
 
-            await Task.Delay(300);
+            await Task.Delay(300, ct);
         }
 
         return Interlocked.Read(ref _statVpnIngressSniffed) > 0 ||

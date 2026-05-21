@@ -9,7 +9,8 @@ public sealed record GitHubReleaseInfo(
     string TagName,
     string Name,
     string Url,
-    bool IsPrerelease);
+    bool IsPrerelease,
+    string ReleaseNotes);
 
 public static class GitHubReleaseChecker
 {
@@ -18,11 +19,25 @@ public static class GitHubReleaseChecker
     private const string ReleasesApi =
         "https://api.github.com/repos/MaxiFan/TunnelX/releases";
 
-    public static async Task<GitHubReleaseInfo?> GetLatestReleaseAsync(CancellationToken ct)
+    /// <summary>Latest release via local mixed proxy (tunnel egress only). Returns null when <paramref name="proxyPort"/> is invalid.</summary>
+    public static Task<GitHubReleaseInfo?> GetLatestReleaseAsync(CancellationToken ct, int proxyPort)
     {
-        using var http = new HttpClient();
+        if (proxyPort <= 0)
+            return Task.FromResult<GitHubReleaseInfo?>(null);
+
+        return TryGetLatestReleaseAsync(ct, proxyPort);
+    }
+
+    private static async Task<GitHubReleaseInfo?> TryGetLatestReleaseAsync(CancellationToken ct, int proxyPort)
+    {
+        using var handler = new HttpClientHandler
+        {
+            Proxy = new WebProxy($"http://127.0.0.1:{proxyPort}"),
+            UseProxy = true
+        };
+
+        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("TunnelX");
-        http.Timeout = TimeSpan.FromSeconds(8);
 
         using var response = await http.GetAsync(LatestReleaseApi, ct);
         if (!response.IsSuccessStatusCode)
@@ -46,8 +61,11 @@ public static class GitHubReleaseChecker
             : AppInfo.LatestReleaseUrl;
         var prerelease = root.TryGetProperty("prerelease", out var preElement) &&
                          preElement.ValueKind == JsonValueKind.True;
+        var releaseNotes = root.TryGetProperty("body", out var bodyElement)
+            ? bodyElement.GetString() ?? ""
+            : "";
 
-        return new GitHubReleaseInfo(version, tag, name, url, prerelease);
+        return new GitHubReleaseInfo(version, tag, name, url, prerelease, releaseNotes);
     }
 
     public static async Task<long?> GetAppDownloadCountAsync(CancellationToken ct, int proxyPort = 0)

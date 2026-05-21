@@ -1,6 +1,7 @@
 using System.Windows;
 using AppTunnel.Models;
 using AppTunnel.Views;
+using Application = System.Windows.Application;
 
 namespace AppTunnel.Services;
 
@@ -47,6 +48,42 @@ public static class AppNotificationService
         string messageKey,
         AppNotificationKind kind = AppNotificationKind.Info) =>
         ShowTrayPersistent(titleKey, messageKey, kind, AppNotificationChannel.Promotional);
+
+    private static TrayToastWindow? _activeUpdateToast;
+
+    public static void DismissUpdateToast()
+    {
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            _activeUpdateToast?.DismissSilently();
+            _activeUpdateToast = null;
+        });
+    }
+
+    /// <summary>Promotional tray card when a newer GitHub release is available (always shown).</summary>
+    public static void ShowUpdateAvailableTrayPersistent(Action onDownload, Action onShowChangelog)
+    {
+        Application.Current.Dispatcher.BeginInvoke(() =>
+        {
+            _activeUpdateToast?.DismissSilently();
+            _activeUpdateToast = null;
+
+            const string titleKey = "نسخه جدید آماده است";
+            const string messageKey = "نسخه جدید TunnelX در GitHub منتشر شده است. دانلود کنید یا تغییرات این نسخه را بخوانید.";
+            const string downloadKey = "دانلود";
+            const string changelogKey = "تغییرات این نسخه";
+
+            _activeUpdateToast = TrayToastWindow.ShowPersistentDualAction(
+                titleKey,
+                messageKey,
+                downloadKey,
+                changelogKey,
+                AppNotificationKind.Info,
+                onDownload,
+                onShowChangelog,
+                () => _activeUpdateToast = null);
+        });
+    }
 
     public static void ShowTray(
         string titleKey,

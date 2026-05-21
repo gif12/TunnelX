@@ -2,11 +2,15 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
+using System.Net;
 using System.Net.NetworkInformation;
 using System.Runtime.CompilerServices;
+using System.Threading;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Application = System.Windows.Application;
 using System.Windows.Threading;
@@ -81,7 +85,9 @@ public partial class MainViewModel : INotifyPropertyChanged
         OpenTelegramChannelCommand = new RelayCommand(_ => OpenTelegramChannel());
         CopyDonationInfoCommand = new RelayCommand(_ => CopyDonationInfoToClipboard());
         CopyHelpCryptoAddressCommand = new RelayCommand(p => CopyHelpCryptoAddress(p as string));
-        CheckForUpdatesCommand = new RelayCommand(_ => _ = CheckForUpdatesAsync(false), _ => !IsCheckingForUpdates);
+        CheckForUpdatesCommand = new RelayCommand(
+            _ => _ = CheckForUpdatesAsync(silent: false),
+            _ => !IsCheckingForUpdates && IsConnected);
         OpenLatestReleaseCommand = new RelayCommand(_ => OpenExternalLink(LatestReleaseUrl), _ => !string.IsNullOrWhiteSpace(LatestReleaseUrl));
         ToggleLanguageCommand = new RelayCommand(_ => ToggleLanguage());
 
@@ -118,7 +124,6 @@ public partial class MainViewModel : INotifyPropertyChanged
         LoadAppSettings();
         RefreshOpenVpnInstallStatus();
         RefreshWireGuardInstallStatus();
-        _ = CheckForUpdatesAsync(true);
 
         RefreshHelpCryptoWalletRows();
 
@@ -538,7 +543,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private string _updateStatusKey = "برای بررسی نسخه جدید، دکمه بررسی بروزرسانی را بزنید.";
+    private string _updateStatusKey = "بررسی نسخه جدید پس از برقراری اتصال به‌صورت خودکار انجام می‌شود.";
     private object[] _updateStatusFormatArgs = Array.Empty<object>();
 
     public string UpdateStatusText =>
@@ -564,6 +569,63 @@ public partial class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged();
             CommandManager.InvalidateRequerySuggested();
         }
+    }
+
+    private string _latestReleaseTag = "";
+    public string LatestReleaseTag
+    {
+        get => _latestReleaseTag;
+        private set
+        {
+            if (_latestReleaseTag == value) return;
+            _latestReleaseTag = value;
+            OnPropertyChanged();
+        }
+    }
+
+    private string _latestReleaseNotes = "";
+    public string LatestReleaseNotes
+    {
+        get => _latestReleaseNotes;
+        private set
+        {
+            if (_latestReleaseNotes == value) return;
+            _latestReleaseNotes = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public void ShowLatestReleaseChangelog()
+    {
+        var loc = LocalizationService.Instance;
+        var tag = (LatestReleaseTag ?? "").Trim();
+        var title = string.IsNullOrWhiteSpace(tag)
+            ? loc.T("تغییرات این نسخه")
+            : loc.Format("تغییرات {0}", tag.TrimStart('v', 'V'));
+
+        var notes = LatestReleaseNotes;
+        if (string.IsNullOrWhiteSpace(notes) && !string.IsNullOrWhiteSpace(tag))
+            notes = ChangelogService.TryGetSectionFromChangelogFile(tag) ?? "";
+
+        Action? onDownload = !string.IsNullOrWhiteSpace(LatestReleaseUrl)
+            ? () =>
+            {
+                if (OpenLatestReleaseCommand.CanExecute(null))
+                    OpenLatestReleaseCommand.Execute(null);
+            }
+            : null;
+
+        Application.Current?.Dispatcher.BeginInvoke(() =>
+        {
+            if (Application.Current.MainWindow is { } main)
+            {
+                if (main.WindowState == WindowState.Minimized)
+                    main.WindowState = WindowState.Normal;
+                main.Activate();
+            }
+
+            Views.ReleaseNotesWindow.Show(Application.Current.MainWindow, title, notes, onDownload);
+        });
     }
 
     private long? _githubInstallCount;
@@ -771,6 +833,8 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (_selectedProfile != null)
                 _selectedProfile.OpenVpnUsername = value;
             OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            NotifyOpenVpnProfileUi();
             SaveCurrentState();
         }
     }
@@ -786,6 +850,8 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (_selectedProfile != null)
                 _selectedProfile.OpenVpnPassword = value;
             OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            NotifyOpenVpnProfileUi();
             SaveCurrentState();
         }
     }
@@ -801,8 +867,40 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (_selectedProfile != null)
                 _selectedProfile.OpenVpnPrivateKeyPassword = value;
             OnPropertyChanged();
+            UpdateConfigDiagnostics();
+            NotifyOpenVpnProfileUi();
             SaveCurrentState();
         }
+    }
+
+    public string OpenVpnConfigIntroText =>
+        LocalizationService.Instance.T("فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. TunnelX بر اساس محتوای فایل مشخص می‌کند کدام فیلدها اجباری است.");
+
+    public string OpenVpnScenarioTitleText =>
+        OpenVpnProfileAnalyzer.GetScenarioTitle(SelectedOpenVpnConfig);
+
+    public string OpenVpnScenarioHintText =>
+        OpenVpnProfileAnalyzer.GetScenarioHint(SelectedOpenVpnConfig);
+
+    public string OpenVpnConfigFileLabelText =>
+        LocalizationService.Instance.T("فایل OpenVPN (.ovpn)");
+
+    public string OpenVpnUsernameFieldLabelText =>
+        OpenVpnProfileAnalyzer.GetUsernameFieldLabel(SelectedOpenVpnConfig);
+
+    public string OpenVpnPasswordFieldLabelText =>
+        OpenVpnProfileAnalyzer.GetPasswordFieldLabel(SelectedOpenVpnConfig);
+
+    public string OpenVpnSecretFieldLabelText =>
+        OpenVpnProfileAnalyzer.GetSecretFieldLabel(SelectedOpenVpnConfig);
+
+    private void NotifyOpenVpnProfileUi()
+    {
+        OnPropertyChanged(nameof(OpenVpnScenarioTitleText));
+        OnPropertyChanged(nameof(OpenVpnScenarioHintText));
+        OnPropertyChanged(nameof(OpenVpnUsernameFieldLabelText));
+        OnPropertyChanged(nameof(OpenVpnPasswordFieldLabelText));
+        OnPropertyChanged(nameof(OpenVpnSecretFieldLabelText));
     }
 
     private ProxyProtocol _proxyProtocol = ProxyProtocol.Socks5;
@@ -942,11 +1040,220 @@ public partial class MainViewModel : INotifyPropertyChanged
         set { _vpnIp = value; OnPropertyChanged(); }
     }
 
+    private const string ConnectionIpFetchingKey = "در حال دریافت...";
+
     private string _connectionIpText = "-";
     public string ConnectionIpText
     {
-        get => LocalizationService.Instance.T(_connectionIpText);
-        set { _connectionIpText = value; OnPropertyChanged(); }
+        get => IsConnectionIpPlaceholder(_connectionIpText)
+            ? LocalizationService.Instance.T(_connectionIpText)
+            : _connectionIpText;
+        set => SetConnectionIpDisplay(value);
+    }
+
+    /// <summary>RTL/LTR for exit-IP card text; real IPs stay LTR.</summary>
+    public System.Windows.FlowDirection ConnectionIpTextFlowDirection =>
+        IsConnectionIpPlaceholder(_connectionIpText)
+            ? LocalizationService.Instance.FlowDirection
+            : System.Windows.FlowDirection.LeftToRight;
+
+    private static bool IsConnectionIpPlaceholder(string value) =>
+        value is "-" or ConnectionIpFetchingKey;
+
+    private void SetConnectionIpDisplay(string value)
+    {
+        void Apply()
+        {
+            if (_connectionIpText == value) return;
+            _connectionIpText = value;
+            OnPropertyChanged(nameof(ConnectionIpText));
+
+            if (IsConnectionIpPlaceholder(value))
+                ClearConnectionIpGeo();
+
+            if (value == ConnectionIpFetchingKey)
+                SetConnectionIpCountryFlagLoading(true);
+            else if (value == "-")
+                SetConnectionIpCountryFlagLoading(false);
+
+            OnPropertyChanged(nameof(ConnectionIpTextFlowDirection));
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(Apply);
+        else
+            Apply();
+    }
+
+    private ImageSource? _connectionIpCountryFlag;
+    private string _connectionIpCountryName = "";
+    private string _connectionIpCountryCode = "";
+    private int _connectionIpCountryFlagRequestId;
+    private bool _isConnectionIpCountryFlagLoading;
+
+    public ImageSource? ConnectionIpCountryFlag => _connectionIpCountryFlag;
+
+    public bool ShowConnectionIpCountryFlag => _connectionIpCountryFlag != null;
+
+    public bool IsConnectionIpCountryFlagLoading => _isConnectionIpCountryFlagLoading;
+
+    public bool ShowConnectionIpDefaultIcon =>
+        !_isConnectionIpCountryFlagLoading && _connectionIpCountryFlag == null;
+
+    public string ConnectionIpCountryToolTip => _connectionIpCountryName;
+
+    private void SetConnectionIpCountryFlagLoading(bool isLoading)
+    {
+        void Apply()
+        {
+            if (_isConnectionIpCountryFlagLoading == isLoading)
+                return;
+
+            _isConnectionIpCountryFlagLoading = isLoading;
+            OnPropertyChanged(nameof(IsConnectionIpCountryFlagLoading));
+            OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(Apply);
+        else
+            Apply();
+    }
+
+    private void ClearConnectionIpCountryFlagLoadingIfCurrent(int requestId, string countryCode)
+    {
+        void Apply()
+        {
+            if (requestId != _connectionIpCountryFlagRequestId)
+                return;
+
+            if (!string.Equals(_connectionIpCountryCode, countryCode, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (!_isConnectionIpCountryFlagLoading)
+                return;
+
+            _isConnectionIpCountryFlagLoading = false;
+            OnPropertyChanged(nameof(IsConnectionIpCountryFlagLoading));
+            OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(Apply);
+        else
+            Apply();
+    }
+
+    private void SetConnectionIpGeo(IpGeoInfo info, int proxyPort)
+    {
+        var countryCode = info.CountryCode?.Trim().ToUpperInvariant() ?? "";
+        var requestId = Interlocked.Increment(ref _connectionIpCountryFlagRequestId);
+        SetConnectionIpCountryFlagLoading(true);
+
+        void Apply()
+        {
+            _connectionIpCountryFlag = null;
+            _connectionIpCountryName = info.CountryName;
+            _connectionIpCountryCode = countryCode;
+            OnPropertyChanged(nameof(ConnectionIpCountryFlag));
+            OnPropertyChanged(nameof(ShowConnectionIpCountryFlag));
+            OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
+            OnPropertyChanged(nameof(ConnectionIpCountryToolTip));
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(Apply);
+        else
+            Apply();
+
+        if (!string.IsNullOrEmpty(countryCode) && proxyPort > 0)
+            _ = RefreshConnectionIpCountryFlagAsync(proxyPort, countryCode, requestId);
+        else
+            SetConnectionIpCountryFlagLoading(false);
+    }
+
+    private void ClearConnectionIpGeo()
+    {
+        Interlocked.Increment(ref _connectionIpCountryFlagRequestId);
+
+        void Apply()
+        {
+            if (_connectionIpCountryFlag == null &&
+                string.IsNullOrEmpty(_connectionIpCountryName) &&
+                string.IsNullOrEmpty(_connectionIpCountryCode))
+                return;
+
+            _connectionIpCountryFlag = null;
+            _connectionIpCountryName = "";
+            _connectionIpCountryCode = "";
+            OnPropertyChanged(nameof(ConnectionIpCountryFlag));
+            OnPropertyChanged(nameof(ShowConnectionIpCountryFlag));
+            OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
+            OnPropertyChanged(nameof(ConnectionIpCountryToolTip));
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(Apply);
+        else
+            Apply();
+    }
+
+    private async Task RefreshConnectionIpCountryFlagAsync(int proxyPort, string countryCode, int requestId)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            var pngBytes = await IpGeoLookupService.DownloadFlagPngViaTunnelAsync(proxyPort, countryCode, cts.Token);
+            if (pngBytes == null || pngBytes.Length == 0)
+            {
+                Logger.Warning($"[EXIT-IP] Flag image lookup via tunnel failed for '{countryCode}'");
+                ClearConnectionIpCountryFlagLoadingIfCurrent(requestId, countryCode);
+                return;
+            }
+
+            BitmapImage image;
+            using (var ms = new MemoryStream(pngBytes))
+            {
+                image = new BitmapImage();
+                image.BeginInit();
+                image.CacheOption = BitmapCacheOption.OnLoad;
+                image.StreamSource = ms;
+                image.EndInit();
+                image.Freeze();
+            }
+
+            void Apply()
+            {
+                if (requestId != _connectionIpCountryFlagRequestId)
+                    return;
+
+                if (!string.Equals(_connectionIpCountryCode, countryCode, StringComparison.OrdinalIgnoreCase))
+                    return;
+
+                _connectionIpCountryFlag = image;
+                OnPropertyChanged(nameof(ConnectionIpCountryFlag));
+                OnPropertyChanged(nameof(ShowConnectionIpCountryFlag));
+                OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
+                _isConnectionIpCountryFlagLoading = false;
+                OnPropertyChanged(nameof(IsConnectionIpCountryFlagLoading));
+            }
+
+            var dispatcher = Application.Current?.Dispatcher;
+            if (dispatcher != null && !dispatcher.CheckAccess())
+                _ = dispatcher.BeginInvoke(Apply);
+            else
+                Apply();
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[EXIT-IP] Flag image lookup error for '{countryCode}': {ex.Message}");
+            ClearConnectionIpCountryFlagLoadingIfCurrent(requestId, countryCode);
+        }
     }
 
     public string ConnectionIpLabel => LocalizationService.Instance.T("IP خروجی");
@@ -1174,10 +1481,19 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     private void SetPingResult(string key, params object?[] args)
     {
-        _pingResultKey = key;
-        _pingResultArgs = args ?? Array.Empty<object?>();
-        _pingShowDoneSuffix = false;
-        OnPropertyChanged(nameof(PingResult));
+        void Apply()
+        {
+            _pingResultKey = key;
+            _pingResultArgs = args ?? Array.Empty<object?>();
+            _pingShowDoneSuffix = false;
+            OnPropertyChanged(nameof(PingResult));
+        }
+
+        var dispatcher = Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+            dispatcher.BeginInvoke(Apply);
+        else
+            Apply();
     }
 
     private void MarkPingResultDone()
@@ -1219,6 +1535,57 @@ public partial class MainViewModel : INotifyPropertyChanged
         get => _includeInput;
         set { _includeInput = value; OnPropertyChanged(); }
     }
+
+    public string RoutingRulesTabToolTipText =>
+        LocalizationService.Instance.T("قوانین Include و Exclude مسیرها");
+
+    public string RoutingRulesTitleText =>
+        LocalizationService.Instance.T("قوانین مسیر");
+
+    public string RoutingRulesSubtitleText =>
+        LocalizationService.Instance.T("مقصدهای مستقیم و مقصدهای اجباری تونل را اینجا مدیریت کنید.");
+
+    public string ExcludeStayDirectTitleText =>
+        LocalizationService.Instance.T("🚫 مستقیم بماند");
+
+    public string ExcludeStayDirectSummaryText =>
+        LocalizationService.Instance.T("این مقصدها از تونل عبور نمی‌کنند.");
+
+    public string ExcludeRulesGuideTitleText =>
+        LocalizationService.Instance.T("راهنمای ورود آدرس");
+
+    public string ExcludeRulesGuideBodyText =>
+        LocalizationService.Instance.T("راهنمای Exclude — نحوه ورود:\n• آی‌پی: فقط IPv4 مثل 8.8.8.8 (IPv6 فعلاً پشتیبانی نمی‌شود).\n• دامنه: google.com کافی است؛ می‌توانید https://google.com/maps یا google.com:443 هم بزنید — فقط نام host استخراج می‌شود.\n• زیردامنه: با example.com خود دامنه و همه زیردامنه‌ها (مثل www.example.com و api.example.com) هم اعمال می‌شود؛ notexample.com یا example.com.evil شامل نمی‌شود.\n• Exclude یعنی ترافیک مستقیم است و از تونل عبور نمی‌کند.\n• پس از اتصال، IP دامنه resolve می‌شود و با تغییر DNS به‌روز می‌شود.\n\nمثال: 192.168.1.1 ، google.com ، cdn.example.com");
+
+    public string ExcludeInputPlaceholderText =>
+        LocalizationService.Instance.T("دامنه یا آی‌پی (مثلاً google.com یا 1.2.3.4)");
+
+    public string ExcludeListHeaderText =>
+        LocalizationService.Instance.T("آدرس‌های مستقیم");
+
+    public string IncludeForceTunnelTitleText =>
+        LocalizationService.Instance.T("✅ از تونل عبور کند");
+
+    public string IncludeForceTunnelSummaryText =>
+        LocalizationService.Instance.T("این مقصدها همیشه از تونل عبور می‌کنند.");
+
+    public string IncludeRulesGuideTitleText =>
+        LocalizationService.Instance.T("راهنمای ورود آدرس");
+
+    public string IncludeRulesGuideBodyText =>
+        LocalizationService.Instance.T("راهنمای Include — نحوه ورود:\n• آی‌پی: فقط IPv4 مثل 203.0.113.10 (IPv6 فعلاً پشتیبانی نمی‌شود).\n• دامنه: twitter.com کافی است؛ لینک کامل یا پورت در انتها هم قابل قبول است — فقط host خوانده می‌شود.\n• زیردامنه: با example.com همه زیردامنه‌ها (cdn.example.com و …) هم از تونل عبور می‌کنند.\n• Include یعنی این مقصد همیشه از تونل می‌رود، حتی اگر برنامه‌ای در لیست تونل انتخاب نشده باشد.\n• IPهای خصوصی/محلی (مثل 192.168.x) معمولاً مسیر تونل نمی‌گیرند.\n\nمثال: twitter.com ، api.service.com ، 203.0.113.10");
+
+    public string IncludeInputPlaceholderText =>
+        LocalizationService.Instance.T("دامنه یا آی‌پی (مثلاً example.com یا 1.2.3.4)");
+
+    public string IncludeListHeaderText =>
+        LocalizationService.Instance.T("آدرس‌های اجباری");
+
+    public string AddRoutingRuleButtonText =>
+        LocalizationService.Instance.T("افزودن");
+
+    public string RemoveRoutingRuleButtonText =>
+        LocalizationService.Instance.T("حذف");
 
     public ObservableCollection<AppItemViewModel> TunnelApps { get; } = new();
 
@@ -1396,34 +1763,63 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
     }
 
-    private async Task CheckForUpdatesAsync(bool silent)
+    private int _updateCheckRequestId;
+
+    private void CancelPendingUpdateCheck() => ++_updateCheckRequestId;
+
+    private int ResolveTunnelProxyPort() =>
+        _vpnService.Status.SingBoxMixedPort > 0
+            ? _vpnService.Status.SingBoxMixedPort
+            : _trafficRouter.Socks5Port;
+
+    private async Task CheckForUpdatesAsync(bool silent, int proxyPort = 0)
     {
         if (IsCheckingForUpdates) return;
+
+        if (proxyPort <= 0)
+            proxyPort = ResolveTunnelProxyPort();
+
+        if (!IsConnected || proxyPort <= 0)
+        {
+            if (!silent)
+                SetUpdateStatus("برای بررسی نسخه جدید ابتدا اتصال برقرار کنید.");
+            return;
+        }
+
+        var requestId = ++_updateCheckRequestId;
 
         try
         {
             IsCheckingForUpdates = true;
             if (!silent)
-                SetUpdateStatus("در حال بررسی آخرین نسخه در GitHub...");
+                SetUpdateStatus("در حال بررسی آخرین نسخه در GitHub از طریق تونل...");
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var latest = await GitHubReleaseChecker.GetLatestReleaseAsync(cts.Token);
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+            var latest = await GitHubReleaseChecker.GetLatestReleaseAsync(cts.Token, proxyPort);
+            if (requestId != _updateCheckRequestId || !IsConnected)
+                return;
+
             if (latest == null)
             {
                 if (!silent)
-                    SetUpdateStatus("بررسی نسخه جدید ناموفق بود. اتصال اینترنت یا GitHub را بررسی کنید.");
-                Logger.Warning("[UPDATE] Latest release check failed");
+                    SetUpdateStatus("بررسی نسخه جدید از طریق تونل ناموفق بود. اتصال یا دسترسی به GitHub را بررسی کنید.");
+                Logger.Warning("[UPDATE] Latest release check via tunnel failed");
                 return;
             }
 
             LatestReleaseUrl = latest.Url;
+            LatestReleaseTag = latest.TagName;
+            LatestReleaseNotes = ChangelogService.ResolveDisplayNotes(latest.ReleaseNotes, latest.TagName);
             var currentVersion = System.Reflection.Assembly.GetExecutingAssembly()
                 .GetName().Version ?? new Version(0, 0, 0);
             var current = new Version(currentVersion.Major, currentVersion.Minor, currentVersion.Build);
 
             if (latest.Version > current)
             {
+                var alreadyAvailable = IsUpdateAvailable;
                 IsUpdateAvailable = true;
+                if (silent && alreadyAvailable)
+                    OnPropertyChanged(nameof(IsUpdateAvailable));
                 SetUpdateStatus("نسخه جدید آماده است: {0} - برای دانلود از GitHub باز کنید.", latest.TagName);
                 Logger.Info($"[UPDATE] New version available: current={current} latest={latest.TagName}");
                 return;
@@ -1435,19 +1831,26 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
         catch (OperationCanceledException)
         {
+            if (requestId != _updateCheckRequestId || !IsConnected)
+                return;
+
             if (!silent)
                 SetUpdateStatus("بررسی بروزرسانی به زمان مجاز نرسید.");
             Logger.Warning("[UPDATE] Latest release check timed out");
         }
         catch (Exception ex)
         {
+            if (requestId != _updateCheckRequestId || !IsConnected)
+                return;
+
             if (!silent)
                 SetUpdateStatus("بررسی بروزرسانی ناموفق بود: {0}", ex.Message);
             Logger.Warning($"[UPDATE] Latest release check failed: {ex.Message}");
         }
         finally
         {
-            IsCheckingForUpdates = false;
+            if (requestId == _updateCheckRequestId)
+                IsCheckingForUpdates = false;
         }
     }
 
@@ -1665,17 +2068,38 @@ public partial class MainViewModel : INotifyPropertyChanged
 
         if (CurrentTunnelType == TunnelType.OpenVpn)
         {
+            NotifyOpenVpnProfileUi();
             ConfigCoreHint = "OpenVPN";
-            ConfigValidationText = !IsOpenVpnCommunityInstalled
-                ? LocalizationService.Instance.T("OpenVPN Community نصب نیست؛ ابتدا آن را از لینک رسمی نصب کنید")
-                : string.IsNullOrWhiteSpace(SelectedOpenVpnConfig)
-                ? LocalizationService.Instance.T("فایل .ovpn را انتخاب کنید؛ TunnelX آن را در حالت split-compatible اجرا می‌کند")
-                : OpenVpnTunnelProvider.ConfigLikelyNeedsPrivateKeyPassphrase(SelectedOpenVpnConfig) &&
-                  string.IsNullOrWhiteSpace(OpenVpnPrivateKeyPassword)
-                    ? LocalizationService.Instance.T("این کانفیگ به Secret (رمز کلید خصوصی) نیاز دارد؛ فیلد Secret را پر کنید")
-                    : string.IsNullOrWhiteSpace(OpenVpnUsername)
-                        ? LocalizationService.Instance.T("کانفیگ انتخاب شد؛ اگر سرور احراز هویت دارد نام کاربری را وارد کنید")
-                        : LocalizationService.Instance.T("کانفیگ و نام کاربری OpenVPN آماده است");
+            if (!IsOpenVpnCommunityInstalled)
+            {
+                ConfigValidationText = LocalizationService.Instance.T("OpenVPN Community نصب نیست؛ ابتدا آن را از لینک رسمی نصب کنید");
+                return;
+            }
+
+            if (string.IsNullOrWhiteSpace(SelectedOpenVpnConfig))
+            {
+                ConfigValidationText = LocalizationService.Instance.T("فایل .ovpn را انتخاب کنید؛ TunnelX آن را در حالت split-compatible اجرا می‌کند");
+                return;
+            }
+
+            if (OpenVpnProfileAnalyzer.TryGetProfileValidationError(
+                    SelectedOpenVpnConfig,
+                    OpenVpnUsername,
+                    OpenVpnPassword,
+                    OpenVpnPrivateKeyPassword,
+                    out var openVpnValidationError))
+            {
+                ConfigValidationText = openVpnValidationError;
+                return;
+            }
+
+            ConfigValidationText = OpenVpnProfileAnalyzer.IsProfileReady(
+                SelectedOpenVpnConfig,
+                OpenVpnUsername,
+                OpenVpnPassword,
+                OpenVpnPrivateKeyPassword)
+                ? LocalizationService.Instance.T("کانفیگ OpenVPN آماده است")
+                : OpenVpnProfileAnalyzer.GetScenarioHint(SelectedOpenVpnConfig);
             return;
         }
 
@@ -2063,7 +2487,14 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(ConfigValidationText));
         OnPropertyChanged(nameof(SaveStatusText));
         OnPropertyChanged(nameof(ConnectionIpText));
+        OnPropertyChanged(nameof(ConnectionIpTextFlowDirection));
         OnPropertyChanged(nameof(ConnectionIpLabel));
+        OnPropertyChanged(nameof(ConnectionIpCountryFlag));
+        OnPropertyChanged(nameof(ShowConnectionIpCountryFlag));
+        OnPropertyChanged(nameof(IsConnectionIpCountryFlagLoading));
+        OnPropertyChanged(nameof(ConnectionIpCountryToolTip));
+        if (_exitIpProxyPort > 0 && IPAddress.TryParse(_connectionIpText, out _))
+            _ = RefreshExitIpCountryAsync(_exitIpProxyPort, _connectionIpText);
         OnPropertyChanged(nameof(FullRouteStatusText));
         OnPropertyChanged(nameof(RouteModeTitle));
         OnPropertyChanged(nameof(RouteModeDescription));
@@ -2097,6 +2528,30 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(PingTargetButtonToolTipText));
         OnPropertyChanged(nameof(ConnectedServerPingToolTipText));
         OnPropertyChanged(nameof(ProfileCountText));
+        OnPropertyChanged(nameof(RoutingRulesTabToolTipText));
+        OnPropertyChanged(nameof(RoutingRulesTitleText));
+        OnPropertyChanged(nameof(RoutingRulesSubtitleText));
+        OnPropertyChanged(nameof(ExcludeStayDirectTitleText));
+        OnPropertyChanged(nameof(ExcludeStayDirectSummaryText));
+        OnPropertyChanged(nameof(ExcludeRulesGuideTitleText));
+        OnPropertyChanged(nameof(ExcludeRulesGuideBodyText));
+        OnPropertyChanged(nameof(ExcludeInputPlaceholderText));
+        OnPropertyChanged(nameof(ExcludeListHeaderText));
+        OnPropertyChanged(nameof(IncludeForceTunnelTitleText));
+        OnPropertyChanged(nameof(IncludeForceTunnelSummaryText));
+        OnPropertyChanged(nameof(IncludeRulesGuideTitleText));
+        OnPropertyChanged(nameof(IncludeRulesGuideBodyText));
+        OnPropertyChanged(nameof(IncludeInputPlaceholderText));
+        OnPropertyChanged(nameof(IncludeListHeaderText));
+        OnPropertyChanged(nameof(AddRoutingRuleButtonText));
+        OnPropertyChanged(nameof(RemoveRoutingRuleButtonText));
+        OnPropertyChanged(nameof(OpenVpnConfigIntroText));
+        OnPropertyChanged(nameof(OpenVpnScenarioTitleText));
+        OnPropertyChanged(nameof(OpenVpnScenarioHintText));
+        OnPropertyChanged(nameof(OpenVpnConfigFileLabelText));
+        OnPropertyChanged(nameof(OpenVpnUsernameFieldLabelText));
+        OnPropertyChanged(nameof(OpenVpnPasswordFieldLabelText));
+        OnPropertyChanged(nameof(OpenVpnSecretFieldLabelText));
         OnPropertyChanged(nameof(ActiveProfileTypeText));
         OnPropertyChanged(nameof(ActiveProfileEndpointText));
         OnPropertyChanged(nameof(ProfileSaveHintText));
