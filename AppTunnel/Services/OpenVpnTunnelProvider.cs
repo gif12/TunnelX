@@ -493,8 +493,8 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 return;
 
             AppendTunnelXOptions();
-            // Port stability first (443/80 before 21) — preserves DigiNetX-style fixes.
-            // Literal IP before hostname only as tie-breaker (same port, e.g. Vitamin PFITCP on 912).
+            // Port stability first (443/80 before 21) for multi-remote .ovpn files.
+            // Literal IP before hostname only as tie-breaker on the same port.
             var ordered = pendingRemotes
                 .OrderBy(r => GetRemoteConnectPriority(r.port))
                 .ThenBy(r => IsLiteralRemoteHost(r.host) ? 0 : 1)
@@ -523,7 +523,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
             builder.AppendLine("server-poll-timeout 10");
             builder.AppendLine("connect-retry 3 15");
             // Do not add auth-nocache: it forces re-login on every OpenVPN internal reconnect and
-            // many providers (e.g. DigiNetX) return AUTH_FAILED while the previous session is dying.
+            // Some servers return AUTH_FAILED while the previous session is still tearing down.
             foreach (var cipherLine in dataCipherCompat)
                 builder.AppendLine(cipherLine);
 
@@ -558,7 +558,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 trimmed.StartsWith("server-poll-timeout", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // PFITCP-style profiles: global "proto udp" + "<connection> remote … tcp-client".
+            // Multi-connection profiles: global "proto udp" + "<connection> remote … tcp-client".
             // Flattening or keeping proto udp breaks TCP; per-connection proto must win.
             if (usesTcpClientConnectionBlocks &&
                 trimmed.StartsWith("proto ", StringComparison.OrdinalIgnoreCase) &&

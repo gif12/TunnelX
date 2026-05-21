@@ -30,6 +30,9 @@
 - پروکسی <span dir="ltr">SOCKS5</span> محلی روی <span dir="ltr">`127.0.0.1`</span> برای ابزارهایی که تنظیم پروکسی داخلی دارند
 - تغییر مسیر <span dir="ltr">DNS</span>، مسدودسازی <span dir="ltr">IPv6</span>، محافظ نشت، عیب‌یابی <span dir="ltr">route</span> و تاریخچه مصرف تونل
 - مدیریت چند پروفایل، کپی/ویرایش کانفیگ‌ها، تست سرور، تشخیص <span dir="ltr">IP</span> خروجی و اعلان بروزرسانی
+- **بررسی سلامت اتصال** قبل از صفحه متصل: پینگ <span dir="ltr">TCP</span> واقعی به <span dir="ltr">`google.com`</span> و <span dir="ltr">`cloudflare.com`</span> از مسیر <span dir="ltr">SOCKS</span> تونل، با نمایش تأخیر هر مقصد در مرحله بررسی
+- داشبورد متصل: <span dir="ltr">IP</span> خروجی همراه نام کشور و تصویر پرچم (دریافت geo و پرچم از داخل تونل، نه مستقیم از شبکه محلی)
+- اعلان‌های <span dir="ltr">tray</span> ویندوز با راهنمای بهتر برای خطا، دکمه یادداشت انتشار روی کارت بروزرسانی، و بررسی بروزرسانی زمان‌بندی‌شده پس از اتصال
 - رابط کاربری فارسی و انگلیسی با تشخیص خودکار زبان، دکمه تغییر زبان و رعایت کامل راست‌به‌چپ/چپ‌به‌راست
 - انتخاب پورت داخلی آزاد برای <span dir="ltr">V2Ray/Xray</span> تا خطاهای اشغال بودن پورت‌های <span dir="ltr">`2080/2081`</span> کمتر شود
 
@@ -41,6 +44,18 @@
 4. نوع اتصال را انتخاب کنید: <span dir="ltr">L2TP/IPsec</span>، <span dir="ltr">V2Ray/Xray</span>، <span dir="ltr">SOCKS5/HTTP Proxy</span>، <span dir="ltr">OpenVPN</span> یا <span dir="ltr">WireGuard</span>.
 5. قبل از اتصال، تست سرور را اجرا کنید و سپس برنامه‌هایی را که باید از تونل عبور کنند در تب برنامه‌ها فعال کنید.
 6. در صورت نیاز، مقصدهای لزومی یا استثنا را اضافه کنید و بعد از اتصال کارت سلامت ترافیک، <span dir="ltr">DNS</span>، <span dir="ltr">IPv6</span> و <span dir="ltr">Route</span> را بررسی کنید.
+
+پس از اتصال، <span dir="ltr">TunnelX</span> یک مرحله کوتاه **بررسی سلامت** اجرا می‌کند (بررسی آداپتر/مسیر به‌همراه پینگ واقعی از داخل تونل). صفحه متصل فقط وقتی نمایش داده می‌شود که حداقل یک پینگ end-to-end موفق باشد؛ کانفیگ منقضی یا تمام‌شده دیگر فقط با بالا آمدن آداپتر «متصل» نشان داده نمی‌شود.
+
+## <span dir="ltr">IP</span> خروجی و پرچم کشور
+
+در حالت متصل، <span dir="ltr">IP</span> عمومی خروجی روی داشبورد نمایش داده می‌شود. نام کشور و تصویر پرچم اختیاری و تکمیلی هستند:
+
+- <span dir="ltr">IP</span> خروجی از طریق پراکسی محلی <span dir="ltr">SOCKS/mixed</span> پرسیده می‌شود تا از همان تونل خارج شود (<span dir="ltr">`ipv4.icanhazip.com`</span>، <span dir="ltr">`api.ipify.org`</span>، <span dir="ltr">`ifconfig.me`</span>).
+- تشخیص کشور با چند سرویس پشت‌سرهم از همان مسیر تونل: <span dir="ltr">`ip-api.com`</span>، <span dir="ltr">`ipwho.is`</span>، <span dir="ltr">`ipapi.co`</span>.
+- پرچم یک تصویر کوچک <span dir="ltr">PNG</span> از <span dir="ltr">`flagcdn.com`</span> است که از داخل تونل دانلود می‌شود.
+
+این درخواست‌ها تحلیل آماری به نگهدارنده <span dir="ltr">TunnelX</span> نیستند؛ فقط هنگام نیاز توسط خود برنامه انجام می‌شوند. جزئیات در <span dir="ltr">`docs/PRIVACY.md`</span>.
 
 ## انواع اتصال
 
@@ -68,7 +83,7 @@
 
 <span dir="ltr">OpenVPN</span> همراه <span dir="ltr">TunnelX</span> توزیع نمی‌شود. برای این حالت باید <span dir="ltr">OpenVPN Community</span> را جداگانه نصب کنید، فایل <span dir="ltr">`.ovpn`</span> را در <span dir="ltr">TunnelX</span> انتخاب کنید و در صورت نیاز نام کاربری و رمز عبور <span dir="ltr">OpenVPN</span> را داخل برنامه وارد کنید. نصب بودن <span dir="ltr">OpenVPN Connect</span> به‌تنهایی برای این حالت کافی نیست، چون آن برنامه مسیرها و <span dir="ltr">DNS</span> را با کلاینت خودش مدیریت می‌کند.
 
-<span dir="ltr">TunnelX</span> برای سازگاری با <span dir="ltr">Split tunneling</span>، تنظیمات مسیر و <span dir="ltr">DNS</span> تحمیلی فایل <span dir="ltr">`.ovpn`</span> را کنترل می‌کند و در صورت تغییر <span dir="ltr">IP</span> تونل، <span dir="ltr">gateway</span>، <span dir="ltr">interface</span> یا مقصد ریموت هنگام <span dir="ltr">reconnect</span>، مسیر‌دهی داخلی خودش را دوباره راه‌اندازی می‌کند.
+<span dir="ltr">TunnelX</span> برای سازگاری با <span dir="ltr">Split tunneling</span>، تنظیمات مسیر و <span dir="ltr">DNS</span> تحمیلی فایل <span dir="ltr">`.ovpn`</span> را کنترل می‌کند. نسخه‌های اخیر برای پروفایل‌های چند <span dir="ltr">`<connection>`</span> پایدارترند: اولویت پورت ۴۴۳/۸۰، حفظ بلوک <span dir="ltr">`tcp-client`</span>، رد hostnameهای غیرقابل resolve، و پیام واضح‌تر هنگام قطع کانال کنترل. در صورت تغییر <span dir="ltr">IP</span> تونل، <span dir="ltr">gateway</span>، <span dir="ltr">interface</span> یا مقصد ریموت هنگام <span dir="ltr">reconnect</span>، مسیر‌دهی داخلی دوباره راه‌اندازی می‌شود.
 
 ## نکته‌های مسیر و دامنه
 
@@ -81,7 +96,7 @@
 
 ## تنظیمات و داده‌های محلی
 
-پروفایل‌ها، برنامه‌های انتخاب‌شده، مقصدهای لزومی/استثنا، تاریخچه اتصال و لاگ‌ها روی دستگاه کاربر نگهداری می‌شوند و معمولاً در مسیر <span dir="ltr">`%LOCALAPPDATA%\TunnelX`</span> یا کنار برنامه قرار می‌گیرند. <span dir="ltr">TunnelX</span> عمداً تحلیل آماری یا <span dir="ltr">telemetry</span> برای نگهدارنده ارسال نمی‌کند.
+پروفایل‌ها، برنامه‌های انتخاب‌شده، مقصدهای لزومی/استثنا، تاریخچه اتصال و لاگ‌ها روی دستگاه کاربر نگهداری می‌شوند و معمولاً در مسیر <span dir="ltr">`%LOCALAPPDATA%\TunnelX`</span> یا کنار برنامه قرار می‌گیرند. <span dir="ltr">TunnelX</span> عمداً تحلیل آماری یا <span dir="ltr">telemetry</span> برای نگهدارنده ارسال نمی‌کند. پرس‌وجوی اختیاری <span dir="ltr">IP</span> خروجی و کشور از سرویس‌های شخص ثالث **از داخل تونل** انجام می‌شود؛ جزئیات در <span dir="ltr">`docs/PRIVACY.md`</span>.
 
 لاگ‌ها ممکن است شامل نام پردازش‌ها، نام دامنه‌ها، آدرس‌های <span dir="ltr">IP</span>، پورت‌ها و وضعیت اتصال باشند. قبل از ارسال عمومی لاگ در <span dir="ltr">GitHub Issues</span>، اطلاعات حساس مثل آدرس سرور خصوصی، کلیدها، <span dir="ltr">UUID</span>، رمزها و endpointهای شخصی را حذف کنید.
 
@@ -133,7 +148,7 @@ dotnet publish AppTunnel\AppTunnel.csproj -c Release -r win-x64 --self-contained
 
 <div dir="rtl" align="right">
 
-جزئیات بیشتر در <span dir="ltr">`docs/BUILD.md`</span> آمده است. ایده‌ها و برنامه‌های آینده در <span dir="ltr">`docs/ROADMAP.md`</span> نگهداری می‌شوند.
+یادداشت نسخه‌ها در <span dir="ltr">`CHANGELOG.md`</span> و جزئیات ساخت در <span dir="ltr">`docs/BUILD.md`</span> است. حریم خصوصی پرس‌وجوی <span dir="ltr">IP</span> خروجی در <span dir="ltr">`docs/PRIVACY.md`</span> آمده است. ایده‌های آینده در <span dir="ltr">`docs/ROADMAP.md`</span>.
 
 ## مجوز
 

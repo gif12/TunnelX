@@ -2,6 +2,13 @@
 
 TunnelX is free and open-source. This roadmap is not a promise of delivery, but a public place to track useful future improvements.
 
+## Recently Shipped (2.1.0)
+
+- **Connection health verify** before the connected screen: end-to-end TCP probes through the tunnel SOCKS path (`google.com`, `cloudflare.com`), with live latency in the progress UI.
+- **Exit IP dashboard** with country name and flag PNG (geo APIs and `flagcdn.com` via tunnel).
+- **OpenVPN** split-config stability improvements and clearer disconnect insight.
+- Tray update cards with optional in-app release notes.
+
 ## Planned Ideas
 
 ### System preflight and guided repair
@@ -45,7 +52,9 @@ For public releases, TunnelX should continue to prefer self-contained standalone
 
 ### Health dashboard
 
-- user-facing states: safe, protected, needs attention, and broken
+Partially addressed in 2.1.0 (pre-connect tunnel probes and existing DNS/IPv6/leak/route cards). Still planned:
+
+- unified user-facing states: safe, protected, needs attention, and broken
 - short explanation for the latest important network event
 - suggested action next to DNS, IPv6, route, and leak status
 

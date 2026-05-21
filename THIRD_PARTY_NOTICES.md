@@ -12,6 +12,19 @@ TunnelX includes or works with third-party software. These notices are part of t
 | Microsoft .NET / WPF | https://github.com/dotnet | Runtime and desktop framework | MIT and Microsoft component licenses |
 | Vazirmatn | https://github.com/rastikerdar/vazirmatn | Embedded Persian UI font | SIL Open Font License 1.1 |
 
+## Optional Online Services (while connected)
+
+When the user is connected, TunnelX may call the hosts below **through the local tunnel proxy** for exit-IP display, country lookup, or flag images. These are not bundled binaries; terms and privacy policies belong to each provider.
+
+| Host | Purpose |
+| --- | --- |
+| `ipv4.icanhazip.com`, `api.ipify.org`, `ifconfig.me` | Public exit IP detection |
+| `ip-api.com`, `ipwho.is`, `ipapi.co` | Country / region lookup |
+| `flagcdn.com` | Country flag PNG images |
+| `api.github.com`, `github.com` | Release update checks |
+
+See `docs/PRIVACY.md` for how these requests are routed.
+
 ## Redistributing Binaries
 
 - Keep this file with every binary release.
