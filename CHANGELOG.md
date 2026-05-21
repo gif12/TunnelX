@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 2.0.1 - 2026-05-21
+
+- fix: OpenVPN reliability, secret field, and notification controls
+
 ## 2.0.0 - 2026-05-20
 
 ### English
@@ -158,6 +162,7 @@
 - Added in-app GitHub and donation links.
 - Added project metadata for MaxFan and GPL-3.0-or-later licensing.
 - Improved leak logging and traffic accounting in recent internal builds.
+
 
 
 
