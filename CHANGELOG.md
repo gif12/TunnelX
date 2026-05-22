@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 2.1.1 - 2026-05-22
+
 ### English
 
 - **Which file to download:** use the **standalone EXE** on [Releases](https://github.com/MaxiFan/TunnelX/releases/latest) if you are not sure — no separate .NET install. Choose the **ZIP** only when **.NET 8 Desktop Runtime (x64)** is already on your PC.
@@ -208,6 +210,7 @@
 - Added in-app GitHub and donation links.
 - Added project metadata for MaxFan and GPL-3.0-or-later licensing.
 - Improved leak logging and traffic accounting in recent internal builds.
+
 
 
 
