@@ -16,6 +16,7 @@ public class XrayTunnelProvider : ITunnelProvider
     private const int DefaultTunMtu = 1500;
     private const int DefaultMixedProxyPort = 2080;
     private const int DefaultXraySocksPort = 2081;
+    private const int TunInterfaceWaitSeconds = 20;
 
     private readonly string _workDir;
     private readonly string _xrayConfigPath;
@@ -31,23 +32,12 @@ public class XrayTunnelProvider : ITunnelProvider
 
     public XrayTunnelProvider()
     {
-        _workDir = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TunnelX",
-            "xray");
-
+        _workDir = NativeEngineSupport.XrayWorkDir;
         _xrayConfigPath = Path.Combine(_workDir, "xray-config.json");
         _singBoxConfigPath = Path.Combine(_workDir, "tun-bridge.json");
-
-        var xraySideBySide = Path.Combine(AppContext.BaseDirectory, "xray.exe");
-        _xrayExe = File.Exists(xraySideBySide)
-            ? xraySideBySide
-            : Path.Combine(_workDir, "xray.exe");
-
-        var singBoxSideBySide = Path.Combine(AppContext.BaseDirectory, "sing-box.exe");
-        _singBoxExe = File.Exists(singBoxSideBySide)
-            ? singBoxSideBySide
-            : Path.Combine(_workDir, "sing-box.exe");
+        _xrayExe = NativeEngineSupport.ResolveXrayExePath();
+        // TUN bridge uses the same sing-box binary path as the V2Ray provider (singbox work dir or side-by-side).
+        _singBoxExe = NativeEngineSupport.ResolveSingBoxExePath();
     }
 
     public async Task<bool> ConnectAsync(ServerConfig config, CancellationToken ct)
@@ -59,8 +49,16 @@ public class XrayTunnelProvider : ITunnelProvider
         {
             ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Active, "راه‌اندازی هسته تونل (Xray/V2Ray)");
             Directory.CreateDirectory(_workDir);
-            await EnsureEmbeddedExeExtractedAsync("xray.exe", _xrayExe, ct);
-            await EnsureEmbeddedExeExtractedAsync("sing-box.exe", _singBoxExe, ct);
+            NativeEngineSupport.EnsureWintunBesideEngine(_workDir);
+            if (Path.GetDirectoryName(_singBoxExe) is { Length: > 0 } singBoxDir &&
+                !singBoxDir.Equals(_workDir, StringComparison.OrdinalIgnoreCase))
+                NativeEngineSupport.EnsureWintunBesideEngine(singBoxDir);
+            if (Path.GetDirectoryName(_xrayExe) is { Length: > 0 } xrayDir &&
+                !xrayDir.Equals(_workDir, StringComparison.OrdinalIgnoreCase))
+                NativeEngineSupport.EnsureWintunBesideEngine(xrayDir);
+
+            await NativeEngineSupport.EnsureEmbeddedExecutableAsync("xray.exe", _xrayExe, ct);
+            await NativeEngineSupport.EnsureEmbeddedExecutableAsync("sing-box.exe", _singBoxExe, ct);
 
             if (!File.Exists(_xrayExe))
                 return Fail(LocalizationService.Instance.Format("فایل xray.exe پیدا نشد: {0}", _xrayExe));
@@ -129,9 +127,11 @@ public class XrayTunnelProvider : ITunnelProvider
             if (interfaceIndex <= 0)
             {
                 await KillProcessAsync();
-                ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail,
-                    "interface TunnelX-V2Ray ظاهر نشد (timeout 10s)");
-                return Fail(LocalizationService.Instance.T("interface TunnelX-V2Ray ظاهر نشد (timeout 10s)"));
+                var tunTimeoutMessage = LocalizationService.Instance.Format(
+                    "interface TunnelX-V2Ray ظاهر نشد (timeout {0}s)",
+                    TunInterfaceWaitSeconds);
+                ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail, tunTimeoutMessage);
+                return Fail(tunTimeoutMessage);
             }
 
             ConnectionProgressService.Report(
@@ -150,6 +150,7 @@ public class XrayTunnelProvider : ITunnelProvider
             Status.VpnServerPort = ExtractServerPort(config.V2RayConfig);
             Status.VpnInterfaceIndex = interfaceIndex;
             Status.SingBoxMixedPort = mixedProxyPort;
+            Status.XraySocksInboundPort = xraySocksPort;
             Status.Message = "Xray connected";
 
             Logger.Info($"Xray tunnel up via sing-box TUN bridge — interface index {interfaceIndex}, server={Status.VpnServerIp}");
@@ -191,6 +192,7 @@ public class XrayTunnelProvider : ITunnelProvider
         Status.VpnServerPort = 0;
         Status.VpnInterfaceIndex = -1;
         Status.SingBoxMixedPort = 0;
+        Status.XraySocksInboundPort = 0;
         Status.Message = LocalizationService.Instance.T("قطع شد");
     }
 
@@ -239,10 +241,172 @@ public class XrayTunnelProvider : ITunnelProvider
             throw new InvalidOperationException("برای Xray باید outbound با transport.type=xhttp یا JSON خروجی Xray وارد شود");
         }
 
-        if (userConfig.StartsWith("vless://", StringComparison.OrdinalIgnoreCase))
-            return ParseVlessXhttpUri(userConfig);
+        if (userConfig.StartsWith("vmess://", StringComparison.OrdinalIgnoreCase))
+            return ParseVmessXrayUri(userConfig);
 
-        throw new InvalidOperationException("xhttp فعلا فقط برای vless:// یا JSON دارای outbound xhttp پشتیبانی می‌شود");
+        if (userConfig.StartsWith("vless://", StringComparison.OrdinalIgnoreCase))
+        {
+            var u = new Uri(userConfig.Split('#')[0]);
+            var query = ParseQuery(u.Query);
+            var net = query.GetValueOrDefault("type", "tcp");
+            if (net.Equals("ws", StringComparison.OrdinalIgnoreCase))
+                return ParseVlessWsXrayUri(userConfig);
+            if (net.Equals("xhttp", StringComparison.OrdinalIgnoreCase))
+                return ParseVlessXhttpUri(userConfig);
+        }
+
+        throw new InvalidOperationException(
+            "برای Xray باید vmess://، vless:// با type=ws یا xhttp، یا JSON خروجی Xray وارد شود");
+    }
+
+    private static JsonObject ParseVmessXrayUri(string uri)
+    {
+        var b64 = uri["vmess://".Length..].Split('#')[0];
+        b64 = b64.PadRight((b64.Length + 3) / 4 * 4, '=');
+        var v = JsonNode.Parse(Encoding.UTF8.GetString(Convert.FromBase64String(b64)))!.AsObject();
+
+        var tag = v["ps"]?.GetValue<string>() ?? "vmess-out";
+        var address = v["add"]?.GetValue<string>() ?? "";
+        var port = int.TryParse(v["port"]?.ToString(), out var p) ? p : 443;
+        var uuid = v["id"]?.GetValue<string>() ?? "";
+        var alterId = int.TryParse(v["aid"]?.ToString(), out var aid) ? aid : 0;
+        var security = v["scy"]?.GetValue<string>() ?? "auto";
+
+        var wsHost = v["host"]?.GetValue<string>() ?? v["sni"]?.GetValue<string>() ?? address;
+        var stream = new JsonObject();
+        var net = v["net"]?.GetValue<string>() ?? "tcp";
+        if (net is "ws" or "websocket")
+        {
+            var wsSettings = V2RayWebSocketHelper.CreateXrayWsSettings(wsHost, v["path"]?.GetValue<string>() ?? "/");
+            stream["network"] = "ws";
+            stream["wsSettings"] = wsSettings;
+        }
+        else if (net is "grpc")
+        {
+            stream["network"] = "grpc";
+            stream["grpcSettings"] = new JsonObject
+            {
+                ["serviceName"] = v["path"]?.GetValue<string>() ?? ""
+            };
+        }
+
+        if (v["tls"]?.GetValue<string>() == "tls")
+        {
+            stream["security"] = "tls";
+            stream["tlsSettings"] = BuildXrayTlsSettings(
+                v["sni"]?.GetValue<string>() ?? address,
+                v["alpn"]?.GetValue<string>(),
+                v["fp"]?.GetValue<string>(),
+                v["insecure"]?.ToString() is "1" or "true");
+        }
+
+        var (path, ed) = V2RayWebSocketHelper.ParseEarlyDataFromPath(v["path"]?.GetValue<string>() ?? "/");
+        Logger.Info($"[CONFIG] Xray VMess WebSocket server={address}:{port} host='{wsHost}' tls.serverName='{v["sni"]?.GetValue<string>() ?? address}' path='{path}'{(ed > 0 ? $" maxEarlyData={ed}" : "")}");
+
+        return new JsonObject
+        {
+            ["tag"] = tag,
+            ["protocol"] = "vmess",
+            ["settings"] = new JsonObject
+            {
+                ["vnext"] = new JsonArray
+                {
+                    new JsonObject
+                    {
+                        ["address"] = address,
+                        ["port"] = port,
+                        ["users"] = new JsonArray
+                        {
+                            new JsonObject
+                            {
+                                ["id"] = uuid,
+                                ["alterId"] = alterId,
+                                ["security"] = security
+                            }
+                        }
+                    }
+                }
+            },
+            ["streamSettings"] = stream
+        };
+    }
+
+    private static JsonObject ParseVlessWsXrayUri(string uri)
+    {
+        var u = new Uri(uri.Split('#')[0]);
+        var query = ParseQuery(u.Query);
+
+        var tag = Uri.UnescapeDataString(u.Fragment.TrimStart('#').Trim());
+        if (string.IsNullOrWhiteSpace(tag)) tag = "vless-ws";
+
+        var security = query.GetValueOrDefault("security", "tls");
+        var sni = query.GetValueOrDefault("sni", u.Host);
+        var host = query.GetValueOrDefault("host", sni);
+        if (string.IsNullOrWhiteSpace(host))
+            host = sni;
+
+        var rawPath = query.GetValueOrDefault("path", "/");
+        var wsSettings = V2RayWebSocketHelper.CreateXrayWsSettings(host, rawPath);
+
+        var stream = new JsonObject
+        {
+            ["network"] = "ws",
+            ["security"] = security,
+            ["wsSettings"] = wsSettings
+        };
+
+        if (security.Equals("tls", StringComparison.OrdinalIgnoreCase))
+        {
+            stream["tlsSettings"] = BuildXrayTlsSettings(
+                sni,
+                query.GetValueOrDefault("alpn", ""),
+                query.GetValueOrDefault("fp", ""),
+                query.GetValueOrDefault("allowInsecure", "0") == "1" ||
+                query.GetValueOrDefault("insecure", "0") == "1");
+        }
+        else if (security.Equals("reality", StringComparison.OrdinalIgnoreCase))
+        {
+            stream["realitySettings"] = new JsonObject
+            {
+                ["serverName"] = sni,
+                ["publicKey"] = query.GetValueOrDefault("pbk", ""),
+                ["shortId"] = query.GetValueOrDefault("sid", ""),
+                ["fingerprint"] = V2RayWebSocketHelper.NormalizeFingerprint(query.GetValueOrDefault("fp", "chrome"))
+            };
+        }
+
+        var (pathOnly, ed) = V2RayWebSocketHelper.ParseEarlyDataFromPath(rawPath);
+        Logger.Info($"[CONFIG] Xray VLESS WebSocket server={u.Host}:{(u.Port > 0 ? u.Port : 443)} host='{host}' tls.serverName='{sni}' path='{pathOnly}'{(ed > 0 ? $" maxEarlyData={ed}" : "")}");
+
+        // VLESS flow (xtls-rprx-vision, etc.) is invalid on WebSocket; omit to match v2rayNG WS profiles.
+        return BuildVlessOutbound(tag, u.Host, u.Port > 0 ? u.Port : 443, u.UserInfo, stream, flow: null);
+    }
+
+    private static JsonObject BuildXrayTlsSettings(string serverName, string? alpnCsv, string? fingerprint, bool allowInsecure)
+    {
+        var tlsSettings = new JsonObject
+        {
+            ["serverName"] = serverName,
+            ["allowInsecure"] = allowInsecure
+        };
+
+        if (!string.IsNullOrWhiteSpace(alpnCsv))
+        {
+            var alpnList = alpnCsv.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Where(p => !p.Equals("h3", StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (alpnList.Count > 0)
+            {
+                tlsSettings["alpn"] = new JsonArray(
+                    alpnList.Select(v => JsonValue.Create(v)).ToArray<JsonNode?>());
+            }
+        }
+
+        var fp = V2RayWebSocketHelper.NormalizeFingerprint(fingerprint);
+        if (!string.IsNullOrWhiteSpace(fp))
+            tlsSettings["fingerprint"] = fp;
+
+        return tlsSettings;
     }
 
     private static string BuildXraySocksConfig(JsonObject outbound, int xraySocksPort)
@@ -250,6 +414,17 @@ public class XrayTunnelProvider : ITunnelProvider
         var doc = new JsonObject
         {
             ["log"] = new JsonObject { ["loglevel"] = "warning" },
+            ["policy"] = new JsonObject
+            {
+                ["levels"] = new JsonObject
+                {
+                    ["0"] = new JsonObject
+                    {
+                        ["handshake"] = 12,
+                        ["connIdle"] = 300
+                    }
+                }
+            },
             ["inbounds"] = new JsonArray
             {
                 new JsonObject
@@ -274,6 +449,10 @@ public class XrayTunnelProvider : ITunnelProvider
     {
         try
         {
+            var network = outbound["streamSettings"]?["network"]?.GetValue<string>() ?? "";
+            if (network.Equals("ws", StringComparison.OrdinalIgnoreCase))
+                return;
+
             var addressNode = outbound["settings"]?["vnext"]?[0]?["address"];
             var server = addressNode?.GetValue<string>() ?? "";
             if (string.IsNullOrWhiteSpace(server) || System.Net.IPAddress.TryParse(server, out _))
@@ -513,7 +692,7 @@ public class XrayTunnelProvider : ITunnelProvider
 
     private async Task<int> WaitForTunInterfaceAsync(CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
+        var deadline = DateTime.UtcNow.AddSeconds(TunInterfaceWaitSeconds);
         while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
         {
             if (_xrayProcess?.HasExited == true)
@@ -611,29 +790,6 @@ public class XrayTunnelProvider : ITunnelProvider
         }
     }
 
-    private static async Task EnsureEmbeddedExeExtractedAsync(string resourceName, string targetPath, CancellationToken ct)
-    {
-        if (!targetPath.StartsWith(
-                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TunnelX"),
-                StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        using var stream = asm.GetManifestResourceStream(resourceName);
-        if (stream == null)
-        {
-            Logger.Warning($"[{resourceName}] Embedded resource not found.");
-            return;
-        }
-
-        if (File.Exists(targetPath) && new FileInfo(targetPath).Length == stream.Length)
-            return;
-
-        Directory.CreateDirectory(Path.GetDirectoryName(targetPath)!);
-        using var fs = new FileStream(targetPath, FileMode.Create, FileAccess.Write, FileShare.None, 81920, useAsync: true);
-        await stream.CopyToAsync(fs, 81920, ct);
-    }
-
     private bool Fail(string message)
     {
         Status.State = ConnectionState.Error;
@@ -642,58 +798,11 @@ public class XrayTunnelProvider : ITunnelProvider
         return false;
     }
 
-    private static string ExtractServerHost(string userConfig)
-    {
-        try
-        {
-            userConfig = userConfig.Trim();
-            if (!userConfig.StartsWith("{"))
-                return new Uri(userConfig.Split('#')[0]).Host;
+    private static string ExtractServerHost(string userConfig) =>
+        V2RayEndpointHelper.ExtractServerHost(userConfig);
 
-            var root = JsonNode.Parse(userConfig)?.AsObject();
-            if (root?["outbounds"] is JsonArray outbounds)
-            {
-                foreach (var item in outbounds.OfType<JsonObject>())
-                {
-                    var server = item["server"]?.GetValue<string>();
-                    if (!string.IsNullOrWhiteSpace(server)) return server;
-
-                    var address = item["settings"]?["vnext"]?[0]?["address"]?.GetValue<string>();
-                    if (!string.IsNullOrWhiteSpace(address)) return address;
-                }
-            }
-        }
-        catch { }
-
-        return "";
-    }
-
-    private static int ExtractServerPort(string userConfig)
-    {
-        try
-        {
-            userConfig = userConfig.Trim();
-            if (!userConfig.StartsWith("{"))
-            {
-                var uri = new Uri(userConfig.Split('#')[0]);
-                return uri.Port > 0 ? uri.Port : 443;
-            }
-
-            var root = JsonNode.Parse(userConfig)?.AsObject();
-            if (root?["outbounds"] is JsonArray outbounds)
-            {
-                foreach (var item in outbounds.OfType<JsonObject>())
-                {
-                    var port = item["server_port"]?.GetValue<int>() ??
-                               item["settings"]?["vnext"]?[0]?["port"]?.GetValue<int>();
-                    if (port is > 0 and <= 65535) return port.Value;
-                }
-            }
-        }
-        catch { }
-
-        return 0;
-    }
+    private static int ExtractServerPort(string userConfig) =>
+        V2RayEndpointHelper.ExtractServerPort(userConfig);
 
     private static int FindInterfaceIndex(string interfaceName)
     {

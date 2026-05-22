@@ -12,12 +12,15 @@ namespace AppTunnel;
 
 public partial class App : Application
 {
-    private const string SingleInstanceMutexName = @"Global\TunnelX.SingleInstance";
-    private const string BringToFrontEventName = @"Global\TunnelX.BringToFront";
+    private const string SingleInstanceMutexNameGlobal = @"Global\TunnelX.SingleInstance";
+    private const string SingleInstanceMutexNameLocal = @"Local\TunnelX.SingleInstance";
+    private const string BringToFrontEventNameGlobal = @"Global\TunnelX.BringToFront";
+    private const string BringToFrontEventNameLocal = @"Local\TunnelX.BringToFront";
 
     private Mutex? _singleInstanceMutex;
     private EventWaitHandle? _bringToFrontEvent;
     private RegisteredWaitHandle? _bringToFrontRegistration;
+    private string? _activeBringToFrontEventName;
 
     /// <summary>
     /// Persistent data directory: %LOCALAPPDATA%\TunnelX\
@@ -75,7 +78,7 @@ public partial class App : Application
         // Extract WinDivert/wintun native files from embedded resources into
         // AppDataDir.  Must happen BEFORE the NativeLibrary resolver is
         // registered and before any DllImport call is made.
-        EnsureNativeLibsExtracted();
+        NativeEngineSupport.EnsureAppNativeLibsExtracted();
 
         // Load the language before the main window is created so the first
         // rendered frame follows the saved setting or the system UI language.
@@ -170,8 +173,11 @@ public partial class App : Application
         {
             if (!TryCreateSingleInstanceMutex(out var createdNew))
             {
-                Logger.Warning("[STARTUP] Single-instance mutex unavailable; continuing without lock.");
-                return true;
+                var alive = IsAnotherTunnelXProcessAlive() || TunnelXHostProcess.IsAnotherTunnelXHostAlive();
+                Logger.Warning(alive
+                    ? "[STARTUP] Single-instance mutex unavailable and another host is alive; refusing second instance."
+                    : "[STARTUP] Single-instance mutex unavailable; no other host detected, continuing.");
+                return !alive;
             }
 
             if (!createdNew)
@@ -189,52 +195,121 @@ public partial class App : Application
                     Logger.Warning("[STARTUP] Recovering abandoned TunnelX single-instance lock.");
             }
 
-            return SetupSingleInstanceCallbacks();
+            if (!SetupSingleInstanceCallbacks())
+            {
+                Logger.Warning("[STARTUP] Bring-to-front event unavailable; enforcing single-instance using process probe.");
+                return !IsAnotherTunnelXProcessAlive();
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
-            Logger.Warning($"[STARTUP] Single-instance lock failed; continuing anyway: {ex.Message}");
-            return true;
+            Logger.Warning($"[STARTUP] Single-instance lock failed; falling back to process probe: {ex.Message}");
+            return !IsAnotherTunnelXProcessAlive();
+        }
+    }
+
+    private static bool IsAnotherTunnelXProcessAlive()
+    {
+        try
+        {
+            var current = Process.GetCurrentProcess();
+            string? currentPath = null;
+            try { currentPath = current.MainModule?.FileName; } catch { }
+
+            foreach (var p in Process.GetProcessesByName(current.ProcessName))
+            {
+                if (p.Id == current.Id)
+                    continue;
+
+                if (currentPath == null)
+                    return true;
+
+                try
+                {
+                    var otherPath = p.MainModule?.FileName;
+                    if (string.Equals(otherPath, currentPath, StringComparison.OrdinalIgnoreCase))
+                        return true;
+                }
+                catch
+                {
+                    // If we cannot inspect the process path (permissions/race), ignore it.
+                }
+            }
+
+            return false;
+        }
+        catch
+        {
+            // If process enumeration fails, avoid false positives and let mutex/event logic decide.
+            return false;
         }
     }
 
     private bool TryCreateSingleInstanceMutex(out bool createdNew)
     {
-        try
+        createdNew = false;
+        var names = new[]
         {
-            _singleInstanceMutex?.Dispose();
-            _singleInstanceMutex = new Mutex(true, SingleInstanceMutexName, out createdNew);
-            return true;
-        }
-        catch
+            SingleInstanceMutexNameGlobal,
+            SingleInstanceMutexNameLocal,
+            "TunnelX.SingleInstance"
+        };
+
+        foreach (var name in names)
         {
-            createdNew = false;
-            return false;
+            try
+            {
+                _singleInstanceMutex?.Dispose();
+                _singleInstanceMutex = new Mutex(true, name, out createdNew);
+                Logger.Info($"[STARTUP] Single-instance mutex initialized with '{name}'.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[STARTUP] Mutex '{name}' failed: {ex.Message}");
+            }
         }
+
+        return false;
     }
 
     private bool SetupSingleInstanceCallbacks()
     {
-        try
+        var names = new[]
         {
+            BringToFrontEventNameGlobal,
+            BringToFrontEventNameLocal,
+            "TunnelX.BringToFront"
+        };
 
-            _bringToFrontEvent?.Dispose();
-            _bringToFrontEvent = new EventWaitHandle(false, EventResetMode.AutoReset, BringToFrontEventName);
-            _bringToFrontRegistration?.Unregister(null);
-            _bringToFrontRegistration = ThreadPool.RegisterWaitForSingleObject(
-                _bringToFrontEvent,
-                (_, _) => Dispatcher.BeginInvoke(new Action(BringMainWindowToFront)),
-                null,
-                Timeout.Infinite,
-                false);
-
-            return true;
-        }
-        catch (Exception ex)
+        foreach (var name in names)
         {
-            Logger.Warning($"[STARTUP] Bring-to-front event setup failed: {ex.Message}");
-            return true;
+            try
+            {
+                _bringToFrontEvent?.Dispose();
+                _bringToFrontEvent = new EventWaitHandle(false, EventResetMode.AutoReset, name);
+                _activeBringToFrontEventName = name;
+                _bringToFrontRegistration?.Unregister(null);
+                _bringToFrontRegistration = ThreadPool.RegisterWaitForSingleObject(
+                    _bringToFrontEvent,
+                    (_, _) => Dispatcher.BeginInvoke(new Action(BringMainWindowToFront)),
+                    null,
+                    Timeout.Infinite,
+                    false);
+
+                Logger.Info($"[STARTUP] Bring-to-front event initialized with '{name}'.");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[STARTUP] Bring-to-front event '{name}' failed: {ex.Message}");
+            }
         }
+
+        Logger.Warning("[STARTUP] Bring-to-front event setup failed for all scopes.");
+        return false;
     }
 
     private void ReleaseSingleInstanceResources()
@@ -261,12 +336,55 @@ public partial class App : Application
 
     private static void SignalExistingInstanceToShow()
     {
+        var names = new[]
+        {
+            BringToFrontEventNameGlobal,
+            BringToFrontEventNameLocal,
+            "TunnelX.BringToFront"
+        };
+
+        foreach (var name in names)
+        {
+            try
+            {
+                using var evt = EventWaitHandle.OpenExisting(name);
+                evt.Set();
+                Logger.Info($"[STARTUP] Foreground signal sent via '{name}'.");
+                return;
+            }
+            catch
+            {
+                // Try next scope.
+            }
+        }
+
+        TryBringExistingProcessWindowToFront();
+    }
+
+    private static void TryBringExistingProcessWindowToFront()
+    {
         try
         {
-            using var evt = EventWaitHandle.OpenExisting(BringToFrontEventName);
-            evt.Set();
+            var current = Process.GetCurrentProcess();
+            var target = Process.GetProcessesByName(current.ProcessName)
+                .Where(p => p.Id != current.Id)
+                .OrderBy(p => p.StartTime)
+                .FirstOrDefault();
+            if (target == null)
+                return;
+
+            var hwnd = target.MainWindowHandle;
+            if (hwnd == IntPtr.Zero)
+                return;
+
+            ShowWindowAsync(hwnd, SwShow);
+            ShowWindowAsync(hwnd, SwRestore);
+            SetForegroundWindow(hwnd);
         }
-        catch { }
+        catch
+        {
+            // Best-effort fallback.
+        }
     }
 
     private void BringMainWindowToFront()
@@ -378,39 +496,13 @@ public partial class App : Application
         }
     }
 
-    /// <summary>
-    /// Extracts WinDivert.dll, WinDivert64.sys and wintun.dll from embedded
-    /// assembly resources into <see cref="AppDataDir"/>.
-    /// For regular (non-single-file) builds the DLLs live next to the exe and
-    /// are not embedded, so GetManifestResourceStream returns null — no-op.
-    /// Each file is re-extracted only when it is missing or has a different
-    /// size (i.e. a new version was just deployed).
-    /// </summary>
-    private static void EnsureNativeLibsExtracted()
-    {
-        var asm = Assembly.GetExecutingAssembly();
+    private const int SwRestore = 9;
+    private const int SwShow = 5;
 
-        foreach (var name in new[] { "WinDivert.dll", "WinDivert64.sys", "wintun.dll" })
-        {
-            try
-            {
-                using var stream = asm.GetManifestResourceStream(name);
-                if (stream == null) continue; // not embedded → regular build, skip
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-                var destPath = Path.Combine(AppDataDir, name);
+    [DllImport("user32.dll")]
+    private static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
 
-                // Skip if already extracted with the same size.
-                if (File.Exists(destPath) && new FileInfo(destPath).Length == stream.Length)
-                    continue;
-
-                using var fs = new FileStream(destPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                stream.CopyTo(fs);
-                Logger.Info($"[NATIVE] Extracted {name} → {destPath}");
-            }
-            catch (Exception ex)
-            {
-                Logger.Warning($"[NATIVE] Could not extract {name}: {ex.Message}");
-            }
-        }
-    }
 }

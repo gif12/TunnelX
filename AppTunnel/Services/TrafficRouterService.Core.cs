@@ -57,6 +57,7 @@ public partial class TrafficRouterService : IDisposable
     private string _vpnServerHost = "";   // original hostname/IP from config — used for TCP health checks
     private int _vpnServerPort = 443;     // original server port from config — used for TCP health checks
     private bool _vpnServerIsUdpOnly;     // true for WireGuard etc. — skip TCP probe in CONN-CHECK
+    private bool _vpnServerSkipBareTcpProbe; // VMess/VLESS-WS: port may not accept raw TCP
     private bool _pinVpnServerOnPhysicalNic; // keep OpenVPN TCP / WireGuard UDP control on physical NIC
     private string _vpnGatewayIp = "";    // optional next hop for TAP/OpenVPN host routes
     private byte[]? _vpnLocalIpBytes;
@@ -362,7 +363,8 @@ public partial class TrafficRouterService : IDisposable
         int vpnServerPort = 443,
         bool resetCounters = true,
         bool serverIsUdpOnly = false,
-        bool pinVpnServerOnPhysicalNic = false)
+        bool pinVpnServerOnPhysicalNic = false,
+        bool serverSkipBareTcpProbe = false)
     {
         if (vpnInterfaceIndex <= 0 || string.IsNullOrWhiteSpace(vpnLocalIp))
         {
@@ -380,6 +382,7 @@ public partial class TrafficRouterService : IDisposable
         _vpnLocalIp = vpnLocalIp;
         _vpnGatewayIp = vpnGatewayIp;
         _vpnServerIsUdpOnly = serverIsUdpOnly;
+        _vpnServerSkipBareTcpProbe = serverSkipBareTcpProbe;
         _pinVpnServerOnPhysicalNic = pinVpnServerOnPhysicalNic;
         _vpnLocalIpBytes = IPAddress.TryParse(vpnLocalIp, out var vpnAddr)
             ? vpnAddr.GetAddressBytes()

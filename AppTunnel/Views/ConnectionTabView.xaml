@@ -14,6 +14,8 @@
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis"/>
         <conv:StringToColorConverter x:Key="StringToColor"/>
         <conv:EnumToVisibilityConverter x:Key="EnumToVis"/>
+        <conv:TextToFlowDirectionConverter x:Key="TextToFlowDirection"/>
+        <conv:TextToTextAlignmentConverter x:Key="TextToTextAlignment"/>
 
         <Style x:Key="DashboardCardIconText" TargetType="TextBlock">
             <Setter Property="FontFamily" Value="Segoe UI Emoji, Segoe UI Symbol, Segoe UI"/>
@@ -28,14 +30,13 @@
 
         <Style x:Key="DashboardCardIconInlineText" TargetType="TextBlock" BasedOn="{StaticResource DashboardCardIconText}">
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="HorizontalAlignment" Value="Left"/>
-            <Setter Property="TextAlignment" Value="Left"/>
             <Setter Property="VerticalAlignment" Value="Center"/>
             <Setter Property="Margin" Value="0,0,5,0"/>
         </Style>
     </UserControl.Resources>
 
-    <Grid Margin="16,8,16,4">
+    <Grid Margin="16,8,16,4"
+          FlowDirection="{Binding AppFlowDirection}">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
@@ -43,7 +44,8 @@
 
         <Grid Grid.Row="0">
         <!-- ══ DISCONNECTED STATE: Show connection form ══ -->
-        <Grid Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVis}}">
+        <Grid Visibility="{Binding IsConnected, Converter={StaticResource InverseBoolToVis}}"
+              FlowDirection="{Binding AppFlowDirection}">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -59,8 +61,9 @@
                 Padding="12,10"
                 Margin="0,0,0,8"
                 Visibility="{Binding IsConnectionPending, Converter={StaticResource BoolToVis}}">
-            <StackPanel>
-                <Grid Margin="0,0,0,8">
+            <StackPanel FlowDirection="{Binding AppFlowDirection}">
+                <Grid Margin="0,0,0,8"
+                      FlowDirection="{Binding AppFlowDirection}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="10"/>
@@ -80,22 +83,30 @@
                                    VerticalAlignment="Center"
                                    Foreground="{StaticResource WarningBrush}"/>
                     </Border>
-                    <StackPanel Grid.Column="2" VerticalAlignment="Center">
+                    <StackPanel Grid.Column="2"
+                                VerticalAlignment="Center"
+                                FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="{Binding ConnectingTitleText}"
                                    FontSize="13"
                                    FontWeight="SemiBold"
-                                   Foreground="{StaticResource WarningBrush}"/>
+                                   Foreground="{StaticResource WarningBrush}"
+                                   HorizontalAlignment="Stretch"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
                         <TextBlock Text="{Binding StatusText}"
                                    TextWrapping="Wrap"
                                    FontSize="10"
                                    LineHeight="15"
                                    Margin="0,2,0,0"
-                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   HorizontalAlignment="Stretch"
+                                   FlowDirection="{Binding StatusText, Converter={StaticResource TextToFlowDirection}}"
+                                   TextAlignment="{Binding StatusText, Converter={StaticResource TextToTextAlignment}}"/>
                         <TextBlock Text="{Binding ConnectionElapsedDisplayText}"
                                    FontSize="10"
                                    FontFamily="Consolas"
                                    FlowDirection="LeftToRight"
-                                   HorizontalAlignment="Left"
+                                   HorizontalAlignment="{Binding AppStartHorizontalAlignment}"
                                    Margin="0,2,0,0"
                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                     </StackPanel>
@@ -120,22 +131,23 @@
                 <ItemsControl ItemsSource="{Binding ConnectionSteps}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,0,0,3">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding StateGlyph}"
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,3"
+                                        FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <TextBlock Text="{Binding StateGlyph}"
+                                           Width="16"
                                            FontSize="11"
                                            FontWeight="Bold"
                                            VerticalAlignment="Top"
                                            Foreground="{Binding StateColor, Converter={StaticResource StringToColor}}"/>
-                                <StackPanel Grid.Column="2">
+                                <StackPanel Margin="6,0,0,0"
+                                            HorizontalAlignment="Stretch">
                                     <TextBlock Text="{Binding Title}"
                                                FontSize="10"
-                                               Foreground="{StaticResource TextPrimaryBrush}">
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               HorizontalAlignment="Stretch"
+                                               FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                               TextAlignment="{Binding DataContext.AppTextAlignment, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Opacity" Value="0.55"/>
@@ -161,7 +173,10 @@
                                                FontSize="9"
                                                LineHeight="13"
                                                Margin="0,1,0,0"
-                                               Foreground="{StaticResource TextSecondaryBrush}">
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Stretch"
+                                               FlowDirection="{Binding Detail, Converter={StaticResource TextToFlowDirection}}"
+                                               TextAlignment="{Binding Detail, Converter={StaticResource TextToTextAlignment}}">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
                                                 <Setter Property="Visibility" Value="Collapsed"/>
@@ -180,7 +195,7 @@
                                         </TextBlock.Style>
                                     </TextBlock>
                                 </StackPanel>
-                            </Grid>
+                            </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -196,37 +211,40 @@
                 Padding="12,10"
                 Margin="0,0,0,8"
                 Visibility="{Binding ShowConnectionErrorPanel, Converter={StaticResource BoolToVis}}">
-            <StackPanel>
+            <StackPanel FlowDirection="{Binding AppFlowDirection}">
                 <TextBlock Text="{Binding ConnectionErrorHeaderText}"
                            FontSize="13"
                            FontWeight="SemiBold"
                            Foreground="#E05252"
-                           Margin="0,0,0,4"/>
+                           Margin="0,0,0,4"
+                           FlowDirection="{Binding AppFlowDirection}"
+                           TextAlignment="{Binding AppTextAlignment}"/>
                 <TextBlock Text="{Binding ConnectionErrorDetail}"
                            TextWrapping="Wrap"
                            FontSize="10"
                            LineHeight="15"
                            Foreground="{StaticResource TextPrimaryBrush}"
-                           Margin="0,0,0,6"/>
+                           Margin="0,0,0,6"
+                           FlowDirection="{Binding ConnectionErrorDetail, Converter={StaticResource TextToFlowDirection}}"
+                           TextAlignment="{Binding ConnectionErrorDetail, Converter={StaticResource TextToTextAlignment}}"/>
                 <ItemsControl ItemsSource="{Binding ConnectionSteps}">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
-                            <Grid Margin="0,0,0,2">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="16"/>
-                                    <ColumnDefinition Width="6"/>
-                                    <ColumnDefinition Width="*"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0"
-                                           Text="{Binding StateGlyph}"
+                            <StackPanel Orientation="Horizontal"
+                                        Margin="0,0,0,2"
+                                        FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}">
+                                <TextBlock Text="{Binding StateGlyph}"
+                                           Width="16"
                                            FontSize="10"
                                            FontWeight="Bold"
                                            Foreground="{Binding StateColor, Converter={StaticResource StringToColor}}"/>
-                                <TextBlock Grid.Column="2"
-                                           Text="{Binding Title}"
+                                <TextBlock Text="{Binding Title}"
+                                           Margin="6,0,0,0"
                                            FontSize="10"
-                                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                            </Grid>
+                                           Foreground="{StaticResource TextSecondaryBrush}"
+                                           FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                           TextAlignment="{Binding DataContext.AppTextAlignment, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
+                            </StackPanel>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -245,28 +263,34 @@
                     <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
-                <Grid Grid.Row="0" Margin="0,0,0,12">
+                <Grid Grid.Row="0" Margin="0,0,0,12"
+                      FlowDirection="{Binding AppFlowDirection}">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="10"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="10"/>
+                        <ColumnDefinition Width="*"/>
                     </Grid.ColumnDefinitions>
-                    <StackPanel Grid.Column="0">
-                        <TextBlock Text="کانفیگ‌ها و پروفایل‌ها"
-                                   FontSize="16"
-                                   FontWeight="SemiBold"
-                                   Foreground="{StaticResource TextPrimaryBrush}"/>
-                        <TextBlock Text="یک کانفیگ را انتخاب کنید، ویرایش کنید یا کانفیگ جدید بسازید."
-                                   FontSize="11"
-                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                   Margin="0,4,0,0"/>
-                    </StackPanel>
-                    <Button Grid.Column="2"
+                    <Button Grid.Column="0"
                             Style="{StaticResource PrimaryButton}"
                             Content="افزودن کانفیگ جدید"
                             FontSize="12"
                             Padding="16,9"
                             Command="{Binding NewProfileCommand}"/>
+                    <StackPanel Grid.Column="2"
+                                FlowDirection="{Binding AppFlowDirection}">
+                        <TextBlock Text="کانفیگ‌ها و پروفایل‌ها"
+                                   FontSize="16"
+                                   FontWeight="SemiBold"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
+                        <TextBlock Text="یک کانفیگ را انتخاب کنید، ویرایش کنید یا کانفیگ جدید بسازید."
+                                   FontSize="11"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="0,4,0,0"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
+                    </StackPanel>
                 </Grid>
 
                 <ListBox Grid.Row="1"
@@ -322,7 +346,7 @@
                     </ListBox.ItemContainerStyle>
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <Grid>
+                            <Grid FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="8"/>
@@ -335,30 +359,38 @@
                                                    FontSize="13"
                                                    FontWeight="SemiBold"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                                   TextTrimming="CharacterEllipsis"
+                                                   FlowDirection="LeftToRight"
+                                                   TextAlignment="Left"/>
                                         <Border Background="#18E8803A"
                                                 CornerRadius="8"
                                                 Padding="7,2"
                                                 Margin="8,0,0,0">
                                             <TextBlock Text="{Binding TunnelTypeDisplay}"
                                                        FontSize="9"
-                                                       Foreground="{StaticResource AccentBrush}"/>
+                                                       Foreground="{StaticResource AccentBrush}"
+                                                       FlowDirection="LeftToRight"
+                                                       TextAlignment="Left"/>
                                         </Border>
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal"
-                                                FlowDirection="LeftToRight"
+                                                FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                 Margin="0,5,0,0">
                                         <TextBlock Text="{Binding EndpointDisplay}"
                                                    FontSize="10"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                                   TextTrimming="CharacterEllipsis"/>
+                                                   TextTrimming="CharacterEllipsis"
+                                                   FlowDirection="LeftToRight"
+                                                   TextAlignment="Left"/>
                                         <TextBlock Text="  •  "
                                                    FontSize="10"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                         <TextBlock Text="{Binding ReadinessText}"
                                                    Foreground="{Binding ReadinessColor, Converter={StaticResource StringToColor}}"
                                                    FontSize="10"
-                                                   FontWeight="SemiBold"/>
+                                                   FontWeight="SemiBold"
+                                                   FlowDirection="{Binding DataContext.AppFlowDirection, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                   TextAlignment="{Binding DataContext.AppTextAlignment, RelativeSource={RelativeSource AncestorType=UserControl}}"/>
                                     </StackPanel>
                                 </StackPanel>
 
@@ -407,36 +439,14 @@
                         CornerRadius="12"
                         Padding="12,10"
                         Margin="0,10,0,0">
-                    <Grid>
+                    <Grid FlowDirection="{Binding AppFlowDirection}">
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="10"/>
                             <ColumnDefinition Width="Auto"/>
+                            <ColumnDefinition Width="10"/>
+                            <ColumnDefinition Width="*"/>
                         </Grid.ColumnDefinitions>
 
-                        <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                            <StackPanel Orientation="Horizontal" FlowDirection="{Binding AppFlowDirection}">
-                                <Ellipse Width="9" Height="9"
-                                         Fill="{Binding StatusColor, Converter={StaticResource StringToColor}}"
-                                         VerticalAlignment="Center"/>
-                                <TextBlock Text="{Binding StatusText}"
-                                           FontSize="12"
-                                           FontWeight="SemiBold"
-                                           Foreground="{StaticResource TextPrimaryBrush}"
-                                           Margin="7,0,0,0"
-                                           VerticalAlignment="Center"
-                                           TextWrapping="Wrap"
-                                           ToolTip="{Binding StatusText}"/>
-                            </StackPanel>
-                            <TextBlock FontSize="10"
-                                       Text="{Binding SelectedProfileSummaryText}"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       Margin="0,4,0,0"
-                                       FontWeight="SemiBold"
-                                       TextTrimming="CharacterEllipsis"/>
-                        </StackPanel>
-
-                        <Button Grid.Column="2"
+                        <Button Grid.Column="0"
                                 Command="{Binding ConnectCommand}"
                                 Content="{Binding ConnectButtonText}"
                                 MinWidth="160"
@@ -481,6 +491,35 @@
                                 </Style>
                             </Button.Style>
                         </Button>
+
+                        <StackPanel Grid.Column="2"
+                                    VerticalAlignment="Center"
+                                    FlowDirection="{Binding AppFlowDirection}">
+                            <StackPanel Orientation="Horizontal"
+                                        FlowDirection="{Binding AppFlowDirection}">
+                                <Ellipse Width="9" Height="9"
+                                         Fill="{Binding StatusColor, Converter={StaticResource StringToColor}}"
+                                         VerticalAlignment="Center"/>
+                                <TextBlock Text="{Binding StatusText}"
+                                           FontSize="12"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           Margin="7,0,0,0"
+                                           VerticalAlignment="Center"
+                                           TextWrapping="Wrap"
+                                           FlowDirection="{Binding StatusText, Converter={StaticResource TextToFlowDirection}}"
+                                           TextAlignment="{Binding StatusText, Converter={StaticResource TextToTextAlignment}}"
+                                           ToolTip="{Binding StatusText}"/>
+                            </StackPanel>
+                            <TextBlock FontSize="10"
+                                       Text="{Binding SelectedProfileSummaryText}"
+                                       Foreground="{StaticResource TextSecondaryBrush}"
+                                       Margin="0,4,0,0"
+                                       FontWeight="SemiBold"
+                                       TextTrimming="CharacterEllipsis"
+                                       FlowDirection="{Binding AppFlowDirection}"
+                                       TextAlignment="{Binding AppTextAlignment}"/>
+                        </StackPanel>
                     </Grid>
                 </Border>
             </Grid>
@@ -625,7 +664,7 @@
                                    TextWrapping="Wrap"
                                    FontSize="11"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   FlowDirection="{Binding AppFlowDirection}"/>
+                                   TextAlignment="{Binding AppTextAlignment}"/>
                     </Border>
                     <Border Background="#11FFFFFF" CornerRadius="8" Padding="10,8" Margin="0,0,0,8">
                         <StackPanel>
@@ -634,19 +673,19 @@
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <TextBlock Text="{Binding OpenVpnInstallGuideText}"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        FontSize="10"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <TextBlock Text="{Binding OpenVpnConnectWarningText}"
                                        Foreground="{StaticResource WarningBrush}"
                                        FontSize="10"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <Button HorizontalAlignment="{Binding AppEndHorizontalAlignment}"
                                     Style="{StaticResource SecondaryButton}"
                                     Content="{Binding DownloadOpenVpnText}"
@@ -658,7 +697,7 @@
                     </Border>
                     <TextBlock Style="{StaticResource FieldLabel}"
                                Text="{Binding OpenVpnConfigFileLabelText}"
-                               FlowDirection="{Binding AppFlowDirection}"/>
+                               TextAlignment="{Binding AppTextAlignment}"/>
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
@@ -693,17 +732,17 @@
                                        FontSize="10" FontWeight="SemiBold"
                                        Foreground="#47A3F3"
                                        TextWrapping="Wrap"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <TextBlock Text="{Binding OpenVpnScenarioHintText}"
                                        FontSize="10" LineHeight="15"
                                        TextWrapping="Wrap"
                                        Margin="0,4,0,0"
-                                       FlowDirection="{Binding AppFlowDirection}"
+                                       TextAlignment="{Binding AppTextAlignment}"
                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                         </StackPanel>
                     </Border>
 
-                    <Grid Margin="0,6,0,0" FlowDirection="LeftToRight">
+                    <Grid Margin="0,6,0,0" FlowDirection="{Binding AppFlowDirection}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="8"/>
@@ -714,7 +753,7 @@
                         <StackPanel Grid.Column="0">
                             <TextBlock Style="{StaticResource FieldLabel}"
                                        Text="{Binding OpenVpnUsernameFieldLabelText}"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <TextBox Style="{StaticResource ModernTextBox}"
                                      Text="{Binding OpenVpnUsername, UpdateSourceTrigger=PropertyChanged}"
                                      FlowDirection="LeftToRight"/>
@@ -722,7 +761,7 @@
                         <StackPanel Grid.Column="2">
                             <TextBlock Style="{StaticResource FieldLabel}"
                                        Text="{Binding OpenVpnPasswordFieldLabelText}"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <PasswordBox x:Name="OpenVpnPasswordField"
                                          Style="{StaticResource ModernPasswordBox}"
                                          FlowDirection="LeftToRight"/>
@@ -730,7 +769,7 @@
                         <StackPanel Grid.Column="4">
                             <TextBlock Style="{StaticResource FieldLabel}"
                                        Text="{Binding OpenVpnSecretFieldLabelText}"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <PasswordBox x:Name="OpenVpnPrivateKeyPasswordField"
                                          Style="{StaticResource ModernPasswordBox}"
                                          FlowDirection="LeftToRight"/>
@@ -741,7 +780,8 @@
                                FontSize="10"
                                Foreground="{StaticResource TextSecondaryBrush}"
                                TextWrapping="Wrap"
-                               Margin="0,6,0,0"/>
+                               Margin="0,6,0,0"
+                               TextAlignment="{Binding AppTextAlignment}"/>
                 </StackPanel>
                 <!-- End OpenVPN fields -->
 
@@ -762,13 +802,13 @@
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        TextWrapping="Wrap"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <TextBlock Text="{Binding WireGuardInstallGuideText}"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        FontSize="10"
                                        TextWrapping="Wrap"
                                        Margin="0,6,0,0"
-                                       FlowDirection="{Binding AppFlowDirection}"/>
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                             <Button HorizontalAlignment="{Binding AppEndHorizontalAlignment}"
                                     Style="{StaticResource SecondaryButton}"
                                     Content="{Binding DownloadWireGuardText}"
@@ -915,8 +955,10 @@
                         <TextBlock Grid.Column="2" Text="{Binding ServerPingResult}"
                                    FontSize="11"
                                    Foreground="{StaticResource AccentBrush}"
-                                   FlowDirection="LeftToRight"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"
                                    VerticalAlignment="Center"
+                                   TextWrapping="Wrap"
                                    TextTrimming="CharacterEllipsis"/>
                         <Button Grid.Column="4"
                                 Style="{StaticResource SecondaryButton}"
@@ -957,7 +999,8 @@
                 <!-- Connected profile -->
                 <Border Grid.Column="0" Background="#1A6CCB5F" CornerRadius="10" Padding="8,8"
                         ToolTip="{Binding ConnectedCardToolTipText}">
-                    <StackPanel HorizontalAlignment="Stretch">
+                    <StackPanel HorizontalAlignment="Stretch"
+                                FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="✓"
                                    Style="{StaticResource DashboardCardIconText}"
                                    FontSize="16"
@@ -969,6 +1012,7 @@
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource SuccessBrush}"
                                        FlowDirection="{Binding AppFlowDirection}"
+                                       TextAlignment="{Binding AppTextAlignment}"
                                        TextWrapping="NoWrap"
                                        ToolTip="{Binding ConnectedBadgeText}"
                                        helpers:TextMarqueeBehavior.IsEnabled="True"
@@ -979,7 +1023,8 @@
                                        FontSize="10"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextSecondaryBrush}"
-                                       FlowDirection="{Binding AppFlowDirection}"
+                                       FlowDirection="LeftToRight"
+                                       TextAlignment="Left"
                                        TextWrapping="NoWrap"
                                        ToolTip="{Binding ConnectedProfileName}"
                                        helpers:TextMarqueeBehavior.IsEnabled="True"
@@ -991,22 +1036,27 @@
                 <!-- Duration -->
                 <Border Grid.Column="2" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="مدت زمان اتصال فعلی از لحظه برقراری اتصال">
-                    <StackPanel HorizontalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center"
+                                FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="⏱" Style="{StaticResource DashboardCardIconText}" FontSize="16"/>
                         <TextBlock Text="{Binding ConnectionDuration}" FontSize="14"
                                    FontWeight="Bold" Foreground="{StaticResource AccentBrush}"
                                    HorizontalAlignment="Center" Margin="0,2,0,0"
-                                   FlowDirection="LeftToRight"/>
+                                   FlowDirection="LeftToRight"
+                                   TextAlignment="Center"/>
                         <TextBlock Text="{Binding ConnectionDurationLabelText}" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"/>
+                                   HorizontalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Connection / Exit IP -->
                 <Border Grid.Column="4" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="IP عمومی‌ای که مقصدهای اینترنتی شما را با آن می‌بینند">
-                    <StackPanel HorizontalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center"
+                                FlowDirection="{Binding AppFlowDirection}">
                         <Grid HorizontalAlignment="Center" FlowDirection="LeftToRight">
                             <TextBlock Text="🌐"
                                        Style="{StaticResource DashboardCardIconText}"
@@ -1044,10 +1094,12 @@
                                     ClipToBounds="True"
                                     ToolTip="{Binding ConnectionIpCountryToolTip}"
                                     VerticalAlignment="Center"
+                                    FlowDirection="LeftToRight"
                                     Visibility="{Binding ShowConnectionIpCountryFlag, Converter={StaticResource BoolToVis}}">
                                 <Image Source="{Binding ConnectionIpCountryFlag}"
                                        Width="22"
                                        Height="16"
+                                       FlowDirection="LeftToRight"
                                        Stretch="Fill"
                                        SnapsToDevicePixels="True"/>
                             </Border>
@@ -1062,43 +1114,54 @@
                         </StackPanel>
                         <TextBlock Text="{Binding ConnectionIpLabel}" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"/>
+                                   HorizontalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Tunnel Traffic -->
                 <Border Grid.Column="6" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="مجموع ترافیک ارسال و دریافت عبوری از تونل VPN (کل تونل)">
-                    <StackPanel HorizontalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center"
+                                FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="📊" Style="{StaticResource DashboardCardIconText}" FontSize="16"/>
                         <TextBlock Text="{Binding TotalTraffic}" FontSize="13"
                                    FontWeight="SemiBold" Foreground="{StaticResource WarningBrush}"
                                    HorizontalAlignment="Center" Margin="0,2,0,0"
-                                   FlowDirection="LeftToRight"/>
+                                   FlowDirection="LeftToRight"
+                                   TextAlignment="Center"/>
                         <TextBlock Text="{Binding TunnelTrafficLabelText}" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"/>
+                                   HorizontalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
                     </StackPanel>
                 </Border>
 
                 <!-- Direct diagnostic -->
                 <Border Grid.Column="8" Background="#11FFFFFF" CornerRadius="10" Padding="10,8"
                         ToolTip="نمایش تشخیصی ترافیک خارج از تونل. این عدد در مصرف تونل و تاریخچه ثبت نمی‌شود.">
-                    <StackPanel HorizontalAlignment="Center">
+                    <StackPanel HorizontalAlignment="Center"
+                                FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="📡" Style="{StaticResource DashboardCardIconText}" FontSize="16"/>
                         <TextBlock Text="{Binding DirectTraffic}" FontSize="13"
                                    FontWeight="SemiBold" Foreground="{StaticResource TextPrimaryBrush}"
                                    HorizontalAlignment="Center" Margin="0,2,0,0"
-                                   FlowDirection="LeftToRight"/>
+                                   FlowDirection="LeftToRight"
+                                   TextAlignment="Center"/>
                         <TextBlock Text="{Binding DirectTrafficLabelText}" FontSize="9"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   HorizontalAlignment="Center"/>
+                                   HorizontalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"/>
                     </StackPanel>
                 </Border>
             </Grid>
 
             <!-- Route, manual proxy, ping -->
-            <Grid Margin="0,6,0,0">
+            <Grid Margin="0,6,0,0"
+                  FlowDirection="{Binding AppFlowDirection}">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="0.9*"/>
                     <ColumnDefinition Width="6"/>
@@ -1111,7 +1174,8 @@
                         Background="#11FFFFFF"
                         CornerRadius="10"
                         Padding="10,8">
-                    <Grid VerticalAlignment="Center">
+                    <Grid VerticalAlignment="Center"
+                          FlowDirection="{Binding AppFlowDirection}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*"/>
                             <ColumnDefinition Width="Auto"/>
@@ -1124,13 +1188,18 @@
                                            FontSize="11"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"
-                                           VerticalAlignment="Center"/>
+                                           VerticalAlignment="Center"
+                                           FlowDirection="{Binding AppFlowDirection}"
+                                           TextAlignment="{Binding AppTextAlignment}"/>
                             </StackPanel>
                             <TextBlock Text="{Binding RouteModeDescription}" FontSize="10"
                                        Foreground="{StaticResource TextSecondaryBrush}"
                                        TextWrapping="Wrap"
                                        LineHeight="15"
-                                       Margin="0,3,8,0"/>
+                                       Margin="0,3,8,0"
+                                       HorizontalAlignment="Stretch"
+                                       FlowDirection="{Binding AppFlowDirection}"
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                         </StackPanel>
                         <CheckBox Grid.Column="1"
                                   Style="{StaticResource ToggleSwitch}"
@@ -1145,19 +1214,24 @@
                         CornerRadius="10"
                         Padding="10,8"
                         ToolTip="{Binding ManualProxyCardToolTipText}">
-                    <StackPanel VerticalAlignment="Center">
+                    <StackPanel VerticalAlignment="Center"
+                                HorizontalAlignment="Center">
                         <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Center"
                                     FlowDirection="{Binding AppFlowDirection}">
                             <TextBlock Text="🧦" Style="{StaticResource DashboardCardIconInlineText}"/>
                             <TextBlock Text="{Binding ManualProxyCardTitleText}"
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center"
+                                       TextAlignment="Center"/>
                         </StackPanel>
                         <TextBlock Text="{Binding MixedProxyInfo}" FontSize="11" FontWeight="SemiBold"
                                    Foreground="{StaticResource AccentBrush}"
                                    FlowDirection="LeftToRight"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
                                    Margin="0,3,0,0"/>
                     </StackPanel>
                 </Border>
@@ -1176,9 +1250,10 @@
                                        FontSize="11"
                                        FontWeight="SemiBold"
                                        Foreground="{StaticResource TextPrimaryBrush}"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center"
+                                       TextAlignment="{Binding AppTextAlignment}"/>
                         </StackPanel>
-                        <Grid>
+                        <Grid FlowDirection="{Binding AppFlowDirection}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*"/>
                                 <ColumnDefinition Width="4"/>
@@ -1207,7 +1282,8 @@
                                     VerticalAlignment="Center"
                                     ToolTip="{Binding PingTargetButtonToolTipText}"/>
                         </Grid>
-                        <Grid Margin="0,4,0,0">
+                        <Grid Margin="0,4,0,0"
+                              FlowDirection="{Binding AppFlowDirection}">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="Auto"/>
                                 <ColumnDefinition Width="8"/>
@@ -1226,7 +1302,8 @@
                                        Text="{Binding PingResult}"
                                        FontSize="10"
                                        FontWeight="SemiBold"
-                                       FlowDirection="LeftToRight"
+                                       FlowDirection="{Binding PingResult, Converter={StaticResource TextToFlowDirection}}"
+                                       TextAlignment="{Binding PingResult, Converter={StaticResource TextToTextAlignment}}"
                                        Foreground="{StaticResource AccentBrush}"
                                        VerticalAlignment="Center"
                                        TextWrapping="Wrap"
@@ -1288,12 +1365,16 @@
                                                            VerticalAlignment="Center"
                                                            Cursor="Hand"/>
                                             </Border>
-                                            <StackPanel Grid.Column="2" VerticalAlignment="Center">
-                                                <TextBlock Text="قطع اتصال"
+                                            <StackPanel Grid.Column="2"
+                                                        VerticalAlignment="Center"
+                                                        FlowDirection="{Binding AppFlowDirection}">
+                                                <TextBlock Text="{Binding ConnectedDisconnectButtonText}"
                                                            FontSize="16"
                                                            FontWeight="Bold"
                                                            Foreground="White"
                                                            HorizontalAlignment="Center"
+                                                           FlowDirection="{Binding AppFlowDirection}"
+                                                           TextAlignment="{Binding AppTextAlignment}"
                                                            Cursor="Hand"/>
                                             </StackPanel>
                                         </Grid>
@@ -1330,6 +1411,7 @@
                                    FontWeight="Bold"
                                    Foreground="{StaticResource TextPrimaryBrush}"
                                    HorizontalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
                                    TextAlignment="Center"/>
                         <TextBlock Text="{Binding AdAudienceText}"
                                    Visibility="{Binding HasGitHubInstallCount, Converter={StaticResource BoolToVis}}"
@@ -1337,6 +1419,7 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    HorizontalAlignment="Center"
+                                   FlowDirection="{Binding AppFlowDirection}"
                                    TextAlignment="Center"
                                    TextWrapping="Wrap"
                                    MaxWidth="560"
@@ -1360,12 +1443,15 @@
                     Style="{StaticResource TelegramChannelButton}"
                     HorizontalAlignment="Center"
                     Margin="0,12,0,0"
-                    MaxWidth="760"
+                    MaxWidth="560"
+                    Padding="16,8"
+                    FlowDirection="{Binding AppFlowDirection}"
                     ToolTip="{Binding TelegramChannelToolTipText}">
                 <TextBlock Text="{Binding TelegramChannelJoinButtonText}"
-                           TextAlignment="Center"
+                           FlowDirection="{Binding AppFlowDirection}"
+                           TextAlignment="{Binding AppTextAlignment}"
                            TextWrapping="Wrap"
-                           MaxWidth="540"
+                           MaxWidth="520"
                            Foreground="#FFFFFF"/>
             </Button>
 
@@ -1377,25 +1463,25 @@
 
         <!-- Split Tunnel Tip (always visible) -->
         <Border Grid.Row="1"
+                x:Name="SplitTunnelTipBorder"
                 Background="#1AFFC107" BorderBrush="#33FFC107" BorderThickness="1"
                 CornerRadius="10" Padding="10,8" Margin="0,8,0,0">
-            <StackPanel>
-            <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="17"
-                       FlowDirection="{Binding AppFlowDirection}"
-                       Foreground="{StaticResource TextPrimaryBrush}">
-                <Run Text="💡 در حالت انتخابی، فقط برنامه‌های فعال در تب "/>
-                <Run Text="«برنامه‌ها»" FontWeight="SemiBold"/>
-                <Run Text=" از تونل عبور می‌کنند؛ بقیه مستقیم می‌مانند."/>
-            </TextBlock>
-            <TextBlock TextWrapping="Wrap" FontSize="10" LineHeight="17"
-                       FlowDirection="{Binding AppFlowDirection}"
-                       Foreground="{StaticResource TextSecondaryBrush}">
-                <Run Text="📌 برای تلگرام، واتس‌اپ و برنامه‌های Store، "/>
-                <Run Text="Microsoft Edge WebView2"
-                     FlowDirection="LeftToRight"
-                     FontWeight="SemiBold"/>
-                <Run Text=" را هم به لیست تونل اضافه کنید."/>
-            </TextBlock>
+            <StackPanel x:Name="SplitTunnelTipPanel">
+                <TextBlock Text="{Binding SplitTunnelTipLine1Text}"
+                           TextWrapping="Wrap"
+                           FontSize="10"
+                           LineHeight="17"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Foreground="{StaticResource TextPrimaryBrush}"/>
+                <TextBlock Text="{Binding SplitTunnelTipLine2Text}"
+                           TextWrapping="Wrap"
+                           FontSize="10"
+                           LineHeight="17"
+                           Margin="0,4,0,0"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
             </StackPanel>
         </Border>
 

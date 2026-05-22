@@ -14,6 +14,7 @@ using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using Application = System.Windows.Application;
 using System.Windows.Threading;
+using AppTunnel.Helpers;
 using AppTunnel.Models;
 using AppTunnel.Services;
 
@@ -380,6 +381,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             OnPropertyChanged(nameof(IsOpenVpnConnectionPending));
             OnPropertyChanged(nameof(IsConnectionPending));
             OnPropertyChanged(nameof(ConnectingTitleText));
+            OnPropertyChanged(nameof(ConnectionTabTitleText));
             OnPropertyChanged(nameof(ConnectingHelpText));
             OnPropertyChanged(nameof(ShowConnectionErrorPanel));
             OnPropertyChanged(nameof(HasConnectionError));
@@ -485,8 +487,21 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string AdAudienceText => _githubInstallCount.HasValue
         ? LocalizationService.Instance.Format("تبلیغ شما می‌تواند در معرض دید کاربران TunnelX با بیش از {0} نصب از GitHub باشد.", GitHubInstallCountDisplay)
         : "";
-    public string TelegramChannelJoinButtonText => LocalizationService.Instance.T("📢 برای دریافت اخبار آپدیت و اطلاع‌رسانی، در کانال تلگرام TunnelX عضو شوید");
-    public string TelegramChannelToolTipText => LocalizationService.Instance.Format("کانال تلگرام TunnelX — {0}", AppInfo.TelegramChannelHandle);
+    public string TelegramChannelJoinButtonText => LocalizationService.Instance.T(
+        "📢 برای اطلاع‌رسانی، پشتیبانی و گزارش خطا در کانال تلگرام TunnelX عضو شوید");
+
+    public string ConnectionTabTitleText => IsConnectionPending
+        ? ConnectingTitleText
+        : LocalizationService.Instance.T("اتصال VPN");
+
+    public string SplitTunnelTipLine1Text => LocalizationService.Instance.T(
+        "💡 در حالت انتخابی، فقط برنامه‌های فعال در تب «برنامه‌ها» از تونل عبور می‌کنند؛ بقیه مستقیم می‌مانند.");
+
+    public string SplitTunnelTipLine2Text => LocalizationService.Instance.T(
+        "📌 برای تلگرام، واتس‌اپ و برنامه‌های Store، Microsoft Edge WebView2 را هم به لیست تونل اضافه کنید.");
+    public string TelegramChannelToolTipText => LocalizationService.Instance.Format(
+        "کانال رسمی {0} — اخبار آپدیت، گزارش خطا و پشتیبانی. برای ارسال پیام به تیم، ابتدا در کانال عضو شوید.",
+        AppInfo.TelegramChannelHandle);
     public string FooterTelegramButtonText => LocalizationService.Instance.T("📢 تلگرام");
     public string FooterTelegramToolTipText => TelegramChannelToolTipText;
     public string FooterMadeByText => LocalizationService.Instance.T("توسط Maxifan");
@@ -1205,55 +1220,88 @@ public partial class MainViewModel : INotifyPropertyChanged
 
     private async Task RefreshConnectionIpCountryFlagAsync(int proxyPort, string countryCode, int requestId)
     {
-        try
+        var probePorts = BuildExitIpFlagProbePorts(proxyPort);
+        Exception? lastError = null;
+
+        for (var attempt = 1; attempt <= 4 && _connectionState == ConnectionState.Connected; attempt++)
         {
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
-            var pngBytes = await IpGeoLookupService.DownloadFlagPngViaTunnelAsync(proxyPort, countryCode, cts.Token);
-            if (pngBytes == null || pngBytes.Length == 0)
-            {
-                Logger.Warning($"[EXIT-IP] Flag image lookup via tunnel failed for '{countryCode}'");
-                ClearConnectionIpCountryFlagLoadingIfCurrent(requestId, countryCode);
+            if (requestId != _connectionIpCountryFlagRequestId)
                 return;
-            }
 
-            BitmapImage image;
-            using (var ms = new MemoryStream(pngBytes))
+            if (!string.Equals(_connectionIpCountryCode, countryCode, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            foreach (var port in probePorts)
             {
-                image = new BitmapImage();
-                image.BeginInit();
-                image.CacheOption = BitmapCacheOption.OnLoad;
-                image.StreamSource = ms;
-                image.EndInit();
-                image.Freeze();
+                try
+                {
+                    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+                    var pngBytes = await IpGeoLookupService.DownloadFlagPngViaTunnelAsync(port, countryCode, cts.Token);
+                    if (pngBytes == null || pngBytes.Length == 0)
+                        continue;
+
+                    BitmapImage image;
+                    using (var ms = new MemoryStream(pngBytes))
+                    {
+                        image = new BitmapImage();
+                        image.BeginInit();
+                        image.CacheOption = BitmapCacheOption.OnLoad;
+                        image.StreamSource = ms;
+                        image.EndInit();
+                        image.Freeze();
+                    }
+
+                    void Apply()
+                    {
+                        if (requestId != _connectionIpCountryFlagRequestId)
+                            return;
+
+                        if (!string.Equals(_connectionIpCountryCode, countryCode, StringComparison.OrdinalIgnoreCase))
+                            return;
+
+                        _connectionIpCountryFlag = image;
+                        OnPropertyChanged(nameof(ConnectionIpCountryFlag));
+                        OnPropertyChanged(nameof(ShowConnectionIpCountryFlag));
+                        OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
+                        _isConnectionIpCountryFlagLoading = false;
+                        OnPropertyChanged(nameof(IsConnectionIpCountryFlagLoading));
+                    }
+
+                    var dispatcher = Application.Current?.Dispatcher;
+                    if (dispatcher != null && !dispatcher.CheckAccess())
+                        _ = dispatcher.BeginInvoke(Apply);
+                    else
+                        Apply();
+
+                    Logger.Info($"[EXIT-IP] Flag image for '{countryCode}' via 127.0.0.1:{port} (attempt {attempt})");
+                    return;
+                }
+                catch (Exception ex)
+                {
+                    lastError = ex;
+                    Logger.Warning($"[EXIT-IP] Flag image via 127.0.0.1:{port} attempt {attempt}: {ex.Message}");
+                }
             }
 
-            void Apply()
-            {
-                if (requestId != _connectionIpCountryFlagRequestId)
-                    return;
-
-                if (!string.Equals(_connectionIpCountryCode, countryCode, StringComparison.OrdinalIgnoreCase))
-                    return;
-
-                _connectionIpCountryFlag = image;
-                OnPropertyChanged(nameof(ConnectionIpCountryFlag));
-                OnPropertyChanged(nameof(ShowConnectionIpCountryFlag));
-                OnPropertyChanged(nameof(ShowConnectionIpDefaultIcon));
-                _isConnectionIpCountryFlagLoading = false;
-                OnPropertyChanged(nameof(IsConnectionIpCountryFlagLoading));
-            }
-
-            var dispatcher = Application.Current?.Dispatcher;
-            if (dispatcher != null && !dispatcher.CheckAccess())
-                _ = dispatcher.BeginInvoke(Apply);
-            else
-                Apply();
+            await Task.Delay(TimeSpan.FromMilliseconds(900 * attempt));
         }
-        catch (Exception ex)
+
+        Logger.Warning($"[EXIT-IP] Flag image lookup via tunnel failed for '{countryCode}' after retries" +
+                       (lastError != null ? $": {lastError.Message}" : ""));
+        ClearConnectionIpCountryFlagLoadingIfCurrent(requestId, countryCode);
+    }
+
+    /// <summary>Proxy ports for flag/geo HTTP — prefers the port that resolved exit IP, then engine fallbacks.</summary>
+    private List<int> BuildExitIpFlagProbePorts(int primaryPort)
+    {
+        var ports = GetExitIpProbePorts().ToList();
+        if (primaryPort > 0)
         {
-            Logger.Warning($"[EXIT-IP] Flag image lookup error for '{countryCode}': {ex.Message}");
-            ClearConnectionIpCountryFlagLoadingIfCurrent(requestId, countryCode);
+            ports.Remove(primaryPort);
+            ports.Insert(0, primaryPort);
         }
+
+        return ports;
     }
 
     public string ConnectionIpLabel => LocalizationService.Instance.T("IP خروجی");
@@ -1339,6 +1387,8 @@ public partial class MainViewModel : INotifyPropertyChanged
     public string ConnectedBadgeText => CurrentTunnelType == TunnelType.SocksProxy
         ? LocalizationService.Instance.T("متصل به پراکسی")
         : LocalizationService.Instance.T("متصل به VPN");
+
+    public string ConnectedDisconnectButtonText => LocalizationService.Instance.T("قطع اتصال");
 
     public string ConnectedCardToolTipText => LocalizationService.Instance.Format(
         "وضعیت اتصال: {0} — {1}",
@@ -1475,8 +1525,22 @@ public partial class MainViewModel : INotifyPropertyChanged
             return "";
 
         var loc = LocalizationService.Instance;
-        var text = args.Length > 0 ? loc.Format(key, args) : loc.T(key);
+        var rtlArgs = RtlPingFormatArgs(args);
+        var text = rtlArgs.Length > 0 ? loc.Format(key, rtlArgs) : loc.T(key);
         return showDoneSuffix ? text + loc.T("  [پایان]") : text;
+    }
+
+    private static object?[] RtlPingFormatArgs(object?[] args)
+    {
+        if (args.Length == 0 || LocalizationService.Instance.FlowDirection != System.Windows.FlowDirection.RightToLeft)
+            return args;
+
+        return args.Select(static arg =>
+        {
+            if (arg is not string s || string.IsNullOrWhiteSpace(s) || TextHelper.IsPersianText(s))
+                return arg;
+            return TextHelper.EmbedLtr(s);
+        }).ToArray();
     }
 
     private void SetPingResult(string key, params object?[] args)
@@ -1776,10 +1840,7 @@ public partial class MainViewModel : INotifyPropertyChanged
     {
         if (IsCheckingForUpdates) return;
 
-        if (proxyPort <= 0)
-            proxyPort = ResolveTunnelProxyPort();
-
-        if (!IsConnected || proxyPort <= 0)
+        if (!IsConnected)
         {
             if (!silent)
                 SetUpdateStatus("برای بررسی نسخه جدید ابتدا اتصال برقرار کنید.");
@@ -1787,6 +1848,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         }
 
         var requestId = ++_updateCheckRequestId;
+        var attempts = silent ? 3 : 1;
 
         try
         {
@@ -1794,8 +1856,32 @@ public partial class MainViewModel : INotifyPropertyChanged
             if (!silent)
                 SetUpdateStatus("در حال بررسی آخرین نسخه در GitHub از طریق تونل...");
 
-            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
-            var latest = await GitHubReleaseChecker.GetLatestReleaseAsync(cts.Token, proxyPort);
+            GitHubReleaseInfo? latest = null;
+            for (var attempt = 1; attempt <= attempts; attempt++)
+            {
+                if (requestId != _updateCheckRequestId || !IsConnected)
+                    return;
+
+                var port = proxyPort > 0 ? proxyPort : ResolveTunnelProxyPort();
+                if (port <= 0)
+                {
+                    if (!silent)
+                        SetUpdateStatus("برای بررسی نسخه جدید ابتدا اتصال برقرار کنید.");
+                    return;
+                }
+
+                using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(12));
+                latest = await GitHubReleaseChecker.GetLatestReleaseAsync(cts.Token, port);
+                if (latest != null)
+                    break;
+
+                if (attempt < attempts)
+                {
+                    Logger.Info($"[UPDATE] Tunnel GitHub check attempt {attempt}/{attempts} failed; retrying...");
+                    await Task.Delay(TimeSpan.FromSeconds(4));
+                }
+            }
+
             if (requestId != _updateCheckRequestId || !IsConnected)
                 return;
 
@@ -1803,7 +1889,7 @@ public partial class MainViewModel : INotifyPropertyChanged
             {
                 if (!silent)
                     SetUpdateStatus("بررسی نسخه جدید از طریق تونل ناموفق بود. اتصال یا دسترسی به GitHub را بررسی کنید.");
-                Logger.Warning("[UPDATE] Latest release check via tunnel failed");
+                Logger.Warning("[UPDATE] Latest release check via tunnel failed after retries");
                 return;
             }
 
@@ -1816,10 +1902,7 @@ public partial class MainViewModel : INotifyPropertyChanged
 
             if (latest.Version > current)
             {
-                var alreadyAvailable = IsUpdateAvailable;
                 IsUpdateAvailable = true;
-                if (silent && alreadyAvailable)
-                    OnPropertyChanged(nameof(IsUpdateAvailable));
                 SetUpdateStatus("نسخه جدید آماده است: {0} - برای دانلود از GitHub باز کنید.", latest.TagName);
                 Logger.Info($"[UPDATE] New version available: current={current} latest={latest.TagName}");
                 return;
@@ -2456,6 +2539,9 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(AdRequestButtonText));
         OnPropertyChanged(nameof(AdAudienceText));
         OnPropertyChanged(nameof(TelegramChannelJoinButtonText));
+        OnPropertyChanged(nameof(ConnectionTabTitleText));
+        OnPropertyChanged(nameof(SplitTunnelTipLine1Text));
+        OnPropertyChanged(nameof(SplitTunnelTipLine2Text));
         OnPropertyChanged(nameof(TelegramChannelToolTipText));
         OnPropertyChanged(nameof(FooterTelegramButtonText));
         OnPropertyChanged(nameof(FooterTelegramToolTipText));
@@ -2507,6 +2593,7 @@ public partial class MainViewModel : INotifyPropertyChanged
         OnPropertyChanged(nameof(HealthRoutesText));
         OnPropertyChanged(nameof(ConnectedBadgeText));
         OnPropertyChanged(nameof(ConnectedCardToolTipText));
+        OnPropertyChanged(nameof(ConnectedDisconnectButtonText));
         OnPropertyChanged(nameof(ConnectedProfileName));
         OnPropertyChanged(nameof(SelectedProfileSummaryText));
         OnPropertyChanged(nameof(PingButtonText));

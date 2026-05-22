@@ -43,8 +43,8 @@ public static class TelegramChannelPromoService
         _activePromo?.DismissSilently();
         _activePromo = null;
 
-        const string titleKey = "عضویت در کانال تلگرام";
-        const string messageKey = "📢 برای دریافت اخبار آپدیت و اطلاع‌رسانی، در کانال تلگرام TunnelX عضو شوید";
+        const string titleKey = "ارتباط و پشتیبانی در تلگرام";
+        const string messageKey = "📢 برای اطلاع‌رسانی، پشتیبانی و گزارش خطا در کانال تلگرام TunnelX عضو شوید";
         const string actionKey = "عضویت در کانال تلگرام";
 
         _activePromo = TrayToastWindow.ShowPersistent(

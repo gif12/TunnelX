@@ -29,16 +29,34 @@ public static class IpGeoLookupService
         if (proxyPort <= 0 || string.IsNullOrWhiteSpace(countryCode) || countryCode.Length != 2)
             return null;
 
-        countryCode = countryCode.ToLowerInvariant();
-        if (!char.IsAsciiLetter(countryCode[0]) || !char.IsAsciiLetter(countryCode[1]))
+        var codeLower = countryCode.Trim().ToLowerInvariant();
+        var codeUpper = codeLower.ToUpperInvariant();
+        if (!char.IsAsciiLetter(codeLower[0]) || !char.IsAsciiLetter(codeLower[1]))
             return null;
 
-        var path = $"/h20/{countryCode}.png";
-        var bytes = await TunnelProxyHttpService.GetBytesAsync(proxyPort, "flagcdn.com", 443, path, useTls: true, ct);
-        if (!LooksLikePng(bytes))
-            return null;
+        // Primary + fallbacks — all fetched through the local tunnel proxy.
+        var sources = new (string host, int port, string path, bool tls)[]
+        {
+            ("flagcdn.com", 443, $"/h20/{codeLower}.png", true),
+            ("flagcdn.com", 443, $"/w20/{codeLower}.png", true),
+            ("flagsapi.com", 443, $"/{codeUpper}/flat/64.png", true),
+        };
 
-        return bytes;
+        foreach (var (host, port, path, tls) in sources)
+        {
+            try
+            {
+                var bytes = await TunnelProxyHttpService.GetBytesAsync(proxyPort, host, port, path, tls, ct);
+                if (LooksLikePng(bytes))
+                    return bytes;
+            }
+            catch
+            {
+                // try next CDN / size variant
+            }
+        }
+
+        return null;
     }
 
     public static string CountryCodeToFlagEmoji(string? countryCode)

@@ -23,6 +23,7 @@
         <conv:BoolToVisibilityConverter x:Key="BoolToVis"/>
         <conv:InverseBoolToVisibilityConverter x:Key="InverseBoolToVis"/>
         <conv:TextToFlowDirectionConverter x:Key="TextToFlowDirection"/>
+        <conv:TextToTextAlignmentConverter x:Key="TextToTextAlignment"/>
     </Window.Resources>
 
     <!-- Main Container with rounded corners and shadow -->
@@ -276,9 +277,18 @@
             <!-- ███ TAB 1: CONNECTION ███ -->
             <TabItem Style="{StaticResource ModernTabItem}" ToolTip="وضعیت اتصال VPN و کنترل اتصال">
                 <TabItem.Header>
-                    <StackPanel>
+                    <StackPanel FlowDirection="{Binding AppFlowDirection}">
                         <TextBlock Text="⚡" FontSize="12" HorizontalAlignment="Center"/>
-                        <TextBlock Text="اتصال VPN" FontSize="10" FontWeight="Medium" TextAlignment="Center"/>
+                        <TextBlock Text="{Binding ConnectionTabTitleText}"
+                                   FontSize="10"
+                                   FontWeight="Medium"
+                                   TextWrapping="NoWrap"
+                                   MaxWidth="88"
+                                   TextTrimming="CharacterEllipsis"
+                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"
+                                   HorizontalAlignment="Center"
+                                   ToolTip="{Binding ConnectionTabTitleText}"/>
                     </StackPanel>
                 </TabItem.Header>
                 <views:ConnectionTabView/>
@@ -642,28 +652,36 @@
                             </Grid.ColumnDefinitions>
                             <StackPanel Grid.Column="0" HorizontalAlignment="Center">
                                 <TextBlock Text="Leak" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"/>
+                                           HorizontalAlignment="Center"
+                                           FlowDirection="LeftToRight"
+                                           TextAlignment="Center"/>
                                 <TextBlock Text="{Binding HealthLeakText}" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{Binding HeaderLeakColor, Converter={StaticResource StringToColor}}"
                                            HorizontalAlignment="Center" FlowDirection="LeftToRight"/>
                             </StackPanel>
                             <StackPanel Grid.Column="1" HorizontalAlignment="Center">
                                 <TextBlock Text="DNS" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"/>
+                                           HorizontalAlignment="Center"
+                                           FlowDirection="LeftToRight"
+                                           TextAlignment="Center"/>
                                 <TextBlock Text="{Binding HealthDnsText}" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource AccentBrush}"
                                            HorizontalAlignment="Center" FlowDirection="LeftToRight"/>
                             </StackPanel>
                             <StackPanel Grid.Column="2" HorizontalAlignment="Center">
                                 <TextBlock Text="IPv6" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"/>
+                                           HorizontalAlignment="Center"
+                                           FlowDirection="LeftToRight"
+                                           TextAlignment="Center"/>
                                 <TextBlock Text="{Binding HealthIpv6Text}" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource WarningBrush}"
                                            HorizontalAlignment="Center" FlowDirection="LeftToRight"/>
                             </StackPanel>
                             <StackPanel Grid.Column="3" HorizontalAlignment="Center">
                                 <TextBlock Text="Route" FontSize="10" Foreground="{StaticResource TextSecondaryBrush}"
-                                           HorizontalAlignment="Center"/>
+                                           HorizontalAlignment="Center"
+                                           FlowDirection="LeftToRight"
+                                           TextAlignment="Center"/>
                                 <TextBlock Text="{Binding HealthRoutesText}" FontSize="13" FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            HorizontalAlignment="Center" FlowDirection="LeftToRight"/>
@@ -835,7 +853,7 @@
                                    FontWeight="SemiBold"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    VerticalAlignment="Center"
-                                   FlowDirection="{Binding AppFlowDirection}"
+                                   TextAlignment="{Binding AppTextAlignment}"
                                    TextTrimming="CharacterEllipsis"/>
                         <Border Background="#18E8803A"
                                 CornerRadius="8"
@@ -845,7 +863,9 @@
                             <TextBlock Text="{Binding AppVersion}"
                                        FontSize="9"
                                        Foreground="{StaticResource AccentBrush}"
-                                       VerticalAlignment="Center"/>
+                                       VerticalAlignment="Center"
+                                       FlowDirection="LeftToRight"
+                                       TextAlignment="Left"/>
                         </Border>
                     </StackPanel>
 
@@ -873,6 +893,7 @@
                                 FontSize="10"
                                 Margin="0,0,0,0"
                                 VerticalAlignment="Center"
+                                FlowDirection="LeftToRight"
                                 ToolTip="تغییر زبان"/>
                         <Button Content="{Binding FooterTelegramButtonText}"
                                 Command="{Binding OpenTelegramChannelCommand}"
@@ -970,8 +991,8 @@
                              Padding="8"
                              IsReadOnly="True"
                              TextWrapping="Wrap"
-                             FlowDirection="LeftToRight"
-                             TextAlignment="Left"
+                             FlowDirection="{Binding Text, ElementName=LogTextBox, Converter={StaticResource TextToFlowDirection}}"
+                             TextAlignment="{Binding Text, ElementName=LogTextBox, Converter={StaticResource TextToTextAlignment}}"
                              VerticalScrollBarVisibility="Auto"/>
 
                     <!-- In-panel toast (copy / clear feedback) -->

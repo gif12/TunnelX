@@ -558,13 +558,18 @@ public class OpenVpnTunnelProvider : ITunnelProvider
                 trimmed.StartsWith("server-poll-timeout", StringComparison.OrdinalIgnoreCase))
                 continue;
 
-            // Multi-connection profiles: global "proto udp" + "<connection> remote … tcp-client".
-            // Flattening or keeping proto udp breaks TCP; per-connection proto must win.
-            if (usesTcpClientConnectionBlocks &&
-                trimmed.StartsWith("proto ", StringComparison.OrdinalIgnoreCase) &&
-                !trimmed.Contains("tcp-client", StringComparison.OrdinalIgnoreCase))
+            if (trimmed.StartsWith("proto ", StringComparison.OrdinalIgnoreCase))
             {
-                Logger.Info("[OpenVPN] Omitting global proto directive (profile uses tcp-client connection blocks)");
+                // Multi-connection profiles: global "proto udp" + "<connection> remote … tcp-client".
+                // Flattening or keeping proto udp breaks TCP; per-connection proto must win.
+                if (usesTcpClientConnectionBlocks &&
+                    !trimmed.Contains("tcp-client", StringComparison.OrdinalIgnoreCase))
+                {
+                    Logger.Info("[OpenVPN] Omitting global proto directive (profile uses tcp-client connection blocks)");
+                    continue;
+                }
+
+                builder.AppendLine(NormalizeProtoDirectiveForCommunity(raw));
                 continue;
             }
 
@@ -596,7 +601,7 @@ public class OpenVpnTunnelProvider : ITunnelProvider
 
                 AppendTunnelXOptions();
                 foreach (var blockLine in block)
-                    builder.AppendLine(blockLine);
+                    builder.AppendLine(NormalizeProtoDirectiveForCommunity(blockLine));
                 continue;
             }
 
@@ -632,6 +637,36 @@ public class OpenVpnTunnelProvider : ITunnelProvider
     }
 
     private static string QuoteOpenVpnPath(string path) => $"\"{path.Replace('\\', '/')}\"";
+
+    /// <summary>
+    /// RouterOS/OpenVPN Connect exports proto udp-client; OpenVPN Community on Windows expects proto udp.
+    /// </summary>
+    private static string NormalizeProtoDirectiveForCommunity(string line)
+    {
+        var trimmed = line.Trim();
+        if (!trimmed.StartsWith("proto ", StringComparison.OrdinalIgnoreCase))
+            return line;
+
+        var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length < 2)
+            return line;
+
+        var mapped = parts[1].ToLowerInvariant() switch
+        {
+            "udp-client" => "udp",
+            "udp4-client" => "udp4",
+            "udp6-client" => "udp6",
+            _ => parts[1]
+        };
+
+        if (string.Equals(mapped, parts[1], StringComparison.OrdinalIgnoreCase))
+            return line;
+
+        var suffix = parts.Length > 2 ? " " + string.Join(' ', parts.Skip(2)) : "";
+        var normalized = $"proto {mapped}{suffix}";
+        Logger.Info($"[OpenVPN] Normalized proto for OpenVPN Community: {trimmed} -> {normalized}");
+        return normalized;
+    }
 
     private static bool IsLiteralRemoteHost(string host) =>
         IPAddress.TryParse(host, out _);

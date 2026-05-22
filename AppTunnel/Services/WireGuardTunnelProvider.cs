@@ -16,7 +16,8 @@ namespace AppTunnel.Services;
 /// </summary>
 public class WireGuardTunnelProvider : ITunnelProvider
 {
-    private const string TunnelName = "TunnelX-WireGuard";
+    public const string TunnelServiceName = "TunnelX-WireGuard";
+    private const string TunnelName = TunnelServiceName;
     private static readonly UTF8Encoding Utf8NoBom = new(false);
 
     private readonly string _workDir;

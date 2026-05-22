@@ -2,6 +2,26 @@
 
 ## Unreleased
 
+### English
+
+- **Which file to download:** use the **standalone EXE** on [Releases](https://github.com/MaxiFan/TunnelX/releases/latest) if you are not sure — no separate .NET install. Choose the **ZIP** only when **.NET 8 Desktop Runtime (x64)** is already on your PC.
+- Clearer messages when a proxy server is **closed** versus **slow**; slow servers get a real tunnel check instead of stopping too early.
+- **Connected** state only after a practical internet check through the tunnel (not just a local adapter).
+- Exit **country flag** loads through the tunnel, with automatic retry and backup sources.
+- Better everyday support for common **V2Ray** subscription links (VMess / VLESS over WebSocket).
+- Fixed cases where a long wait during connection looked like you had **cancelled** it yourself.
+- Persian and English layout polish on the connection tab and profile editor (RTL / LTR).
+
+### فارسی
+
+- **کدام فایل را دانلود کنم:** در [صفحه انتشار](https://github.com/MaxiFan/TunnelX/releases/latest) برای اکثر کاربران **فایل EXE مستقل** را بگیرید — نیازی به نصب جداگانه .NET نیست. **ZIP** را فقط وقتی بگیرید که **.NET 8 Desktop Runtime نسخه x64** از قبل روی ویندوز نصب است.
+- پیام شفاف‌تر وقتی پورت سرور **بسته** است یا فقط **کند** است؛ برای سرورهای کند، بررسی واقعی از مسیر تونل انجام می‌شود.
+- وضعیت **متصل** فقط پس از یک آزمایش عملی اینترنت از داخل تونل نمایش داده می‌شود.
+- **پرچم کشور** IP خروجی از مسیر تونل بارگذاری می‌شود، با تلاش دوباره و منبع جایگزین.
+- پشتیبانی بهتر از لینک‌های رایج **V2Ray** (VMess و VLESS با WebSocket).
+- رفع حالتی که انتظار طولانی هنگام اتصال شبیه **لغو** توسط خود کاربر دیده می‌شد.
+- مرتب‌سازی چیدمان فارسی و انگلیسی در تب اتصال و ویرایش پروفایل (راست‌به‌چپ / چپ‌به‌راست).
+
 ## 2.1.0 - 2026-05-21
 
 ### English

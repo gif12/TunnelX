@@ -211,8 +211,8 @@ public sealed class LocalizationService : INotifyPropertyChanged
             local is System.Windows.FlowDirection.LeftToRight)
             return;
 
-        // Explicit RTL follows the selected language. Explicit LTR is reserved
-        // for technical fields: IP, path, port, config and logs.
+        // Only elements with an explicit RTL local value are updated on language change.
+        // Layout containers should set FlowDirection in XAML; unset children inherit.
         fe.FlowDirection = FlowDirection;
     }
 
@@ -266,9 +266,10 @@ public sealed class LocalizationService : INotifyPropertyChanged
         if (textBox.ReadLocalValue(System.Windows.Controls.TextBox.TextAlignmentProperty) != DependencyProperty.UnsetValue)
             return;
 
-        textBox.TextAlignment = textBox.FlowDirection == System.Windows.FlowDirection.LeftToRight
-            ? TextAlignment.Left
-            : TextAlignment;
+        if (textBox.ReadLocalValue(FrameworkElement.FlowDirectionProperty) is System.Windows.FlowDirection.LeftToRight)
+            textBox.TextAlignment = System.Windows.TextAlignment.Left;
+        else
+            textBox.TextAlignment = TextAlignment;
     }
 
     private string TranslateProperty(DependencyObject owner, DependencyProperty property, DependencyProperty originalProperty, string current)
@@ -463,8 +464,14 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["محل تبلیغات شما"] = "Your ad space",
         ["درخواست تبلیغ"] = "Request advertising",
         ["تبلیغ شما می‌تواند در معرض دید کاربران TunnelX با بیش از {0} نصب از GitHub باشد."] = "Your ad can reach TunnelX users backed by more than {0} GitHub installs.",
-        ["📢 برای دریافت اخبار آپدیت و اطلاع‌رسانی، در کانال تلگرام TunnelX عضو شوید"] = "📢 Join the TunnelX Telegram channel for updates and release alerts",
+        ["ارتباط و پشتیبانی در تلگرام"] = "Contact and support on Telegram",
+        ["📢 از طریق تلگرام با ما در تماس باشید. برای ارسال پیام، گزارش خطا و پیگیری رفع مشکل، عضویت در کانال TunnelX ضروری است."] = "📢 Reach us on Telegram. To send messages, report errors, and get troubleshooting help, joining the TunnelX channel is required.",
+        ["📢 کانال تلگرام TunnelX"] = "📢 Join TunnelX on Telegram",
+        ["📢 برای اطلاع‌رسانی، پشتیبانی و گزارش خطا در کانال تلگرام TunnelX عضو شوید"] = "📢 Join the TunnelX Telegram channel for updates, support, and error reports",
+        ["💡 در حالت انتخابی، فقط برنامه‌های فعال در تب «برنامه‌ها» از تونل عبور می‌کنند؛ بقیه مستقیم می‌مانند."] = "💡 In selected mode, only apps enabled in the Apps tab use the tunnel; the rest stays direct.",
+        ["📌 برای تلگرام، واتس‌اپ و برنامه‌های Store، Microsoft Edge WebView2 را هم به لیست تونل اضافه کنید."] = "📌 For Telegram, WhatsApp, and Store apps, also add Microsoft Edge WebView2 to the tunnel list.",
         ["عضویت در کانال تلگرام"] = "Join Telegram channel",
+        ["کانال رسمی {0} — اخبار آپدیت، گزارش خطا و پشتیبانی. برای ارسال پیام به تیم، ابتدا در کانال عضو شوید."] = "Official channel {0} — updates, error reports, and support. Join the channel before messaging the team.",
         ["کانال تلگرام TunnelX — {0}"] = "TunnelX Telegram channel — {0}",
         ["📢 تلگرام"] = "📢 Telegram",
         ["کپی اطلاعات حمایت"] = "Copy donation info",
@@ -622,7 +629,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["پروفایل «{0}» فعال است و ترافیک انتخاب‌شده از تونل عبور می‌کند."] = "Profile \"{0}\" is active and selected traffic uses the tunnel.",
         ["ترافیک انتخاب‌شده از TunnelX عبور می‌کند."] = "Selected traffic uses TunnelX.",
         ["جزئیات خطا را در پنجره برنامه یا لاگ‌ها بررسی کنید."] = "Check the app window or logs for error details.",
-        ["راهنمای پس از خطای اتصال"] = "Open the Connection tab to see which step failed and the full error text. Check the profile (server address, credentials, config file), tunnel type, and prerequisites (OpenVPN Community / WireGuard). Use in-app Logs for technical details.",
+        ["راهنمای پس از خطای اتصال"] = "Open the Connection tab to see which step failed and the full error text. If the validate step failed, follow the prerequisite message (Administrator, sing-box/xray/wintun, OpenVPN Community, or WireGuard). Otherwise check the profile, credentials, and config. Use in-app Logs — copy all logs or the latest error — for technical details.",
         ["جزئیات: {0}"] = "Details: {0}",
         ["بارگذاری لیست برنامه‌های نصب‌شده..."] = "Loading installed apps...",
         ["تاییدیه"] = "Confirmation",
@@ -690,6 +697,14 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["در حال پینگ از داخل تونل..."] = "Pinging through the tunnel...",
         ["در حال پینگ {0}..."] = "Pinging {0}...",
         ["پینگ {0}: {1} میلی‌ثانیه ✓"] = "Ping {0}: {1} ms ✓",
+        ["پینگ {0} (از مسیر پروکسی): {1} میلی‌ثانیه ✓"] = "Ping {0} (via proxy path): {1} ms ✓",
+        ["در حال آماده‌سازی مسیر پروکسی برای پینگ..."] = "Warming up proxy path for health check...",
+        ["پینگ از مسیر پروکسی بیش از {0} ثانیه طول کشید"] = "Proxy-path ping timed out after {0} s",
+        ["بررسی مسیر پروکسی قبل از اسپلیت‌تانلینگ"] = "Checking proxy path before split-tunneling",
+        ["هشدار: پورت mixed ({0}) پاسخ نداد؛ فقط مسیر پشتیبان Xray SOCKS کار کرد"] = "Warning: mixed port ({0}) did not respond; only Xray SOCKS backup path worked",
+        ["پورت سرور پروکسی {0}:{1} در دسترس نیست ({2})"] = "Proxy server port {0}:{1} is not reachable ({2})",
+        ["پورت سرور پروکسی {0}:{1} بسته است ({2})"] = "Proxy server port {0}:{1} is closed ({2})",
+        ["پورت سرور از مسیر مستقیم پاسخ نداد؛ در حال بررسی از مسیر پروکسی..."] = "Direct port check inconclusive; verifying via proxy path...",
         ["پینگ {0}: بدون پاسخ"] = "Ping {0}: no response",
         ["تلاش دوباره پینگ..."] = "Retrying ping...",
         ["تأیید مسیر تونل ناموفق بود"] = "Tunnel path verification failed",
@@ -705,7 +720,7 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["راه‌اندازی پل TUN (sing-box)"] = "Starting TUN bridge (sing-box)",
         ["شناسایی آداپتر مجازی"] = "Detecting virtual adapter",
         ["راه‌اندازی اسپلیت‌تانلینگ"] = "Starting split tunneling",
-        ["بررسی سلامت اتصال"] = "Running connection health checks",
+        ["بررسی سلامت اتصال"] = "Connection health check",
         ["بررسی کانفیگ و پیش‌نیاز OpenVPN"] = "Checking config and OpenVPN prerequisites",
         ["راه‌اندازی OpenVPN"] = "Starting OpenVPN",
         ["انتظار برای آداپتر VPN"] = "Waiting for VPN adapter",
@@ -788,6 +803,17 @@ public sealed class LocalizationService : INotifyPropertyChanged
         ["در حال انتظار برای interface TunnelX-V2Ray..."] = "Waiting for TunnelX-V2Ray interface...",
         ["sing-box زودتر خارج شد (exit code {0}) — کانفیگ را بررسی کنید"] = "sing-box exited early (exit code {0}) - check the config",
         ["interface TunnelX-V2Ray ظاهر نشد (timeout 10s)"] = "TunnelX-V2Ray interface did not appear (timeout 10s)",
+        ["interface TunnelX-V2Ray ظاهر نشد (timeout {0}s)"] = "TunnelX-V2Ray interface did not appear (timeout {0}s)",
+        ["در حال بررسی پیش‌نیازهای اتصال..."] = "Checking connection prerequisites...",
+        ["پیش‌نیاز: TunnelX باید با دسترسی Administrator اجرا شود."] = "Prerequisite: TunnelX must run as Administrator.",
+        ["پیش‌نیاز: WinDivert.dll پیدا نشد. TunnelX را با Administrator اجرا کنید؛ در صورت تکرار، نسخه standalone را دوباره نصب کنید یا لاگ [ENGINE] را ارسال کنید."] = "Prerequisite: WinDivert.dll was not found. Run TunnelX as Administrator; if it persists, reinstall the standalone build or send [ENGINE] logs to support.",
+        ["پیش‌نیاز: sing-box.exe پیدا نشد. نسخه standalone TunnelX را دوباره نصب کنید یا لاگ [ENGINE] را برای پشتیبانی ارسال کنید."] = "Prerequisite: sing-box.exe was not found. Reinstall the TunnelX standalone build or send [ENGINE] logs to support.",
+        ["پیش‌نیاز: این کانفیگ به Xray-core (xhttp) نیاز دارد ولی xray.exe در برنامه موجود نیست. از کانفیگ sing-box (بدون xhttp) استفاده کنید یا نسخه کامل TunnelX را نصب کنید."] = "Prerequisite: This config requires Xray-core (xhttp) but xray.exe is missing. Use a sing-box config (without xhttp) or install a full TunnelX build.",
+        ["پیش‌نیاز: wintun.dll برای ساخت آداپتر TunnelX-V2Ray لازم است. TunnelX را با Administrator اجرا کنید؛ VPN/آنتی‌ویروس دیگر را ببندید؛ در ncpa.cpl آداپتر TunnelX-V2Ray گیرکرده را حذف کنید؛ سپس دوباره اتصال بزنید."] = "Prerequisite: wintun.dll is required to create the TunnelX-V2Ray adapter. Run TunnelX as Administrator; close other VPN/antivirus tools; remove a stuck TunnelX-V2Ray adapter in ncpa.cpl; then connect again.",
+        ["پیش‌نیازهای V2Ray آماده است (هسته: {0})."] = "V2Ray prerequisites are ready (core: {0}).",
+        ["پیش‌نیازهای L2TP/IPsec آماده است."] = "L2TP/IPsec prerequisites are ready.",
+        ["پیش‌نیاز OpenVPN Community آماده است."] = "OpenVPN Community prerequisite is ready.",
+        ["پیش‌نیاز WireGuard آماده است."] = "WireGuard prerequisite is ready.",
         ["در حال قطع اتصال V2Ray..."] = "Disconnecting V2Ray...",
         ["در حال آماده سازی Xray..."] = "Preparing Xray...",
         ["فایل xray.exe پیدا نشد: {0}"] = "xray.exe was not found: {0}",

@@ -104,10 +104,21 @@ public partial class MainViewModel
 
     private static void SetStepDetail(ConnectionProgressStep step, string detailKey, string? formatArg)
     {
+        if (IsLiveStepDetail(detailKey))
+        {
+            step.DetailKey = null;
+            step.DetailFormatArg = null;
+            step.Detail = detailKey;
+            return;
+        }
+
         step.DetailKey = detailKey;
         step.DetailFormatArg = formatArg;
         step.Detail = FormatStepDetail(detailKey, formatArg);
     }
+
+    private static bool IsLiveStepDetail(string detailKey)
+        => detailKey.Contains('\n') || detailKey.Contains('\r');
 
     private static string FormatStepDetail(string detailKey, string? formatArg)
     {

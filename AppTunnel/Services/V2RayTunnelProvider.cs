@@ -21,6 +21,7 @@ public class V2RayTunnelProvider : ITunnelProvider
     private const string VpnLocalIp       = "172.18.0.1";  // actual TUN interface address
     private const int    DefaultTunMtu    = 1500;
     private const int    DefaultMixedProxyPort   = 2080;  // preferred sing-box SOCKS5/HTTP inbound for accurate ping
+    private const int    TunInterfaceWaitSeconds = 20;
 
     private readonly string _singBoxExe;
     private readonly string _workDir;
@@ -61,54 +62,9 @@ public class V2RayTunnelProvider : ITunnelProvider
 
     public V2RayTunnelProvider()
     {
-        _workDir    = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "TunnelX", "singbox");
+        _workDir    = NativeEngineSupport.SingBoxWorkDir;
         _configPath = Path.Combine(_workDir, "config.json");
-
-        // For regular builds sing-box.exe is copied next to the exe — use it directly.
-        // For self-contained single-file builds the .exe is not bundled by the runtime
-        // (only .dll files are extracted by IncludeNativeLibrariesForSelfExtract).
-        // In that case we fall back to the copy we maintain in the work dir, which is
-        // extracted from the embedded resource the first time ConnectAsync is called.
-        var sideBySide = Path.Combine(AppContext.BaseDirectory, "sing-box.exe");
-        _singBoxExe = File.Exists(sideBySide)
-            ? sideBySide
-            : Path.Combine(_workDir, "sing-box.exe");
-    }
-
-    // =========================================================================
-    // Embedded-resource extraction (self-contained single-file support)
-    // =========================================================================
-
-    /// <summary>
-    /// Extracts sing-box.exe from the embedded assembly resource to the work dir
-    /// so the self-contained single-file build can find it. Skipped if the file
-    /// is already the correct size (i.e. already extracted or side-by-side copy used).
-    /// </summary>
-    private async Task EnsureSingBoxExtractedAsync(CancellationToken ct)
-    {
-        // Side-by-side path (regular build) — nothing to extract.
-        if (!_singBoxExe.StartsWith(_workDir, StringComparison.OrdinalIgnoreCase))
-            return;
-
-        var asm = System.Reflection.Assembly.GetExecutingAssembly();
-        using var stream = asm.GetManifestResourceStream("sing-box.exe");
-        if (stream == null)
-        {
-            Logger.Warning("[sing-box] Embedded resource 'sing-box.exe' not found — standalone may not work.");
-            return;
-        }
-
-        // Skip if already extracted and same size as embedded resource.
-        if (File.Exists(_singBoxExe) && new FileInfo(_singBoxExe).Length == stream.Length)
-            return;
-
-        Logger.Info($"[sing-box] Extracting embedded sing-box.exe ({stream.Length / 1024 / 1024} MB) → {_singBoxExe}");
-        using var fs = new FileStream(_singBoxExe, FileMode.Create, FileAccess.Write, FileShare.None,
-                                      bufferSize: 81920, useAsync: true);
-        await stream.CopyToAsync(fs, 81920, ct);
-        Logger.Info("[sing-box] Extraction complete.");
+        _singBoxExe = NativeEngineSupport.ResolveSingBoxExePath();
     }
 
     // =========================================================================
@@ -130,10 +86,16 @@ public class V2RayTunnelProvider : ITunnelProvider
         try
         {
             Directory.CreateDirectory(_workDir);
+            NativeEngineSupport.EnsureWintunBesideEngine(_workDir);
+            if (Path.GetDirectoryName(_singBoxExe) is { Length: > 0 } exeDir &&
+                !exeDir.Equals(_workDir, StringComparison.OrdinalIgnoreCase))
+                NativeEngineSupport.EnsureWintunBesideEngine(exeDir);
+
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Active, "راه‌اندازی هسته تونل (Xray/V2Ray)");
 
             // Extract sing-box.exe from embedded resource if not already present
             // (only needed for the self-contained single-file build).
-            await EnsureSingBoxExtractedAsync(ct);
+            await NativeEngineSupport.EnsureEmbeddedExecutableAsync("sing-box.exe", _singBoxExe, ct);
 
             if (!File.Exists(_singBoxExe))
             {
@@ -262,11 +224,13 @@ public class V2RayTunnelProvider : ITunnelProvider
             _process.BeginOutputReadLine();
 
             Logger.Info($"sing-box started (PID {_process.Id})");
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Active, "راه‌اندازی هسته تونل (Xray/V2Ray)");
+            ConnectionProgressService.Report("tun_bridge", ConnectionProgressPhase.Active, "راه‌اندازی پل TUN (sing-box)");
+            ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Active, "شناسایی آداپتر مجازی");
             Status.Message = LocalizationService.Instance.T("در حال انتظار برای interface TunnelX-V2Ray...");
 
-            // Wait up to 10 seconds for the TUN interface to appear
             int interfaceIndex = -1;
-            var deadline = DateTime.UtcNow.AddSeconds(10);
+            var deadline = DateTime.UtcNow.AddSeconds(TunInterfaceWaitSeconds);
             while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
             {
                 // Detect early crash before we even get the interface
@@ -287,11 +251,23 @@ public class V2RayTunnelProvider : ITunnelProvider
             if (interfaceIndex <= 0)
             {
                 Status.State   = ConnectionState.Error;
-                Status.Message = LocalizationService.Instance.T("interface TunnelX-V2Ray ظاهر نشد (timeout 10s)");
+                Status.Message = LocalizationService.Instance.Format(
+                    "interface TunnelX-V2Ray ظاهر نشد (timeout {0}s)",
+                    TunInterfaceWaitSeconds);
                 Logger.Error(Status.Message);
+                ConnectionProgressService.Report("tun_interface", ConnectionProgressPhase.Fail, Status.Message);
                 await KillProcessAsync();
                 return false;
             }
+
+            ConnectionProgressService.Report("tunnel_engine", ConnectionProgressPhase.Complete, "راه‌اندازی هسته تونل (Xray/V2Ray)");
+            ConnectionProgressService.Report("tun_bridge", ConnectionProgressPhase.Complete, "راه‌اندازی پل TUN (sing-box)");
+            ConnectionProgressService.Report(
+                "tun_interface",
+                ConnectionProgressPhase.Complete,
+                "شناسایی آداپتر مجازی",
+                "آداپتر TunnelX-V2Ray آماده شد (شماره {0})",
+                interfaceIndex.ToString());
 
             _vpnInterfaceIndex = interfaceIndex;
 
@@ -396,6 +372,7 @@ public class V2RayTunnelProvider : ITunnelProvider
         else if (userConfig.StartsWith("vmess://"))
         {
             (outbound, outboundTag) = ParseVmess(userConfig);
+            LogWebSocketEarlyDataIfPresent(outbound);
         }
         else if (userConfig.StartsWith("vless://"))
         {
@@ -433,7 +410,11 @@ public class V2RayTunnelProvider : ITunnelProvider
         //      use exactly matches the IP excluded from WinDivert filters.
         // SNI (tls.server_name) keeps the original hostname so TLS still
         // validates correctly against the CDN certificate.
+        // WebSocket outbounds: keep the domain for dial (CDN/SNI); pinning IPv4 breaks many Iranian panels.
+        var skipServerPreResolve = outbound["transport"]?["type"]?.GetValue<string>() == "ws";
+
         if (enableDnsOptimization &&
+            !skipServerPreResolve &&
             outbound["server"] is JsonValue sv &&
             sv.TryGetValue<string>(out var srvHost) &&
             !string.IsNullOrEmpty(srvHost) &&
@@ -445,7 +426,8 @@ public class V2RayTunnelProvider : ITunnelProvider
                 if (v4 != null)
                 {
                     outbound["server"] = v4.ToString();
-                    Logger.Info($"[CONFIG] Pre-resolved sing-box server '{srvHost}' → {v4} (SNI kept as '{srvHost}')");
+                    var tlsSni = outbound["tls"]?["server_name"]?.GetValue<string>();
+                    Logger.Info($"[CONFIG] Pre-resolved sing-box server '{srvHost}' → {v4} (tls.server_name='{tlsSni ?? srvHost}')");
                 }
             }
             catch (Exception ex)
@@ -530,8 +512,8 @@ public class V2RayTunnelProvider : ITunnelProvider
 
     private static (JsonObject outbound, string tag) ParseVmess(string uri)
     {
-        // vmess://base64(json)
-        var b64 = uri["vmess://".Length..];
+        // vmess://base64(json)#remark
+        var b64 = uri["vmess://".Length..].Split('#')[0];
         // Pad base64
         b64 = b64.PadRight((b64.Length + 3) / 4 * 4, '=');
         var json = Encoding.UTF8.GetString(Convert.FromBase64String(b64));
@@ -555,25 +537,28 @@ public class V2RayTunnelProvider : ITunnelProvider
         var tls  = v["tls"]?.GetValue<string>() ?? "";
         if (tls == "tls")
         {
-            outbound["tls"] = new JsonObject
+            var tlsObj = new JsonObject
             {
                 ["enabled"]     = true,
                 ["server_name"] = v["sni"]?.GetValue<string>() ?? v["add"]?.GetValue<string>() ?? ""
             };
+            ApplyVmessTlsExtras(tlsObj, v);
+            outbound["tls"] = tlsObj;
         }
 
         // Transport
         if (net is "ws" or "websocket")
         {
-            outbound["transport"] = new JsonObject
+            var wsTransport = new JsonObject
             {
                 ["type"] = "ws",
-                ["path"] = v["path"]?.GetValue<string>() ?? "/",
                 ["headers"] = new JsonObject
                 {
                     ["Host"] = v["host"]?.GetValue<string>() ?? v["add"]?.GetValue<string>() ?? ""
                 }
             };
+            V2RayWebSocketHelper.ApplyEarlyDataToSingBox(wsTransport, v["path"]?.GetValue<string>() ?? "/");
+            outbound["transport"] = wsTransport;
         }
         else if (net is "grpc")
         {
@@ -583,8 +568,8 @@ public class V2RayTunnelProvider : ITunnelProvider
                 ["service_name"] = v["path"]?.GetValue<string>() ?? ""
             };
         }
-        
 
+        ApplyWebSocketTlsCompat(outbound);
         return (outbound, tag);
     }
 
@@ -615,13 +600,9 @@ public class V2RayTunnelProvider : ITunnelProvider
                 ["enabled"]     = true,
                 ["server_name"] = query.GetValueOrDefault("sni", u.Host)
             };
+            ApplyVlessTlsExtras(tlsObj, query);
             if (security == "reality")
             {
-                tlsObj["utls"] = new JsonObject
-                {
-                    ["enabled"] = true,
-                    ["fingerprint"] = query.GetValueOrDefault("fp", "chrome")
-                };
                 tlsObj["reality"] = new JsonObject
                 {
                     ["enabled"]    = true,
@@ -640,15 +621,16 @@ public class V2RayTunnelProvider : ITunnelProvider
         var net = query.GetValueOrDefault("type", "tcp");
         if (net is "ws")
         {
-            outbound["transport"] = new JsonObject
+            var wsTransport = new JsonObject
             {
                 ["type"] = "ws",
-                ["path"] = query.GetValueOrDefault("path", "/"),
                 ["headers"] = new JsonObject
                 {
                     ["Host"] = query.GetValueOrDefault("host", u.Host)
                 }
             };
+            V2RayWebSocketHelper.ApplyEarlyDataToSingBox(wsTransport, query.GetValueOrDefault("path", "/"));
+            outbound["transport"] = wsTransport;
         }
         else if (net is "grpc")
         {
@@ -679,6 +661,8 @@ public class V2RayTunnelProvider : ITunnelProvider
                 ["mode"] = query.GetValueOrDefault("mode", "auto")
             };
         }
+
+        ApplyWebSocketTlsCompat(outbound);
         return (outbound, tag);
     }
 
@@ -709,18 +693,134 @@ public class V2RayTunnelProvider : ITunnelProvider
         var net = query.GetValueOrDefault("type", "tcp");
         if (net is "ws")
         {
-            outbound["transport"] = new JsonObject
+            var wsTransport = new JsonObject
             {
                 ["type"] = "ws",
-                ["path"] = query.GetValueOrDefault("path", "/"),
                 ["headers"] = new JsonObject
                 {
                     ["Host"] = query.GetValueOrDefault("host", u.Host)
                 }
             };
+            V2RayWebSocketHelper.ApplyEarlyDataToSingBox(wsTransport, query.GetValueOrDefault("path", "/"));
+            outbound["transport"] = wsTransport;
         }
 
+        ApplyWebSocketTlsCompat(outbound);
         return (outbound, tag);
+    }
+
+    /// <summary>
+    /// v2rayNG/Xray encode WebSocket 0-RTT as path query <c>?ed=NNNN</c> or <c>?edNNNN</c>. sing-box needs
+    /// <c>max_early_data</c> plus <c>Sec-WebSocket-Protocol</c> (Xray-compatible mode).
+    /// </summary>
+    private static void LogWebSocketEarlyDataIfPresent(JsonObject outbound)
+    {
+        if (outbound["transport"] is not JsonObject transport ||
+            transport["type"]?.GetValue<string>() != "ws")
+            return;
+
+        var path = transport["path"]?.GetValue<string>() ?? "/";
+        if (transport["max_early_data"] is JsonValue ed && ed.TryGetValue<uint>(out var n) && n > 0)
+            Logger.Info($"[CONFIG] WebSocket path='{path}' max_early_data={n} (Xray ?ed= compat)");
+    }
+
+    /// <summary>
+    /// sing-box rejects or mishandles some ALPN values on WebSocket (e.g. h3, vless+h2).
+    /// uTLS on vless+ws should use fingerprint defaults without an explicit alpn list.
+    /// </summary>
+    private static void ApplyWebSocketTlsCompat(JsonObject outbound)
+    {
+        if (outbound["transport"] is not JsonObject transport ||
+            transport["type"]?.GetValue<string>() != "ws" ||
+            outbound["tls"] is not JsonObject tls)
+        {
+            return;
+        }
+
+        var proxyType = outbound["type"]?.GetValue<string>() ?? "";
+        if (proxyType == "vless" &&
+            tls["utls"] is JsonObject utls &&
+            utls["enabled"]?.GetValue<bool>() == true)
+        {
+            tls.Remove("alpn");
+            return;
+        }
+
+        if (tls["alpn"] is not JsonArray alpn)
+            return;
+
+        var kept = new List<JsonNode>();
+        foreach (var item in alpn)
+        {
+            var proto = item?.GetValue<string>() ?? "";
+            if (string.Equals(proto, "h3", StringComparison.OrdinalIgnoreCase))
+                continue;
+            if (proxyType == "vless" &&
+                string.Equals(proto, "h2", StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            kept.Add(item!.DeepClone());
+        }
+
+        if (kept.Count == 0)
+            tls.Remove("alpn");
+        else
+            tls["alpn"] = new JsonArray(kept.ToArray());
+    }
+
+    private static void ApplyVlessTlsExtras(JsonObject tlsObj, IReadOnlyDictionary<string, string> query)
+    {
+        if (query.GetValueOrDefault("allowInsecure", "0") == "1" ||
+            query.GetValueOrDefault("insecure", "0") == "1")
+        {
+            tlsObj["insecure"] = true;
+        }
+
+        var alpn = query.GetValueOrDefault("alpn", "");
+        if (!string.IsNullOrWhiteSpace(alpn))
+        {
+            tlsObj["alpn"] = new JsonArray(
+                alpn.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(a => JsonValue.Create(a))
+                    .ToArray());
+        }
+
+        var fp = V2RayWebSocketHelper.NormalizeFingerprint(query.GetValueOrDefault("fp", ""));
+        if (!string.IsNullOrWhiteSpace(fp))
+        {
+            tlsObj["utls"] = new JsonObject
+            {
+                ["enabled"]     = true,
+                ["fingerprint"] = fp
+            };
+        }
+    }
+
+    private static void ApplyVmessTlsExtras(JsonObject tlsObj, JsonObject vmessJson)
+    {
+        var alpn = vmessJson["alpn"]?.GetValue<string>();
+        if (!string.IsNullOrWhiteSpace(alpn))
+        {
+            tlsObj["alpn"] = new JsonArray(
+                alpn.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                    .Select(a => JsonValue.Create(a))
+                    .ToArray());
+        }
+
+        var fp = V2RayWebSocketHelper.NormalizeFingerprint(vmessJson["fp"]?.GetValue<string>());
+        if (!string.IsNullOrWhiteSpace(fp))
+        {
+            tlsObj["utls"] = new JsonObject
+            {
+                ["enabled"]     = true,
+                ["fingerprint"] = fp
+            };
+        }
+
+        if (vmessJson["insecure"]?.ToString() is "1" or "true")
+            tlsObj["insecure"] = true;
     }
 
     private static (JsonObject outbound, string tag) ParseShadowsocks(string uri)
@@ -851,33 +951,11 @@ public class V2RayTunnelProvider : ITunnelProvider
     /// Extracts the proxy server hostname from a V2Ray URI (vmess/vless/trojan/ss).
     /// Returns empty string for raw JSON configs or unparseable input.
     /// </summary>
-    private static string ExtractServerHost(string userConfig)
-    {
-        try
-        {
-            userConfig = userConfig.Trim();
-            if (userConfig.StartsWith("{")) return ""; // raw JSON — no single server
-            var uri = new Uri(userConfig.Split('#')[0]); // strip fragment before parsing
-            return uri.Host;
-        }
-        catch { return ""; }
-    }
+    private static string ExtractServerHost(string userConfig) =>
+        V2RayEndpointHelper.ExtractServerHost(userConfig);
 
-    private static int ExtractServerPort(string userConfig)
-    {
-        try
-        {
-            userConfig = userConfig.Trim();
-            if (userConfig.StartsWith("{")) return 0;
-            var uri = new Uri(userConfig.Split('#')[0]);
-            if (uri.Port > 0) return uri.Port;
-
-            return uri.Scheme.Equals("http", StringComparison.OrdinalIgnoreCase)
-                ? 3128
-                : 443;
-        }
-        catch { return 0; }
-    }
+    private static int ExtractServerPort(string userConfig) =>
+        V2RayEndpointHelper.ExtractServerPort(userConfig);
 
     private static int FindInterfaceIndex(string interfaceName)
     {

@@ -25,11 +25,15 @@ public partial class TrafficRouterService
             //    never reply to pings. We connect by the original hostname so any
             //    per-resolve CDN IP rotation matches what sing-box actually uses.
             //
-            //    For UDP-only tunnels (WireGuard): a TCP probe to the WG UDP port
+            //    For UDP-only tunnels (WireGuard, OpenVPN-udp): a TCP probe to the UDP port
             //    will ALWAYS time out, even when the tunnel is perfectly healthy.
             //    We do a best-effort UDP datagram instead — it cannot actually
             //    confirm WireGuard handshake success, but it at least won't lie.
-            if (_vpnServerIsUdpOnly)
+            if (_vpnServerSkipBareTcpProbe)
+            {
+                Logger.Info($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort}: skipped (WebSocket/TLS transport — use CONN-VERIFY instead)");
+            }
+            else if (_vpnServerIsUdpOnly)
             {
                 try
                 {
@@ -60,7 +64,10 @@ public partial class TrafficRouterService
                     sw.Stop();
                     Logger.Info($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} (direct): {sw.ElapsedMilliseconds}ms — reachable");
                 }
-                catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort}: timeout (3000ms) — server unreachable or port blocked"); }
+                catch (OperationCanceledException)
+                {
+                    Logger.Info($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort}: bare TCP timed out (3000ms) — normal for WebSocket-only proxies; see CONN-VERIFY");
+                }
                 catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP tunnel server {_vpnServerHost}:{_vpnServerPort} failed: {ex.Message}"); }
             }
 
@@ -117,47 +124,46 @@ public partial class TrafficRouterService
                     Logger.Info($"[CONN-CHECK] Ping {InternationalCheckHost} default-route check skipped — host route already present (app traffic in flight)");
                 }
 
-                // 4. TCP-connect to the same international IP via VPN — confirms the
-                //    tunnel can actually reach international destinations.
-                //    sing-box VLESS/VMess outbound does not forward ICMP, so a regular
-                //    Ping.Send() would bounce locally in the TUN and report a fake 0 ms.
-                //    A TCP handshake gives the real round-trip time through the tunnel.
-                //    When the route was already installed by live traffic we don't remove
-                //    it afterwards (it's in active use).
-                try
+                // 4. End-to-end international reachability through the tunnel.
+                //    Raw TcpClient.Connect to an IP via the TUN NIC is NOT reliable for
+                //    V2Ray/Xray (gvisor completes the local handshake in 1–3 ms before
+                //    the remote path is ready). Use CONN-VERIFY (SOCKS + TLS RTT) instead.
+                if (_vpnServerSkipBareTcpProbe)
                 {
-                    if (_vpnServerIsUdpOnly &&
-                        !await WaitForVpnIngressAsync(TimeSpan.FromSeconds(10)))
-                    {
-                        Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN delayed — WireGuard has not observed inbound tunnel traffic yet");
-                        return;
-                    }
-
-                    bool routeAdded = false;
-                    if (!routeAlreadyPresent)
-                    {
-                        EnsureHostRouteViaVpn(intlNbo, intlIp);
-                        routeAdded = true;
-                    }
-
-                    var sw = System.Diagnostics.Stopwatch.StartNew();
-                    using var tcp = new System.Net.Sockets.TcpClient();
-                    using var tcpCts = new System.Threading.CancellationTokenSource(3000);
-                    await tcp.ConnectAsync(intlIp, 443, tcpCts.Token);
-                    sw.Stop();
-                    Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} ({intlIp}:443, via VPN tunnel): {sw.ElapsedMilliseconds}ms");
-
-                    // Do not remove the temp route immediately. TCP can still
-                    // emit FIN/ACK or retransmit tail packets after ConnectAsync
-                    // returns; immediate removal sends VPN-source packets toward
-                    // the physical NIC, where leak-guard has to drop them.
-                    // Let the normal delayed route cleanup remove it after the
-                    // short grace window instead.
-                    if (routeAdded && !_ipToProcess.ContainsKey(intlNbo))
-                        ScheduleDelayedRouteRemoval(intlNbo);
+                    Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN: skipped (TUN local handshake is misleading for WebSocket proxies — see CONN-VERIFY RTT)");
                 }
-                catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN: timeout (3000ms)"); }
-                catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN failed: {ex.Message}"); }
+                else
+                {
+                    try
+                    {
+                        if (_vpnServerIsUdpOnly &&
+                            !await WaitForVpnIngressAsync(TimeSpan.FromSeconds(10)))
+                        {
+                            Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN delayed — WireGuard has not observed inbound tunnel traffic yet");
+                            WireGuardHandshakeDiagnostics.LogStatus();
+                            return;
+                        }
+
+                        bool routeAdded = false;
+                        if (!routeAlreadyPresent)
+                        {
+                            EnsureHostRouteViaVpn(intlNbo, intlIp);
+                            routeAdded = true;
+                        }
+
+                        var sw = System.Diagnostics.Stopwatch.StartNew();
+                        using var tcp = new System.Net.Sockets.TcpClient();
+                        using var tcpCts = new System.Threading.CancellationTokenSource(3000);
+                        await tcp.ConnectAsync(intlIp, 443, tcpCts.Token);
+                        sw.Stop();
+                        Logger.Info($"[CONN-CHECK] TCP {InternationalCheckHost} ({intlIp}:443, via VPN tunnel): {sw.ElapsedMilliseconds}ms (raw TCP — may be lower than SOCKS/TLS probes)");
+
+                        if (routeAdded && !_ipToProcess.ContainsKey(intlNbo))
+                            ScheduleDelayedRouteRemoval(intlNbo);
+                    }
+                    catch (OperationCanceledException) { Logger.Warning($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN: timeout (3000ms)"); }
+                    catch (Exception ex) { Logger.Warning($"[CONN-CHECK] TCP {InternationalCheckHost} via VPN failed: {ex.Message}"); }
+                }
             }
             else
                 Logger.Warning($"[CONN-CHECK] Could not resolve {InternationalCheckHost} — skipping international checks");

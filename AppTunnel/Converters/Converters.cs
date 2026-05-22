@@ -86,28 +86,58 @@ public class EnumToVisibilityConverter : IValueConverter
 }
 
 /// <summary>
-/// Detects text direction from content and falls back to the current app language.
+/// Uses app language direction unless the string is technical-only (IP, host, ports, metrics).
 /// </summary>
 public class TextToFlowDirectionConverter : IValueConverter
 {
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
     {
-        if (value is string text && !string.IsNullOrWhiteSpace(text))
-        {
-            foreach (char c in text)
-            {
-                if (char.IsWhiteSpace(c) || char.IsPunctuation(c) || char.IsDigit(c))
-                    continue;
-
-                if (c >= 0x0600 && c <= 0x06FF)
-                    return FlowDirection.RightToLeft;
-
-                if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z'))
-                    return FlowDirection.LeftToRight;
-            }
-        }
+        if (value is string text && IsTechnicalOnly(text))
+            return FlowDirection.LeftToRight;
 
         return LocalizationService.Instance.FlowDirection;
+    }
+
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        => throw new NotImplementedException();
+
+    internal static bool IsTechnicalOnly(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+            return false;
+
+        var hasContent = false;
+        foreach (char c in text)
+        {
+            if (char.IsWhiteSpace(c))
+                continue;
+
+            hasContent = true;
+            if (c >= 0x0600 && c <= 0x06FF)
+                return false;
+
+            if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                char.IsDigit(c) || c is '.' or ':' or '-' or '/' or '\\' or '_' or '@' or '*' or '✓' or '✗' or '●' or '○' or '–')
+                continue;
+
+            return false;
+        }
+
+        return hasContent;
+    }
+}
+
+/// <summary>
+/// Uses app text alignment unless the string is technical-only.
+/// </summary>
+public class TextToTextAlignmentConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
+    {
+        if (value is string text && TextToFlowDirectionConverter.IsTechnicalOnly(text))
+            return TextAlignment.Left;
+
+        return LocalizationService.Instance.TextAlignment;
     }
 
     public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)

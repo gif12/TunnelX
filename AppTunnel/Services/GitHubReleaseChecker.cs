@@ -1,5 +1,3 @@
-using System.Net.Http;
-using System.Net;
 using System.Text.Json;
 
 namespace AppTunnel.Services;
@@ -14,10 +12,9 @@ public sealed record GitHubReleaseInfo(
 
 public static class GitHubReleaseChecker
 {
-    private const string LatestReleaseApi =
-        "https://api.github.com/repos/MaxiFan/TunnelX/releases/latest";
-    private const string ReleasesApi =
-        "https://api.github.com/repos/MaxiFan/TunnelX/releases";
+    private const string LatestReleasePath = "/repos/MaxiFan/TunnelX/releases/latest";
+    private const string ReleasesPath = "/repos/MaxiFan/TunnelX/releases";
+    private const string GitHubApiHost = "api.github.com";
 
     /// <summary>Latest release via local mixed proxy (tunnel egress only). Returns null when <paramref name="proxyPort"/> is invalid.</summary>
     public static Task<GitHubReleaseInfo?> GetLatestReleaseAsync(CancellationToken ct, int proxyPort)
@@ -30,101 +27,138 @@ public static class GitHubReleaseChecker
 
     private static async Task<GitHubReleaseInfo?> TryGetLatestReleaseAsync(CancellationToken ct, int proxyPort)
     {
-        using var handler = new HttpClientHandler
+        var body = await TunnelProxyHttpService.GetAsync(
+            proxyPort,
+            GitHubApiHost,
+            443,
+            LatestReleasePath,
+            useTls: true,
+            ct);
+
+        if (string.IsNullOrWhiteSpace(body))
         {
-            Proxy = new WebProxy($"http://127.0.0.1:{proxyPort}"),
-            UseProxy = true
-        };
-
-        using var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(10) };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("TunnelX");
-
-        using var response = await http.GetAsync(LatestReleaseApi, ct);
-        if (!response.IsSuccessStatusCode)
+            Logger.Warning("[UPDATE] GitHub latest-release request via tunnel returned no body");
             return null;
+        }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-        var root = json.RootElement;
+        return ParseLatestReleaseJson(body);
+    }
 
-        var tag = root.TryGetProperty("tag_name", out var tagElement)
-            ? tagElement.GetString() ?? ""
-            : "";
-        if (!TryParseVersion(tag, out var version))
+    private static GitHubReleaseInfo? ParseLatestReleaseJson(string json)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+
+            var tag = root.TryGetProperty("tag_name", out var tagElement)
+                ? tagElement.GetString() ?? ""
+                : "";
+            if (!TryParseVersion(tag, out var version))
+                return null;
+
+            var name = root.TryGetProperty("name", out var nameElement)
+                ? nameElement.GetString() ?? tag
+                : tag;
+            var url = root.TryGetProperty("html_url", out var urlElement)
+                ? urlElement.GetString() ?? AppInfo.LatestReleaseUrl
+                : AppInfo.LatestReleaseUrl;
+            var prerelease = root.TryGetProperty("prerelease", out var preElement) &&
+                             preElement.ValueKind == JsonValueKind.True;
+            var releaseNotes = root.TryGetProperty("body", out var bodyElement)
+                ? bodyElement.GetString() ?? ""
+                : "";
+
+            return new GitHubReleaseInfo(version, tag, name, url, prerelease, releaseNotes);
+        }
+        catch (Exception ex)
+        {
+            Logger.Warning($"[UPDATE] Failed to parse GitHub release JSON: {ex.Message}");
             return null;
-
-        var name = root.TryGetProperty("name", out var nameElement)
-            ? nameElement.GetString() ?? tag
-            : tag;
-        var url = root.TryGetProperty("html_url", out var urlElement)
-            ? urlElement.GetString() ?? AppInfo.LatestReleaseUrl
-            : AppInfo.LatestReleaseUrl;
-        var prerelease = root.TryGetProperty("prerelease", out var preElement) &&
-                         preElement.ValueKind == JsonValueKind.True;
-        var releaseNotes = root.TryGetProperty("body", out var bodyElement)
-            ? bodyElement.GetString() ?? ""
-            : "";
-
-        return new GitHubReleaseInfo(version, tag, name, url, prerelease, releaseNotes);
+        }
     }
 
     public static async Task<long?> GetAppDownloadCountAsync(CancellationToken ct, int proxyPort = 0)
     {
         if (proxyPort > 0)
         {
-            var proxied = await TryGetAppDownloadCountAsync(ct, proxyPort);
+            var proxied = await TryGetAppDownloadCountViaTunnelAsync(ct, proxyPort);
             if (proxied.HasValue)
                 return proxied;
         }
 
-        return await TryGetAppDownloadCountAsync(ct, proxyPort: 0);
+        return await TryGetAppDownloadCountDirectAsync(ct);
     }
 
-    private static async Task<long?> TryGetAppDownloadCountAsync(CancellationToken ct, int proxyPort)
+    private static async Task<long?> TryGetAppDownloadCountViaTunnelAsync(CancellationToken ct, int proxyPort)
     {
-        using var handler = new HttpClientHandler();
-        if (proxyPort > 0)
+        var body = await TunnelProxyHttpService.GetAsync(
+            proxyPort,
+            GitHubApiHost,
+            443,
+            ReleasesPath,
+            useTls: true,
+            ct);
+
+        if (string.IsNullOrWhiteSpace(body))
+            return null;
+
+        return ParseDownloadCountFromReleasesJson(body);
+    }
+
+    private static async Task<long?> TryGetAppDownloadCountDirectAsync(CancellationToken ct)
+    {
+        try
         {
-            handler.Proxy = new WebProxy($"http://127.0.0.1:{proxyPort}");
-            handler.UseProxy = true;
+            using var http = new System.Net.Http.HttpClient { Timeout = TimeSpan.FromSeconds(10) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("TunnelX");
+            using var response = await http.GetAsync($"https://{GitHubApiHost}{ReleasesPath}", ct);
+            if (!response.IsSuccessStatusCode)
+                return null;
+
+            var body = await response.Content.ReadAsStringAsync(ct);
+            return ParseDownloadCountFromReleasesJson(body);
         }
-
-        using var http = new HttpClient(handler)
+        catch
         {
-            Timeout = TimeSpan.FromSeconds(10)
-        };
-        http.DefaultRequestHeaders.UserAgent.ParseAdd("TunnelX");
-
-        using var response = await http.GetAsync(ReleasesApi, ct);
-        if (!response.IsSuccessStatusCode)
             return null;
+        }
+    }
 
-        await using var stream = await response.Content.ReadAsStreamAsync(ct);
-        using var json = await JsonDocument.ParseAsync(stream, cancellationToken: ct);
-        if (json.RootElement.ValueKind != JsonValueKind.Array)
-            return null;
-
-        long total = 0;
-        foreach (var release in json.RootElement.EnumerateArray())
+    private static long? ParseDownloadCountFromReleasesJson(string json)
+    {
+        try
         {
-            if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
-                continue;
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Array)
+                return null;
 
-            foreach (var asset in assets.EnumerateArray())
+            long total = 0;
+            foreach (var release in doc.RootElement.EnumerateArray())
             {
-                var name = asset.TryGetProperty("name", out var nameElement)
-                    ? nameElement.GetString() ?? ""
-                    : "";
-                if (!IsAppDownloadAsset(name))
+                if (!release.TryGetProperty("assets", out var assets) || assets.ValueKind != JsonValueKind.Array)
                     continue;
 
-                if (asset.TryGetProperty("download_count", out var countElement) &&
-                    countElement.TryGetInt64(out var count))
-                    total += count;
-            }
-        }
+                foreach (var asset in assets.EnumerateArray())
+                {
+                    var name = asset.TryGetProperty("name", out var nameElement)
+                        ? nameElement.GetString() ?? ""
+                        : "";
+                    if (!IsAppDownloadAsset(name))
+                        continue;
 
-        return total;
+                    if (asset.TryGetProperty("download_count", out var countElement) &&
+                        countElement.TryGetInt64(out var count))
+                        total += count;
+                }
+            }
+
+            return total;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static bool TryParseVersion(string value, out Version version)

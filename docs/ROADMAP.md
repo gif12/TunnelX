@@ -36,6 +36,24 @@ Potential actions:
 
 For public releases, TunnelX should continue to prefer self-contained standalone EXE builds so end users do not need to install the .NET Runtime separately.
 
+### V2Ray core fallback: sing-box first, Xray when needed
+
+Today, share links such as `vmess://`, `vless`+WebSocket+TLS, trojan, and shadowsocks are converted and run through **sing-box** only. **Xray-core** is used when the config explicitly requires it (for example `vless` with `type=xhttp` or raw Xray JSON with `streamSettings`).
+
+Planned improvement for the same class of profiles that work on mobile (v2rayNG / Xray) but fail or feel slow on sing-box:
+
+- Keep **sing-box** as the default path (single process, already used for TUN + mixed inbound health checks).
+- If connection **fails** (for example repeated upstream errors, health verify failure, or handshake errors after config conversion fixes) **or** is **consistently slow** (for example sustained `dial tcp` timeouts to the proxy server while direct reachability checks pass), optionally retry or switch using **Xray-core** for the outbound:
+  - `xray.exe` handles VMess/VLESS/WebSocket/TLS (and `?ed=` early-data compatibility aligned with v2rayNG).
+  - **sing-box** remains the TUN bridge only (local SOCKS → existing `XrayTunnelProvider` pattern).
+- UX: surface which core is active (`sing-box` vs `Xray-core + bridge`), log the fallback reason, and allow a per-profile or global setting (“try Xray if sing-box fails or is slow”) without forcing two processes for every user.
+
+Scope notes:
+
+- Not a replacement for all V2Ray traffic by default (heavier: two processes, larger footprint).
+- Implement VMess (and common WS+TLS) outbound build for Xray where missing; reuse existing xhttp bridge architecture.
+- Compare latency on the same health probes before marking fallback successful.
+
 ### Profile management
 
 - import and export connection profiles

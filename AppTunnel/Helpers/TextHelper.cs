@@ -84,4 +84,13 @@ public static class TextHelper
 
         return text;
     }
+
+    /// <summary>Wraps a Latin/technical token so it stays LTR inside RTL Persian UI text.</summary>
+    public static string EmbedLtr(string value)
+    {
+        if (string.IsNullOrEmpty(value))
+            return value;
+
+        return "\u202A" + value + "\u202C";
+    }
 }

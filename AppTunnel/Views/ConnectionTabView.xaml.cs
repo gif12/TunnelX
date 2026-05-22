@@ -1,4 +1,6 @@
 using System.Windows;
+using AppTunnel.Helpers;
+using AppTunnel.Services;
 using AppTunnel.ViewModels;
 
 namespace AppTunnel.Views;
@@ -10,10 +12,15 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
         InitializeComponent();
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+        LocalizationService.Instance.LanguageChanged += OnLanguageChanged;
     }
+
+    private void OnLanguageChanged(object? sender, EventArgs e) =>
+        LocalizationLayoutHelper.ApplyTo(this);
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        LocalizationLayoutHelper.ApplyTo(this);
         if (DataContext is not MainViewModel vm) return;
 
         // Wire up PasswordBox (can't bind directly in WPF)
@@ -39,6 +46,7 @@ public partial class ConnectionTabView : System.Windows.Controls.UserControl
 
     private void OnUnloaded(object sender, RoutedEventArgs e)
     {
+        LocalizationService.Instance.LanguageChanged -= OnLanguageChanged;
         PasswordField.PasswordChanged -= OnPasswordFieldChanged;
         PskField.PasswordChanged -= OnPskFieldChanged;
         OpenVpnPasswordField.PasswordChanged -= OnOpenVpnPasswordFieldChanged;

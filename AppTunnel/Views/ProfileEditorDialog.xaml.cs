@@ -1,5 +1,7 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
+using AppTunnel.Helpers;
 using AppTunnel.Models;
 using AppTunnel.Services;
 
@@ -15,7 +17,7 @@ public partial class ProfileEditorDialog : Window
         _profile = profile;
         _titleKey = title;
         InitializeComponent();
-        Loaded += (_, _) => LocalizationService.Instance.ApplyTo(this);
+        Loaded += (_, _) => ApplyDialogLayout();
         DataContext = profile;
         DialogTitleText.Text = LocalizationService.Instance.T(title);
         Loaded += OnLoaded;
@@ -30,9 +32,19 @@ public partial class ProfileEditorDialog : Window
 
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
-        DialogTitleText.Text = LocalizationService.Instance.T(_titleKey);
-        LocalizationService.Instance.ApplyTo(this);
+        var loc = LocalizationService.Instance;
+        DialogTitleText.Text = loc.T(_titleKey);
+        DialogSubtitleText.Text = loc.T("تنظیمات این کانفیگ بعد از ذخیره در لیست پروفایل‌ها نمایش داده می‌شود.");
+        ApplyDialogLayout();
         RefreshOpenVpnProfileUi();
+    }
+
+    private void ApplyDialogLayout()
+    {
+        var loc = LocalizationService.Instance;
+        FlowDirection = loc.FlowDirection;
+        LocalizationLayoutHelper.ApplyTo(this);
+        loc.ApplyTo(this);
     }
 
     public static bool? Show(ConnectionProfile profile, string title, Window? owner)
@@ -46,6 +58,7 @@ public partial class ProfileEditorDialog : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        ApplyDialogLayout();
         L2tpPasswordField.Password = _profile.Password;
         PskField.Password = _profile.PreSharedKey;
         OpenVpnPasswordField.Password = _profile.OpenVpnPassword;
@@ -58,6 +71,7 @@ public partial class ProfileEditorDialog : Window
     {
         var loc = LocalizationService.Instance;
         var flow = loc.FlowDirection;
+        var align = loc.TextAlignment;
         OpenVpnIntroTextBlock.Text = loc.T("فایل .ovpn و اطلاعات احراز هویت OpenVPN را وارد کنید. TunnelX بر اساس محتوای فایل مشخص می‌کند کدام فیلدها اجباری است.");
         OpenVpnFileLabelTextBlock.Text = loc.T("فایل OpenVPN (.ovpn)");
         OpenVpnBrowseButton.Content = loc.T("انتخاب فایل");
@@ -67,13 +81,21 @@ public partial class ProfileEditorDialog : Window
         OpenVpnPasswordLabelTextBlock.Text = OpenVpnProfileAnalyzer.GetPasswordFieldLabel(_profile.OpenVpnConfig);
         OpenVpnSecretLabelTextBlock.Text = OpenVpnProfileAnalyzer.GetSecretFieldLabel(_profile.OpenVpnConfig);
 
-        OpenVpnIntroTextBlock.FlowDirection = flow;
-        OpenVpnFileLabelTextBlock.FlowDirection = flow;
-        OpenVpnScenarioTitleTextBlock.FlowDirection = flow;
-        OpenVpnScenarioHintTextBlock.FlowDirection = flow;
-        OpenVpnUsernameLabelTextBlock.FlowDirection = flow;
-        OpenVpnPasswordLabelTextBlock.FlowDirection = flow;
-        OpenVpnSecretLabelTextBlock.FlowDirection = flow;
+        foreach (var block in new TextBlock[]
+                 {
+                     DialogTitleText, DialogSubtitleText, OpenVpnIntroTextBlock, OpenVpnFileLabelTextBlock,
+                     OpenVpnScenarioTitleTextBlock, OpenVpnScenarioHintTextBlock, OpenVpnUsernameLabelTextBlock,
+                     OpenVpnPasswordLabelTextBlock, OpenVpnSecretLabelTextBlock, ProfileNameValidationText,
+                     ValidationText
+                 })
+        {
+            block.FlowDirection = flow;
+            block.TextAlignment = align;
+            block.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+        }
+
+        ProfileNameField.FlowDirection = flow;
+        ProfileNameField.TextAlignment = align;
     }
 
     private void OnOpenVpnCredentialChanged(object sender, RoutedEventArgs e)
@@ -257,10 +279,13 @@ public partial class ProfileEditorDialog : Window
 
     private void ShowProfileNameError()
     {
+        var loc = LocalizationService.Instance;
         var warningBrush = TryFindResource("WarningBrush") as System.Windows.Media.Brush ?? System.Windows.Media.Brushes.Orange;
         ProfileNameField.BorderBrush = warningBrush;
         ProfileNameField.BorderThickness = new Thickness(2);
-        ProfileNameValidationText.Text = LocalizationService.Instance.T("نام پروفایل را وارد کنید");
+        ProfileNameValidationText.Text = loc.T("نام پروفایل را وارد کنید");
+        ProfileNameValidationText.FlowDirection = loc.FlowDirection;
+        ProfileNameValidationText.TextAlignment = loc.TextAlignment;
         ProfileNameValidationText.Visibility = Visibility.Visible;
         ValidationText.Text = "";
         ProfileNameField.Focus();

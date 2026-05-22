@@ -292,6 +292,38 @@ public static class OpenVpnProfileAnalyzer
         Analyze(config).RequiresPrivateKeyPassphrase;
 
     /// <summary>
+    /// True when the profile uses UDP transport (proto udp, udp-client, udp4, …).
+    /// Connectivity checks should not TCP-probe the server port on these tunnels.
+    /// </summary>
+    public static bool ConfigUsesUdpTransport(string? config)
+    {
+        if (string.IsNullOrWhiteSpace(config))
+            return false;
+
+        var sawUdp = false;
+        foreach (var line in config.Split('\n'))
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith('#') || trimmed.StartsWith(';'))
+                continue;
+            if (!trimmed.StartsWith("proto ", StringComparison.OrdinalIgnoreCase))
+                continue;
+
+            var parts = trimmed.Split(new[] { ' ', '\t' }, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length < 2)
+                continue;
+
+            var proto = parts[1];
+            if (proto.Contains("tcp", StringComparison.OrdinalIgnoreCase))
+                return false;
+            if (proto.Contains("udp", StringComparison.OrdinalIgnoreCase))
+                sawUdp = true;
+        }
+
+        return sawUdp;
+    }
+
+    /// <summary>
     /// OpenVPN 2.6+ ignores legacy cipher= unless data-ciphers is set. Returns cipher names to add, or empty.
     /// </summary>
     public static IReadOnlyList<string> GetDataCipherCompatLines(string? config)

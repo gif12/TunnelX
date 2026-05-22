@@ -29,6 +29,12 @@ public class ConnectionStatus
     /// </summary>
     public int SingBoxMixedPort { get; set; } = 0;
 
+    /// <summary>
+    /// Xray SOCKS inbound port (127.0.0.1) when using Xray + sing-box TUN bridge.
+    /// Used as a fallback health-check path if mixed-port probes fail.
+    /// </summary>
+    public int XraySocksInboundPort { get; set; } = 0;
+
     public string Duration
     {
         get
