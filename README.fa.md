@@ -2,7 +2,7 @@
 
 # TunnelX
 
-فارسی | <span dir="ltr">[English](README.md)</span> | <span dir="ltr">[Русский](README.md#русский)</span> | <span dir="ltr">[简体中文](README.md#简体中文)</span>
+فارسی | <span dir="ltr">[English](README.md#english)</span> | <span dir="ltr">[Русский](README.ru.md)</span> | <span dir="ltr">[简体中文](README.zh.md)</span>
 
 <span dir="ltr">TunnelX</span> یک نرم‌افزار آزاد و رایگان برای ویندوز است که توسط **<span dir="ltr">MaxFan</span>** ساخته شده و برای مدیریت تونل، وی‌پی‌ان و <span dir="ltr">Split Tunneling</span> استفاده می‌شود. این برنامه می‌تواند ترافیک برنامه‌های انتخاب‌شده، مقصدهای مشخص، یا کل سیستم را از تونل عبور دهد و هم‌زمان مسیر عادی شبکه را برای مقصدهای محلی یا مستثنی‌شده حفظ کند. رابط برنامه دو‌زبانه است، زبان سیستم را تشخیص می‌دهد و چینش راست‌به‌چپ/چپ‌به‌راست را برای فارسی و انگلیسی رعایت می‌کند.
 

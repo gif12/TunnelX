@@ -1,8 +1,30 @@
 # TunnelX
 
-[فارسی](README.fa.md) | English | [Русский](#русский) | [简体中文](#简体中文)
+[فارسی](README.fa.md) · [English](#english) · [Русский](README.ru.md) · [简体中文](README.zh.md)
 
-TunnelX is a free and open-source Windows split-tunneling client built by **MaxFan**. It routes selected apps, selected destinations, or the whole system through supported tunnel cores while keeping local and excluded destinations on the normal network path. The app supports Persian and English UI modes with automatic system-language detection and correct RTL/LTR layout handling.
+## فارسی
+
+**TunnelX** یک نرم‌افزار آزاد و رایگان برای ویندوز است که توسط **MaxFan** ساخته شده و برای مدیریت تونل، وی‌پی‌ان و Split Tunneling استفاده می‌شود. ترافیک برنامه‌های انتخاب‌شده، مقصدهای مشخص یا کل سیستم را از تونل عبور می‌دهد و مسیر عادی شبکه را برای مقصدهای محلی یا مستثنی‌شده حفظ می‌کند. رابط دو‌زبانه فارسی/انگلیسی با تشخیص خودکار زبان و چینش RTL/LTR دارد.
+
+**[مستند کامل فارسی →](README.fa.md)**
+
+## English
+
+**TunnelX** is a free and open-source Windows split-tunneling client built by **MaxFan**. It routes selected apps, selected destinations, or the whole system through supported tunnel cores while keeping local and excluded destinations on the normal network path. The app supports Persian and English UI modes with automatic system-language detection and correct RTL/LTR layout handling.
+
+*Full English documentation continues below.*
+
+## Русский
+
+**TunnelX** — бесплатный клиент с открытым исходным кодом для Windows (split tunneling) от **MaxFan**. Он направляет через VPN, V2Ray/Xray, OpenVPN или SOCKS5/HTTP Proxy только выбранные приложения, домены/IP или весь системный трафик, сохраняя обычный маршрут для локальных и исключённых назначений. Интерфейс поддерживает персидский и английский языки с автоматическим выбором языка системы и корректным RTL/LTR.
+
+**[Полная документация на русском →](README.ru.md)**
+
+## 简体中文
+
+**TunnelX** 是由 **MaxFan** 构建的免费开源 Windows 分流隧道客户端。它可让选定应用、指定域名/IP 或整个系统通过 VPN、V2Ray/Xray、OpenVPN 或 SOCKS5/HTTP Proxy，同时让本地或排除的目标继续走普通网络。应用支持波斯语和英语界面，可自动检测系统语言并正确处理 RTL/LTR 布局。
+
+**[完整中文文档 →](README.zh.md)**
 
 ## Stay Updated on Telegram
 
@@ -11,30 +33,6 @@ Join the official TunnelX Telegram channel for release announcements, update ale
 **[Join @tunnelxx on Telegram](https://t.me/tunnelxx)**
 
 If Telegram is installed on Windows, the in-app button opens the channel directly in the Telegram app.
-
-## Русский
-
-TunnelX — бесплатный клиент split tunneling для Windows от **MaxFan**. Он позволяет направлять через VPN, V2Ray/Xray, OpenVPN или SOCKS5/HTTP Proxy только выбранные приложения, выбранные домены/IP или весь системный трафик. Интерфейс поддерживает персидский и английский языки с автоматическим выбором языка системы и корректным RTL/LTR отображением.
-
-Основные возможности: профили L2TP/IPsec, V2Ray/Xray, SOCKS5/HTTP Proxy, OpenVPN Community и WireGuard; выбор приложений для туннеля; правила include/exclude; режим Full Route; проверка здоровья туннеля перед экраном «подключено»; отображение выходного IP с флагом страны (через туннель); история трафика; защита от DNS/IPv6/leak.
-
-Для обычного использования скачайте последний standalone-файл из [GitHub Releases](https://github.com/MaxiFan/TunnelX/releases/latest), запустите TunnelX от имени Administrator, создайте профиль подключения, выберите приложения для туннеля и подключитесь. Отдельная установка .NET Runtime для standalone-сборки не требуется.
-
-Связаться с автором можно в Telegram: [t.me/maxifaan](https://t.me/maxifaan).
-
-Новости, обновления и объявления о релизах TunnelX публикуются в официальном канале: **[t.me/tunnelxx](https://t.me/tunnelxx)**.
-
-## 简体中文
-
-TunnelX 是由 **MaxFan** 构建的免费 Windows 分流隧道客户端。它可以只让选定的应用、指定的域名/IP，或整个系统流量通过 VPN、V2Ray/Xray、OpenVPN 或 SOCKS5/HTTP Proxy，同时让本地或排除的目标继续走普通网络。应用支持波斯语和英语界面，可自动检测系统语言并正确处理 RTL/LTR 布局。
-
-主要功能包括：L2TP/IPsec、V2Ray/Xray、SOCKS5/HTTP Proxy、OpenVPN Community 与 WireGuard；按应用分流；连接前隧道健康检查；公网出口 IP 与国家旗帜（经隧道查询）；Full Route；流量历史；DNS、IPv6 与泄漏防护。
-
-普通用户可以从 [GitHub Releases](https://github.com/MaxiFan/TunnelX/releases/latest) 下载最新 standalone 版本，以 Administrator 权限运行 TunnelX，创建连接配置，选择需要进入隧道的应用，然后连接。standalone 版本不需要单独安装 .NET Runtime。
-
-可通过 Telegram 联系作者：[t.me/maxifaan](https://t.me/maxifaan)。
-
-TunnelX 的更新通知、发布公告和项目新闻会发布在官方 Telegram 频道：**[t.me/tunnelxx](https://t.me/tunnelxx)**。
 
 ## Features
 
