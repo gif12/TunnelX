@@ -5,9 +5,19 @@ obj/
 # Local IDE and tooling state
 .vs/
 .vscode/
+.cursor/
 .github/copilot-instructions.md
 *.user
 *.suo
+*_wpftmp.csproj
+*_wpftmp.*
+
+# Ad-hoc screenshots / drops in repo root (not under docs/)
+/*.png
+/*.jpg
+/*.jpeg
+/*.gif
+/*.webp
 
 # Publish and release artifacts
 publish/
