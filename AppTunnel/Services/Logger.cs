@@ -16,6 +16,12 @@ public static class Logger
     private static readonly StringBuilder _logs = new();
     private static readonly object _lock = new();
     private static readonly Regex AnsiRegex = new(@"\x1B\[[0-9;]*[A-Za-z]", RegexOptions.Compiled);
+    private static readonly Regex[] LeadingTimestampPatterns =
+    [
+        new(@"^(?:[+-]\d{4}\s+)?\d{4}[-/]\d{2}[-/]\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\s+", RegexOptions.Compiled),
+        new(@"^\[\d{4}-\d{2}-\d{2}\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?\]\s+", RegexOptions.Compiled),
+        new(@"^[A-Z][a-z]{2}\s+[A-Z][a-z]{2}\s+\d{1,2}\s+\d{2}:\d{2}:\d{2}\s+\d{4}\s+", RegexOptions.Compiled),
+    ];
     private static string? _lastLevel;
     private static string? _lastMessage;
     private static DateTime _lastMessageAtUtc;
@@ -59,7 +65,7 @@ public static class Logger
         if (string.IsNullOrWhiteSpace(line))
             return;
 
-        var cleaned = NormalizeMessage(line);
+        var cleaned = StripLeadingTimestamp(NormalizeMessage(line));
         if (TryHandleNoisyProcessLine(source, cleaned))
             return;
 
@@ -87,25 +93,8 @@ public static class Logger
 
         FlushRepeatSummary(nowUtc);
 
-        var timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss");
-        var logEntry = $"[{timestamp}] [{level}] {message}";
-
-        lock (_lock)
-        {
-            _logs.AppendLine(logEntry);
-
-            if (_logs.Length > MaxLogChars)
-            {
-                // Drop the oldest characters and align to the next line boundary
-                // so we don't leave a partial line at the top of the buffer.
-                int dropCount = _logs.Length - TruncateTo;
-                int newline = _logs.ToString(dropCount, Math.Min(2048, _logs.Length - dropCount)).IndexOf('\n');
-                if (newline >= 0) dropCount += newline + 1;
-                _logs.Remove(0, dropCount);
-            }
-        }
-
-        LogAdded?.Invoke(logEntry);
+        var logEntry = FormatLogEntry(level, message, nowUtc);
+        AppendLogEntry(logEntry);
         _lastLevel = level;
         _lastMessage = message;
         _lastMessageAtUtc = nowUtc;
@@ -252,11 +241,21 @@ public static class Logger
 
     private static void AppendRaw(string level, string message, DateTime nowUtc)
     {
-        var timestamp = nowUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
-        var logEntry = $"[{timestamp}] [{level}] {message}";
+        AppendLogEntry(FormatLogEntry(level, message, nowUtc));
+    }
+
+    private static string FormatLogEntry(string level, string message, DateTime utcNow)
+    {
+        var timestamp = utcNow.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss");
+        return $"[{timestamp}] [{level}] {message}";
+    }
+
+    private static void AppendLogEntry(string logEntry)
+    {
         lock (_lock)
         {
             _logs.AppendLine(logEntry);
+
             if (_logs.Length > MaxLogChars)
             {
                 int dropCount = _logs.Length - TruncateTo;
@@ -265,6 +264,21 @@ public static class Logger
                 _logs.Remove(0, dropCount);
             }
         }
+
         LogAdded?.Invoke(logEntry);
+    }
+
+    private static string StripLeadingTimestamp(string message)
+    {
+        if (string.IsNullOrEmpty(message))
+            return message;
+
+        foreach (var pattern in LeadingTimestampPatterns)
+        {
+            if (pattern.IsMatch(message))
+                return pattern.Replace(message, "").TrimStart();
+        }
+
+        return message;
     }
 }

@@ -474,7 +474,7 @@ public class XrayTunnelProvider : ITunnelProvider
     {
         var doc = new JsonObject
         {
-            ["log"] = new JsonObject { ["level"] = "warn" },
+            ["log"] = new JsonObject { ["level"] = "warn", ["timestamp"] = false },
             ["inbounds"] = new JsonArray
             {
                 new JsonObject
