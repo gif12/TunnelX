@@ -55,12 +55,7 @@
                     Padding="10">
                 <ScrollViewer VerticalScrollBarVisibility="Auto"
                               HorizontalScrollBarVisibility="Disabled">
-                    <TextBlock x:Name="BodyText"
-                               FontSize="12.5"
-                               LineHeight="20"
-                               Foreground="{StaticResource TextPrimaryBrush}"
-                               TextWrapping="Wrap"
-                               FlowDirection="{Binding Source={x:Static services:LocalizationService.Instance}, Path=FlowDirection}"/>
+                    <StackPanel x:Name="BodyPanel"/>
                 </ScrollViewer>
             </Border>
 

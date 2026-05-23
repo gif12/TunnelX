@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
+using System.Linq;
 
 namespace AppTunnel.Services;
 
@@ -51,7 +52,7 @@ public partial class TrafficRouterService
             return;
         }
 
-        ips = ResolveDestinationEntry(entry, "[INCLUDE]", out var unsupportedIp);
+        ips = ResolveDestinationEntry(entry, "[INCLUDE]", DestinationDnsPolicy.TunnelRequired, out var unsupportedIp);
         if (unsupportedIp)
         {
             _includedEntries[entry] = ips;
@@ -124,7 +125,7 @@ public partial class TrafficRouterService
                 var oldIps = _includedEntries.TryGetValue(entry, out var existing)
                     ? existing
                     : new HashSet<uint>();
-                var newIps = ResolveDestinationEntry(entry, "[INCLUDE]", out _);
+                var newIps = ResolveDestinationEntry(entry, "[INCLUDE]", DestinationDnsPolicy.TunnelRequired, out _);
                 if (newIps.Count == 0 &&
                     oldIps.Count > 0 &&
                     !IPAddress.TryParse(entry, out _))
@@ -181,7 +182,11 @@ public partial class TrafficRouterService
         }
     }
 
-    private static HashSet<uint> ResolveDestinationEntry(string entry, string logPrefix, out bool unsupportedIp)
+    private HashSet<uint> ResolveDestinationEntry(
+        string entry,
+        string logPrefix,
+        DestinationDnsPolicy policy,
+        out bool unsupportedIp)
     {
         unsupportedIp = false;
         var ips = new HashSet<uint>();
@@ -201,12 +206,17 @@ public partial class TrafficRouterService
 
         try
         {
-            foreach (var addr in DnsResolverCache.ResolveIpv4(entry))
+            var tunnelDns = CreateTunnelDnsResolveOptions();
+
+            foreach (var addr in DnsResolverCache.ResolveIpv4ForRoutingList(entry, policy, tunnelDns))
             {
                 if (!IsUsableRouteIpv4(addr))
                     continue;
                 ips.Add(BitConverter.ToUInt32(addr.GetAddressBytes(), 0));
             }
+
+            if (ips.Count > 0 && policy == DestinationDnsPolicy.TunnelRequired)
+                Logger.Info($"{logPrefix} Resolved '{entry}' via tunnel → {string.Join(", ", ips.Select(nbo => new IPAddress(BitConverter.GetBytes(nbo))))}");
         }
         catch (Exception ex)
         {

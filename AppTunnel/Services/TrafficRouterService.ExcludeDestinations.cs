@@ -65,7 +65,7 @@ public partial class TrafficRouterService
             return;
         }
 
-        ips = ResolveDestinationEntry(entry, "[EXCLUDE]", out var unsupportedIp);
+        ips = ResolveDestinationEntry(entry, "[EXCLUDE]", DestinationDnsPolicy.DirectThenTunnel, out var unsupportedIp);
         if (unsupportedIp)
         {
             _excludedEntries[entry] = ips;
@@ -190,7 +190,7 @@ public partial class TrafficRouterService
                 var oldIps = _excludedEntries.TryGetValue(entry, out var existing)
                     ? existing
                     : new HashSet<uint>();
-                var newIps = ResolveDestinationEntry(entry, "[EXCLUDE]", out _);
+                var newIps = ResolveDestinationEntry(entry, "[EXCLUDE]", DestinationDnsPolicy.DirectThenTunnel, out _);
 
                 _excludedEntries[entry] = newIps;
                 foreach (var nbo in oldIps.Except(newIps).ToList())

@@ -4,25 +4,25 @@
 
 ## 2.1.1 - 2026-05-22
 
-### English
-
-- **Which file to download:** use the **standalone EXE** on [Releases](https://github.com/MaxiFan/TunnelX/releases/latest) if you are not sure — no separate .NET install. Choose the **ZIP** only when **.NET 8 Desktop Runtime (x64)** is already on your PC.
-- Clearer messages when a proxy server is **closed** versus **slow**; slow servers get a real tunnel check instead of stopping too early.
-- **Connected** state only after a practical internet check through the tunnel (not just a local adapter).
-- Exit **country flag** loads through the tunnel, with automatic retry and backup sources.
-- Better everyday support for common **V2Ray** subscription links (VMess / VLESS over WebSocket).
-- Fixed cases where a long wait during connection looked like you had **cancelled** it yourself.
-- Persian and English layout polish on the connection tab and profile editor (RTL / LTR).
-
 ### فارسی
 
-- **کدام فایل را دانلود کنم:** در [صفحه انتشار](https://github.com/MaxiFan/TunnelX/releases/latest) برای اکثر کاربران **فایل EXE مستقل** را بگیرید — نیازی به نصب جداگانه .NET نیست. **ZIP** را فقط وقتی بگیرید که **.NET 8 Desktop Runtime نسخه x64** از قبل روی ویندوز نصب است.
-- پیام شفاف‌تر وقتی پورت سرور **بسته** است یا فقط **کند** است؛ برای سرورهای کند، بررسی واقعی از مسیر تونل انجام می‌شود.
-- وضعیت **متصل** فقط پس از یک آزمایش عملی اینترنت از داخل تونل نمایش داده می‌شود.
-- **پرچم کشور** IP خروجی از مسیر تونل بارگذاری می‌شود، با تلاش دوباره و منبع جایگزین.
-- پشتیبانی بهتر از لینک‌های رایج **V2Ray** (VMess و VLESS با WebSocket).
-- رفع حالتی که انتظار طولانی هنگام اتصال شبیه **لغو** توسط خود کاربر دیده می‌شد.
-- مرتب‌سازی چیدمان فارسی و انگلیسی در تب اتصال و ویرایش پروفایل (راست‌به‌چپ / چپ‌به‌راست).
+- اگر مطمئن نیستید، فایل EXE مستقل را از صفحه Releases دانلود کنید؛ این نسخه به نصب جداگانه .NET نیاز ندارد.
+- فایل ZIP فقط برای کاربرانی است که .NET 8 Desktop Runtime نسخه x64 را از قبل نصب کرده‌اند.
+- بررسی سلامت اتصال دقیق‌تر شد: صفحه «متصل» فقط وقتی نمایش داده می‌شود که دسترسی اینترنت از داخل تونل واقعا تایید شده باشد.
+- پیام خطا برای سرورهای بسته یا کند شفاف‌تر شد؛ سرور کند دیگر زودتر از موعد ناموفق حساب نمی‌شود.
+- پرچم کشور IP خروجی از مسیر تونل بارگذاری می‌شود و در صورت خطا دوباره تلاش می‌کند.
+- پشتیبانی از لینک‌های رایج V2Ray، مخصوصا VMess و VLESS روی WebSocket، بهتر شد.
+- چند ناهماهنگی راست‌به‌چپ و چپ‌به‌راست در تب اتصال و ویرایش پروفایل اصلاح شد.
+
+### English
+
+- If you are not sure which file to use, download the standalone EXE from Releases. It does not need a separate .NET installation.
+- Use the ZIP package only if .NET 8 Desktop Runtime x64 is already installed on your PC.
+- Connection health checks are stricter: the connected screen appears only after internet access through the tunnel is verified.
+- Error messages now better distinguish closed servers from slow servers, so slow servers are not rejected too early.
+- The exit IP country flag is loaded through the tunnel and retries automatically when a source fails.
+- Common V2Ray links work better, especially VMess and VLESS over WebSocket.
+- Several RTL/LTR layout issues were fixed in the connection tab and profile editor.
 
 ## 2.1.0 - 2026-05-21
 
@@ -210,7 +210,6 @@
 - Added in-app GitHub and donation links.
 - Added project metadata for MaxFan and GPL-3.0-or-later licensing.
 - Improved leak logging and traffic accounting in recent internal builds.
-
 
 
 

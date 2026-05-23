@@ -514,13 +514,10 @@ public partial class TrafficRouterService : IDisposable
             Logger.Info("[WG-OUT] Active VPN-interface intercept disabled for WireGuard; using NET-OUT/NET-IN plus read-only sniffing");
         }
         _fullRouteEnabled = false;
+        _routeBootstrapReady = false;
+        // Install DoH/bootstrap routes before INCLUDE/EXCLUDE DNS refresh so lookups
+        // egress via the tunnel (not filtered system DNS on the physical path).
         _ = Task.Run(RunDeferredRouteBootstrap);
-        // Do not block connect UI on slow per-domain DNS lookups (4s timeout each).
-        _ = Task.Run(() =>
-        {
-            try { RefreshDestinationLists(installIncludedRoutes: true); }
-            catch (Exception ex) { Logger.Warning($"[DEST] Initial refresh failed: {ex.Message}"); }
-        });
         _destinationRefreshTimer = new System.Threading.Timer(_ => RefreshDestinationLists(installIncludedRoutes: true), null,
             TimeSpan.FromSeconds(30), TimeSpan.FromSeconds(30));
         _ = Task.Run(RunConnectivityChecks);
@@ -743,6 +740,8 @@ public partial class TrafficRouterService : IDisposable
             Logger.Info($"[NET-STATS] NAT stale entries cleaned: {natCleaned}");
     }
 
+    private volatile bool _routeBootstrapReady;
+
     private void RunDeferredRouteBootstrap()
     {
         try
@@ -767,6 +766,9 @@ public partial class TrafficRouterService : IDisposable
             RemoveDefaultRouteOnVpn();
             InstallDohBootstrapRoutes();
             InstallWireGuardDnsBootstrap();
+            // INCLUDE tunnel-DNS may run as soon as DoH/bootstrap routes exist.
+            _routeBootstrapReady = true;
+
             if (_vpnServerIsUdpOnly)
             {
                 if (AddVpnServerPhysicalRoute())
@@ -774,11 +776,38 @@ public partial class TrafficRouterService : IDisposable
                 else
                     Logger.Warning($"[WG-ROUTE] Could not pin VPN server {_vpnServerIp} to physical gateway");
             }
+
+            try
+            {
+                RefreshDestinationLists(installIncludedRoutes: true);
+                Logger.Info("[DEST] Initial include/exclude refresh completed (INCLUDE=tunnel, EXCLUDE=direct-first)");
+            }
+            catch (Exception ex)
+            {
+                Logger.Warning($"[DEST] Initial refresh failed: {ex.Message}");
+            }
         }
         catch (Exception ex)
         {
             Logger.Warning($"[ROUTER] Deferred route bootstrap failed: {ex.Message}");
         }
+    }
+
+    private TunnelDnsResolveOptions? CreateTunnelDnsResolveOptions()
+    {
+        if (!_isRunning || !_routeBootstrapReady)
+            return null;
+
+        if (!IPAddress.TryParse(_vpnLocalIp, out var bindIp))
+            return null;
+
+        return new TunnelDnsResolveOptions
+        {
+            BindLocalAddress = bindIp,
+            PreferDohFirst = true,
+            TunnelOnly = true,
+            Timeout = TimeSpan.FromSeconds(12)
+        };
     }
 
     /// <summary>
@@ -1011,6 +1040,7 @@ public partial class TrafficRouterService : IDisposable
 
         Logger.Info("TrafficRouter stopping...");
         _isRunning = false;
+        _routeBootstrapReady = false;
         _cts?.Cancel();
         _statsTimer?.Dispose();
         _statsTimer = null;
